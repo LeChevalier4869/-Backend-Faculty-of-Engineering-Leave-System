@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  APPROVER
+  ADMIN
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Users {
+  id                 Int     @id @default(autoincrement())
+  firstName          String
+  lastName           String
+  email              String  @unique
+  password           String
+  role               Role
+  position           String
+  profilePicturePath String?
+  hireYear          Int
+
+  levelId         Int
+  personnelTypeId Int
+  departmentId    Int
+
+  level         Levels         @relation(fields: [levelId], references: [id])
+  personnelType PersonnelTypes @relation(fields: [personnelTypeId], references: [id])
+  department    Departments    @relation(fields: [departmentId], references: [id])
+
+  LeaveRequests           LeaveRequests[]
+  LeaveBalances           LeaveBalances[]
+  Notifications           Notifications[]
+  ApprovalStepsAsApprover ApprovalSteps[] @relation("ApprovalStepApprover")
+  ApprovalStepsAsReviewer ApprovalSteps[] @relation("ApprovalStepReviewedBy")
+  AuditLogs               AuditLogs[]
+}
+
+model Levels {
+  id    Int    @id @default(autoincrement())
+  level String
+
+  Users Users[]
+}
+
+model Departments {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  Users Users[]
+}
+
+model PersonnelTypes {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  Users Users[]
+}
+
+model LeaveTypes {
+  id         Int    @id @default(autoincrement())
+  name       String
+  maxDays    Int
+  conditions String
+
+  LeaveRequests LeaveRequests[]
+  LeaveBalances LeaveBalances[]
+}
+
+model LeaveRequests {
+  id          Int         @id @default(autoincrement())
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  status      LeaveStatus @default(PENDING)
+  isEmergency Boolean
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  userId      Int
+  leaveTypeId Int
+
+  user      Users      @relation(fields: [userId], references: [id])
+  leaveType LeaveTypes @relation(fields: [leaveTypeId], references: [id])
+
+  ApprovalSteps ApprovalSteps[]
+  Attachments   Attachments[]
+  AuditLogs     AuditLogs[]
+}
+
+model LeaveBalances {
+  id        Int @id @default(autoincrement())
+  year      Int
+  totalDays Int
+  usedDays  Int @default(0)
+
+  userId      Int
+  leaveTypeId Int
+
+  user      Users      @relation(fields: [userId], references: [id])
+  leaveType LeaveTypes @relation(fields: [leaveTypeId], references: [id])
+}
+
+model Notifications {
+  id        Int      @id @default(autoincrement())
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId Int
+
+  user Users @relation(fields: [userId], references: [id])
+}
+
+model ApprovalSteps {
+  id         Int         @id @default(autoincrement())
+  stepOrder  Int
+  status     LeaveStatus @default(PENDING)
+  reviewedAt DateTime?
+  remarks    String?
+
+  approverId     Int
+  reviewedBy     Int?
+  leaveRequestId Int
+
+  approver       Users         @relation("ApprovalStepApprover", fields: [approverId], references: [id])
+  reviewedByUser Users?        @relation("ApprovalStepReviewedBy", fields: [reviewedBy], references: [id])
+  leaveRequest   LeaveRequests @relation(fields: [leaveRequestId], references: [id])
+}
+
+model Attachments {
+  id         Int      @id @default(autoincrement())
+  fileName   String
+  filePath   String
+  uploadedAt DateTime @default(now())
+
+  leaveRequestId Int
+
+  leaveRequest LeaveRequests @relation(fields: [leaveRequestId], references: [id])
+}
+
+model AuditLogs {
+  id        Int      @id @default(autoincrement())
+  action    String
+  details   Json
+  createdAt DateTime @default(now())
+
+  userId         Int
+  leaveRequestId Int
+
+  user         Users         @relation(fields: [userId], references: [id])
+  leaveRequest LeaveRequests @relation(fields: [leaveRequestId], references: [id])
+}
+
+model Holidays {
+  id          Int      @id @default(autoincrement())
+  name        String
+  date        DateTime
+  description String?
+}
