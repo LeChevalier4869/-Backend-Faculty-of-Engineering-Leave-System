@@ -89,7 +89,7 @@ model LeaveRequests {
   endDate     DateTime
   reason      String?
   status      LeaveStatus @default(PENDING)
-  isEmergency Boolean
+  isEmergency Boolean     @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
