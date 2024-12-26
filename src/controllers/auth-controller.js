@@ -73,8 +73,8 @@ exports.updateProfile = async (req, res) => {
             user: updatedUser,
 
         });
-    } catch {
+    } catch (err) {
         console.log(error);
-        createError(500, 'Failed to update');
+        next(err);
     }
 };
