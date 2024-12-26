@@ -35,9 +35,13 @@ exports.login = async (req, res) => {
     }
 
     // จำเป็นต้องนำเข้าฐานข้อมูลก่อน แล้วรหัสจะทำยังไง?
-    const isMatch = await bcrypt.compare(password, user.password);
-    if(!isMatch) {
-        return createError(401, 'Invalid username or password');
+    // const isMatch = await bcrypt.compare(password, user.password);
+    // if(!isMatch) {
+    //     return createError(401, 'Invalid email or password');
+    // }
+
+    if (user.password !== password) {
+        return createError(401, 'Invalid email or password');
     }
 
     const token = jwt.sign(

@@ -6,6 +6,6 @@ const router = express.Router();
 
 router.post('/login', authController.login);
 router.get('/me', authMiddleware.authenticate, authController.getMe);
-router.put('/update-picture', authMiddleware.authenticate, uploadFile.uploadProfile.single('profilePicture'), authController.updateProfile);
+router.patch('/update-picture', authMiddleware.authenticate, uploadFile.uploadProfile.single('profilePicture'), authController.updateProfile);
 
 module.exports = router;
