@@ -10,7 +10,7 @@ class LeaveBalanceService {
     static async updateLeaveBalance(userId, leaveTypeId, usedDays) {
         const balance = await this.getUserBalance(userId, leaveTypeId);
         if (!balance || balance.totalDays <  usedDays) {
-            return createError(400, 'Leave balance is not enough.');
+            throw createError(400, 'Leave balance is not enough.');
         }
         return await prisma.leaveBalances.update({
             where: { id: balance.id },

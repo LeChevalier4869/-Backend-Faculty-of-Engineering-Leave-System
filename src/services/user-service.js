@@ -7,22 +7,28 @@ class UserService {
             data,
         });
     }
+    static async getUserById(id) {
+        return await prisma.users.findUnique({
+            where: { id },
+            include: { personnelType: true },
+        });
+    }
     static async getUserByEmail(email) {
         return await prisma.users.findUnique({
             where: { email },
         });
     }
-    static async updateUser(userId, data) {
+    static async updateUser(userEmail, data) {
         try {
             const userExists = await prisma.users.findUnique({
-                where: { id: userId },
+                where: { email: userEmail },
             });
             if (!userExists) {
                 createError(404, 'User not found');
             }
 
             const updatedUser = await prisma.users.update({
-                where: { id: userId },
+                where: { email: userEmail },
                 data,
             });
 

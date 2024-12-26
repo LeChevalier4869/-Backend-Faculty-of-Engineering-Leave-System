@@ -46,7 +46,15 @@ exports.login = async (req, res, next) => {
         }
     
         const token = jwt.sign(
-            { id: user.id, role: user.role, email: user.email }, 
+            { 
+                id: user.id,
+                role: user.role, 
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                position: user.position,
+                hireYear: user.hireYear,
+            }, 
             process.env.JWT_SECRET, 
             { expiresIn: process.env.JWT_EXPIRESIN });
         res.status(200).json({ token });
@@ -61,10 +69,10 @@ exports.getMe = async (req, res, next) => {
 
 exports.updateProfile = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userEmail = req.user.email;
         const { profilePicturePath } = req.body;
 
-        const updatedUser = await UserService.updateUser(userId, {
+        const updatedUser = await UserService.updateUser(userEmail, {
             profilePicturePath,
         });
 
@@ -75,6 +83,7 @@ exports.updateProfile = async (req, res) => {
         });
     } catch (err) {
         console.log(error);
+        console.log("email = " + userEmail);
         next(err);
     }
 };
