@@ -26,29 +26,33 @@ const jwt = require('jsonwebtoken');
 //     res.status(201).json({ message: 'User registered successfully' });
 // };
 
-exports.login = async (req, res) => {
-    const { email, password } = req.body;
+exports.login = async (req, res, next) => {
+    try {
+        const { email, password } = req.body;
 
-    const user = await UserService.getUserByEmail(email);
-    if(!user) {
-        return createError(404, 'User not found');
+        const user = await UserService.getUserByEmail(email);
+        if(!user) {
+            return createError(404, 'User not found');
+        }
+    
+        // จำเป็นต้องนำเข้าฐานข้อมูลก่อน แล้วรหัสจะทำยังไง?
+        // const isMatch = await bcrypt.compare(password, user.password);
+        // if(!isMatch) {
+        //     return createError(401, 'Invalid email or password');
+        // }
+    
+        if (user.password !== password) {
+            return createError(401, 'Invalid email or password');
+        }
+    
+        const token = jwt.sign(
+            { id: user.id, role: user.role, email: user.email }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: process.env.JWT_EXPIRESIN });
+        res.status(200).json({ token });
+    } catch (err) {
+        next(err);
     }
-
-    // จำเป็นต้องนำเข้าฐานข้อมูลก่อน แล้วรหัสจะทำยังไง?
-    // const isMatch = await bcrypt.compare(password, user.password);
-    // if(!isMatch) {
-    //     return createError(401, 'Invalid email or password');
-    // }
-
-    if (user.password !== password) {
-        return createError(401, 'Invalid email or password');
-    }
-
-    const token = jwt.sign(
-        { id: user.id, role: user.role }, 
-        process.env.JWT_SECRET, 
-        { expiresIn: process.env.JWT_EXPIRESIN });
-    res.status(200).json({ token });
 };
 
 exports.getMe = async (req, res, next) => {
