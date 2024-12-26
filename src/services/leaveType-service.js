@@ -41,7 +41,7 @@ class LeaveTypeService {
     });
   }
 
-  static async getAllLeaveType() {
+  static async getAllLeaveTypes() {
     return await prisma.leaveTypes.findMany();
   }
 
