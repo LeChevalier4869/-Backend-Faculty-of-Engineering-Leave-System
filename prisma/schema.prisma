@@ -75,7 +75,7 @@ model PersonnelTypes {
 
 model LeaveTypes {
   id         Int    @id @default(autoincrement())
-  name       String
+  name       String @unique
   maxDays    Int
   conditions String
 

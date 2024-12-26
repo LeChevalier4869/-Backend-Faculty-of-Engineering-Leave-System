@@ -15,7 +15,7 @@ const leaveTypeRoute = require('./routes/leaveType-route');
 
 app.use('/auth', authRoute);
 app.use('/leave-requests', leaveRequestRoute);
-app.use('/leave-type', leaveTypeRoute);
+app.use('/leave-types', leaveTypeRoute);
 
 app.use(errorHandler);
 app.use('*', notFoundHandler);
