@@ -21,7 +21,7 @@ leaveType
     - route: /me
 
 ## leave request (/leave-requests)
-- createRequest
+- createRequest (not available)
     - method: post
     - route: /
     - body: { leaveTypeId, startDate, endDate, reason, isEmergency }
