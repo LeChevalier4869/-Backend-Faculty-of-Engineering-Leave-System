@@ -46,3 +46,27 @@ exports.login = async (req, res) => {
         { expiresIn: process.env.JWT_EXPIRESIN });
     res.status(200).json({ token });
 };
+
+exports.getMe = async (req, res, next) => {
+    res.json(req.user);
+};
+
+exports.updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { profilePicturePath } = req.body;
+
+        const updatedUser = await UserService.updateUser(userId, {
+            profilePicturePath,
+        });
+
+        res.status(200).json({
+            message: 'Profile picture updated',
+            user: updatedUser,
+
+        });
+    } catch {
+        console.log(error);
+        createError(500, 'Failed to update');
+    }
+};

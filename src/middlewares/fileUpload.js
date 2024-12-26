@@ -2,10 +2,22 @@ const multer = require('multer');
 const path = require('path');
 const createError = require('../utils/createError');
 
-// สร้าง folder จัดเก็บไฟล์
-const storage = multer.diskStorage({
+// สร้าง folder จัดเก็บภาพ profile
+const storageProfile = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '../../uploads'));
+        cb(null, path.join(__dirname, '../../uploads/profile'));
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const fileExtension = path.extname(file.originalname);
+        cb(null, `${file.fieldname}-${uniqueSuffix}${fileExtension}`);
+    },
+});
+
+// สร้าง folder จัดเก็บภาพ evidence
+const storageEvidence = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, path.join(__dirname, '../../uploads/evidence'));
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -25,10 +37,14 @@ const fileFilter = (req, file, cb) => {
 };
 
 //กำหนดขนาดของไฟล์ (5 MB)
-const upload = multer({
-    storage,
+exports.uploadProfile = multer({
+    storageProfile,
     fileFilter,
     limits: { fileSize: 5 * 1024 * 1024 }, 
 });
 
-module.exports = upload;
+exports.uploadEvidence = multer({
+    storageEvidence,
+    fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 },
+});
