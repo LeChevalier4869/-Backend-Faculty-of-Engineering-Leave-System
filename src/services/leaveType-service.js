@@ -15,19 +15,16 @@ class LeaveTypeService {
   }
 
   static async updateLeaveType(id, updates) {
-    const numID = Number(id);
-    if (isNaN(numID)) {
-      throw createError(400, 'Invalid ID provided');
-    }
     const leaveType = await prisma.leaveTypes.findUnique({
-      where: { id: numID },
+      where: { id },
     });
+
     if (!leaveType) {
-      throw createError(404, `Leave type with ID ${numID} not found`);
+      throw createError(404, `Leave type with ID ${id} not found`);
     }
 
     return await prisma.leaveTypes.update({
-      where: { id: numID },
+      where: { id },
       data: updates,
     });
   }
