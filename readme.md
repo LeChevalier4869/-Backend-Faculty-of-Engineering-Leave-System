@@ -37,12 +37,12 @@ leaveType
     - route: /
     - body: { name, maxDays, conditions }
 
-- updateLeaveType (not available)
+- updateLeaveType 
     - method: put
     - route: /:id
     - params: id
 
-- deleteLeaveType (not available)
+- deleteLeaveType 
     - method: delete
     - route: /:id
     - params: id
@@ -51,7 +51,7 @@ leaveType
     - method: get
     - route: /
 
-- getLeaveTypeById (not available)
+- getLeaveTypeById 
     - method: get
     - route: /:id
     - params: id  
