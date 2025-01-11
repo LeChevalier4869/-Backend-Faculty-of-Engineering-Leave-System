@@ -25,16 +25,24 @@ enum LeaveStatus {
   REJECTED
 }
 
+enum Faculty {
+  INDUSTRIAL_EDUCATION
+  ENGINEERING
+  BUSINESS_ADMINISTRATION
+}
+
 model Users {
   id                 Int     @id @default(autoincrement())
+  prefixName         String
   firstName          String
   lastName           String
   email              String  @unique
   password           String
   role               Role
   position           String
+  faculty            Faculty
   profilePicturePath String?
-  hireYear          Int
+  hireYear           Int
 
   levelId         Int
   personnelTypeId Int
