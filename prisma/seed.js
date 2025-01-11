@@ -6,22 +6,22 @@ async function level() {
     const Individual = await prisma.levels.upsert({
         where: { id: 1 },
         update: {},
-        create: { level: 'Individual' },
+        create: { level: 'ระดับบุคคล' },
     });
     const Advisor = await prisma.levels.upsert({
         where: { id: 2 },
         update: {},
-        create: { level: 'Advisor' },
+        create: { level: 'หัวหน้าภาควิชา' },
     });
     const Faculty = await prisma.levels.upsert({
         where: { id: 3 },
         update: {},
-        create: { level: 'Faculty' },
+        create: { level: 'ระดับคณะ' },
     });
     const University = await prisma.levels.upsert({
         where: { id: 4 },
         update: {},
-        create: { level: 'University' },
+        create: { level: 'ระดับมหาวิทยาลัย' },
     });
 
     console.log({ Individual, Advisor, Faculty, University });
@@ -31,24 +31,22 @@ async function personnelType() {
     const Permanent = await prisma.personnelTypes.upsert({
         where: { id: 1 },
         update: {},
-        create: { name: 'Permanent' },
+        create: { name: 'ลูกจ้างประจำ' },
     });
     const Government = await prisma.personnelTypes.upsert({
         where: { id: 2 },
         update: {},
-        create: { name: 'Government' },
+        create: { name: 'พนักงานราชการ' },
     });
     const EmployeesInHigherEdu = await prisma.personnelTypes.upsert({
         where: { id: 3 },
         update: {},
-        create: { name: 'Employee_in_Higher_Education_Institutions' },
+        create: { name: 'พนักงานในสถาบันอุดมศึกษา' },
     });
     const RevenueBased = await prisma.personnelTypes.upsert({
         where: { id: 4 },
         update: {},
-        create: {
-            name: 'Revenue_Based'
-        },
+        create: { name: 'ลูกจ้างเงินรายได้' },
     });
 
     console.log({ Permanent, Government, EmployeesInHigherEdu, RevenueBased });
@@ -58,72 +56,72 @@ async function department() {
     const Civil = await prisma.departments.upsert({
         where: { id: 1 },
         update: {},
-        create: { name: 'Civil_Engineering' },
+        create: { name: 'สาขาวิชาวิศวกรรมโยธา' },
     });
     const Electrical = await prisma.departments.upsert({
         where: { id: 2 },
         update: {},
-        create: { name: 'Electrical_Engineering' },
+        create: { name: 'สาขาวิชาวิศวกรรมไฟฟ้า' },
     });
     const Electronics = await prisma.departments.upsert({
         where: {id: 3},
         update: {},
-        create: { name: 'Electronics_Engineering' },
+        create: { name: 'สาขาวิชาวิศวกรรมอิเล็กทรอนิกส์ฯ' },
     });
     const Computer = await prisma.departments.upsert({
         where: {id: 4},
         update: {},
-        create: { name: 'Computer_Engineering' },
+        create: { name: 'สาขาวิชาวิศวกรรมคอมพิวเตอร์' },
     });
     const Mechatronics = await prisma.departments.upsert({
         where: {id: 5},
         update: {},
-        create: {name: 'Mechatronics_Engineering'},
+        create: {name: 'สาขาวิชาวิศวกรรมเมคคาทรอนิกส์'},
     });
     const Mechanical = await prisma.departments.upsert({
         where: {id: 6},
         update: {},
-        create: {name: 'Mechanical_Engineering'},
+        create: {name: 'สาขาวิชาวิศวกรรมเครื่องกล'},
     });
     const AgriculturalMachinery = await prisma.departments.upsert({
         where: {id: 7},
         update: {},
-        create: {name: 'Agricultural_Machinery_Engineering'},
+        create: {name: 'สาขาวิชาวิศวกรรมเครื่องจักรกลเกษตร'},
     });
     const FoodAndBioprocess = await prisma.departments.upsert({
         where: {id: 8},
         update: {},
-        create: {name: 'Food_and_Bioprocess_Engineering'},
+        create: {name: 'สาขาวิชาวิศวกรรมอาหารและชีวภาพ'},
     });
     const Industrial = await prisma.departments.upsert({
         where: {id: 9},
         update: {},
-        create: {name: 'Industrial_Engineering'},
+        create: {name: 'สาขาวิชาวิศวกรรมอุตสาหการ'},
     });
     const Metallurgical = await prisma.departments.upsert({
         where: {id: 10},
         update: {},
-        create: {name: 'Metallurgical_Engineering'},
+        create: {name: 'สาขาวิชาวิศวกรรมโลหการ'},
     });
     const Chemistry = await prisma.departments.upsert({
         where: {id: 11},
         update: {},
-        create: {name: 'Chemistry'},
+        create: {name: 'สาขาวิชาสาขาวิชาเคมี'},
     });
     const Mathematics = await prisma.departments.upsert({
         where: {id: 12},
         update: {},
-        create: {name: 'Mathematics'},
+        create: {name: 'สาขาวิชาคณิตศาสตร์'},
     });
     const AppliedPhysics = await prisma.departments.upsert({
         where: {id: 13},
         update: {},
-        create: {name: 'Applied_Physics'},
+        create: {name: 'สาขาวิชาฟิสิกส์ประยุกต์'},
     });
     const AppliedStatistics = await prisma.departments.upsert({
         where: {id: 14},
         update: {},
-        create: {name: 'Applied_Statistics'},
+        create: {name: 'สาขาวิชาสถิติประยุกต์'},
     });
 
     console.log({ Civil, Electrical, Electronics, Computer, Mechatronics, Mechanical, AgriculturalMachinery, FoodAndBioprocess, Industrial, Metallurgical, Chemistry, Mathematics, AppliedPhysics, AppliedStatistics });
