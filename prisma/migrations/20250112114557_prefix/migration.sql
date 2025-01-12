@@ -1,12 +1,14 @@
 -- CreateTable
 CREATE TABLE `Users` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `prefixName` VARCHAR(191) NOT NULL,
     `firstName` VARCHAR(191) NOT NULL,
     `lastName` VARCHAR(191) NOT NULL,
     `email` VARCHAR(191) NOT NULL,
     `password` VARCHAR(191) NOT NULL,
     `role` ENUM('USER', 'APPROVER', 'ADMIN') NOT NULL,
     `position` VARCHAR(191) NOT NULL,
+    `faculty` ENUM('INDUSTRIAL_EDUCATION', 'ENGINEERING', 'BUSINESS_ADMINISTRATION') NOT NULL,
     `profilePicturePath` VARCHAR(191) NULL,
     `hireYear` INTEGER NOT NULL,
     `levelId` INTEGER NOT NULL,
@@ -48,6 +50,7 @@ CREATE TABLE `LeaveTypes` (
     `maxDays` INTEGER NOT NULL,
     `conditions` VARCHAR(191) NOT NULL,
 
+    UNIQUE INDEX `LeaveTypes_name_key`(`name`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -58,7 +61,7 @@ CREATE TABLE `LeaveRequests` (
     `endDate` DATETIME(3) NOT NULL,
     `reason` VARCHAR(191) NULL,
     `status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
-    `isEmergency` BOOLEAN NOT NULL,
+    `isEmergency` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
     `userId` INTEGER NOT NULL,

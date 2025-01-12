@@ -16,6 +16,10 @@ class UserService {
     static async getUserByEmail(email) {
         return await prisma.users.findUnique({
             where: { email },
+            include: {
+                personnelType: true,
+                department: true,
+            }
         });
     }
     static async updateUser(userEmail, data) {

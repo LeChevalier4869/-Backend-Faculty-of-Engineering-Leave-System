@@ -28,23 +28,28 @@ async function level() {
 }
 
 async function personnelType() {
-    const Permanent = await prisma.personnelTypes.upsert({
+    const CivilServants = await prisma.personnelTypes.upsert({
         where: { id: 1 },
+        update: {},
+        create: { name: "ข้าราชการพลเรือนในสถาบันอุดมศึกษา" }  
+    });
+    const Permanent = await prisma.personnelTypes.upsert({
+        where: { id: 2 },
         update: {},
         create: { name: 'ลูกจ้างประจำ' },
     });
     const Government = await prisma.personnelTypes.upsert({
-        where: { id: 2 },
+        where: { id: 3 },
         update: {},
         create: { name: 'พนักงานราชการ' },
     });
     const EmployeesInHigherEdu = await prisma.personnelTypes.upsert({
-        where: { id: 3 },
+        where: { id: 4 },
         update: {},
         create: { name: 'พนักงานในสถาบันอุดมศึกษา' },
     });
     const RevenueBased = await prisma.personnelTypes.upsert({
-        where: { id: 4 },
+        where: { id: 5 },
         update: {},
         create: { name: 'ลูกจ้างเงินรายได้' },
     });
@@ -127,6 +132,66 @@ async function department() {
     console.log({ Civil, Electrical, Electronics, Computer, Mechatronics, Mechanical, AgriculturalMachinery, FoodAndBioprocess, Industrial, Metallurgical, Chemistry, Mathematics, AppliedPhysics, AppliedStatistics });
 }
 
+async function leaveType() {
+    // not complete
+    const SickLeave = await prisma.leaveTypes.upsert({
+        where: { id: 1 },
+        update: {},
+        create: { 
+            data: {
+                name: 'ลาป่วย',
+                maxDays: 30,
+                conditions: JSON.stringify({
+                    requireDocument: { minDays: 2, documentType: 'ใบรับรองแพทย์' },
+                    advanceNoticeDays: { required: false, ifKnown: 3 },
+                    maxDaysPerRequest: 7,
+                    maxDaysPerYear: 30,
+                    allowEmergency: true,
+                    emergencyPolicy: { notifyLater: true, gracePeriodDays: 3 }
+                })
+            }
+         }
+    });
+    // ลูกจ้างประจำ 
+    const PersonalLeave = await prisma.leaveTypes.upsert({
+        where: { id: 2 },
+        update: {},
+        create: {
+            data: {
+                name: 'ลากิจส่วนตัว',
+                maxDays: 45,
+                conditions: JSON.stringify({
+                    requireDocument: {
+                        mandatory: true,
+                        forReasons: ["เลี้ยงดูบุตร", "งานส่วนตัว", "ธุระสำคัญ"],
+                        documentTypes: ["ใบลา", "เอกสารชี้แจง"]
+                    },
+                    advanceNoticeDays: { required: true, days: 3 },
+                    maxDaysPerRequest: 5,
+                    maxDaysPerYear: 45,
+                    allowEmergency: true,
+                    emergencyPolicy: { notifyLater: true, gracePeriodDays: 1 }, 
+                    limitedReasons: ["เลี้ยงดูบุตร", "ธุระส่วนตัว"],
+                    disallowedReasons: ["ท่องเที่ยว", "เหตุผลส่วนตัวที่ไม่จำเป็น"],
+                    specialConditions: {
+                        firstYear: {
+                            maxDaysPerYear: 15,
+                            allowedWithoutPay: true,
+                        },
+                        afterFirstYear: {
+                            additionalDays: 30,
+                            allowedWithPay: true,
+                        },
+                        maternityToChildcare: {
+                            maxDays: 150,
+                            allowedWithoutPay: true,
+                        }
+                    }
+                })
+            }
+        }
+    });
+}
 
 async function main() {
     await level();

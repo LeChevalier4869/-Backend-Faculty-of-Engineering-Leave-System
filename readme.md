@@ -21,15 +21,26 @@ leaveType
     - route: /me
 
 ## leave request (/leave-requests)
-- createRequest (not available)
+- createRequest 
     - method: post
     - route: /
     - body: { leaveTypeId, startDate, endDate, reason, isEmergency }
 
-- updateStatus (not available)
+- updateStatus 
     - method: patch
     - route: /status
     - body: { requestId, status }
+
+- getLeaveRequest
+    - method: get
+    - route: /
+    - query: { requestId, userId }
+
+- updateLeaveRequest
+    - method: patch
+    - route: /
+    - params: { requestId }
+    - body: { requestId, reason, startDate, endDate, isEmergency }
 
 ## leave type (/leave-types)
 - createLeaveType
