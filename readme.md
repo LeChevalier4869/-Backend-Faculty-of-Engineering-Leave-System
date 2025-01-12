@@ -36,6 +36,10 @@ leaveType
     - route: /
     - query: { requestId, userId }
 
+- getLeaveRequestIsMine
+    - method: get
+    - route: /me
+
 - updateLeaveRequest
     - method: patch
     - route: /

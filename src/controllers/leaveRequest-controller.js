@@ -66,6 +66,26 @@ exports.getLeaveRequest = async (req, res, next) => {
     }
 };
 
+exports.getLeaveRequestIsMine = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const leaveRequests = await LeaveRequestService.getRequests({
+            userId: userId
+        });
+
+        if (!leaveRequests) {
+            throw createError(404, 'Leave request not found');
+        }
+
+        res.status(200).json({
+            message: 'Leave request retrieved',
+            data: leaveRequests
+        })
+    } catch (err) {
+        next (err);
+    }
+};
+
 exports.updateLeaveRequest = async (req, res, next) => {
     try {
         const { requestId } = req.params;
