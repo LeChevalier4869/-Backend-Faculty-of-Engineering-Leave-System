@@ -4,7 +4,7 @@ const createError = require('../utils/createError');
 class LeaveBalanceService {
     static async getUserBalance(userId, leaveTypeId) {
         return await prisma.leaveBalances.findFirst({
-            where: { userId, leaveTypeId },
+            where: { userId, leaveTypeId: parseInt(leaveTypeId) },
         });
     }
     static async updateLeaveBalance(userId, leaveTypeId, usedDays) {

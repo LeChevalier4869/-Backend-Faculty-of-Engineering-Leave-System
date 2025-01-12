@@ -40,7 +40,7 @@ class LeaveRequestService {
         return await prisma.leaveRequests.create({
             data: {
                 userId,
-                leaveTypeId,
+                leaveTypeId: parseInt(leaveTypeId),
                 startDate: new Date(startDate),
                 endDate: new Date(endDate),
                 reason,

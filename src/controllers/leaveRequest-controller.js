@@ -6,10 +6,21 @@ const createError = require('../utils/createError');
 exports.createLeaveRequest = async (req, res, next) => {
     try {
         const { leaveTypeId, startDate, endDate, reason, isEmergency} = req.body;
+        console.log("req.user.id = " + req.user.id);
         const leaveBalance = await LeaveBalanceService.getUserBalance(req.userId, leaveTypeId);
         const requestedDays = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24) + 1;
         if (requestedDays > leaveBalance.totalDays - leaveBalance.usedDays) {
             return createError(400, 'Leave balance is not enough');
+        }
+
+        if (!leaveBalance) {
+            throw createError(404, `Leave balance not found`);
+        }
+
+        console.log(req.body);
+        console.log(leaveTypeId);
+        if (!leaveTypeId) {
+            throw createError(400, 'Leave type ID is required');
         }
     
         const leaveRequest = await LeaveRequestService.createRequest(req.user.id, leaveTypeId, startDate, endDate, reason, isEmergency);

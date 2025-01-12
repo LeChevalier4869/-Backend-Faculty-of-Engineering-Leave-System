@@ -16,7 +16,7 @@ class LeaveTypeService {
 
   static async updateLeaveType(id, updates) {
     const leaveType = await prisma.leaveTypes.findUnique({
-      where: { id },
+      where: { id: Number(id) },
     });
 
     if (!leaveType) {
@@ -24,21 +24,21 @@ class LeaveTypeService {
     }
 
     return await prisma.leaveTypes.update({
-      where: { id },
+      where: { id: Number(id) },
       data: updates,
     });
   }
 
   static async deleteLeaveType(id) {
     const leaveType = await prisma.leaveTypes.findUnique({
-      where: { id },
+      where: { id: Number(id) },
     });
     if (!leaveType) {
       throw createError(404, `Leave type with ID ${id} not found`);
     }
 
     return await prisma.leaveTypes.delete({
-      where: { id },
+      where: { id: Number(id) },
     });
   }
 
@@ -47,8 +47,11 @@ class LeaveTypeService {
   }
 
   static async getLeaveTypeByID(id) {
+    if (isNaN(id)) {
+      throw createError(400, `Invalid leave type ID: ${id}`);
+    }
     const leaveType = await prisma.leaveTypes.findUnique({
-      where: { id },
+      where: { id: Number(id) },
     });
     if (!leaveType) {
       throw createError(404, `Leave type with ID ${id} not found`);
