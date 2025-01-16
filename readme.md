@@ -79,6 +79,21 @@ leaveType
     - route: /:id/reject
     - params: id
 
+- deleteRequest
+    - method: delete
+    - route: /:id
+    - params: id
+
+- updateRequest
+    - method: patch
+    - route: /:id
+    - params: id
+    - body: updateData
+
+- getRequestLanding (PENDING)
+    - method: get
+    - route: /landing
+
 ## leave type (/leave-types)
 - createLeaveType
     - method: post
@@ -103,3 +118,8 @@ leaveType
     - method: get
     - route: /:id
     - params: id  
+
+## leave balance (/leave-balances)
+- getLeaveBalance
+    - method: get
+    - route: /

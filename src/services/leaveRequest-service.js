@@ -245,6 +245,9 @@ class LeaveRequestService {
             return await prisma.leaveRequests.findMany({
                 where: {
                     status: 'PENDING',
+                },
+                include: {
+                    leaveType: true,
                 }
             });
         } catch (err) {
