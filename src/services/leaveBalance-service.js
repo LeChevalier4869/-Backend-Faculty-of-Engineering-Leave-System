@@ -17,6 +17,18 @@ class LeaveBalanceService {
             data: { usedDays: balance.usedDays + usedDays },
         });
     }
+    static async getByUserId(userId) {
+        try {
+            return await prisma.leaveBalances.findMany({
+                where: { userId: userId },
+                include: {
+                    leaveType: true,
+                }
+            });
+        } catch (err) {
+            throw createError(404, 'Leave balance not found');
+        }
+    }
 }
 
 module.exports = LeaveBalanceService;
