@@ -242,7 +242,11 @@ class LeaveRequestService {
     }
     static async getLanding() {
         try {
-            return await prisma.leaveRequests.findMany({});
+            return await prisma.leaveRequests.findMany({
+                where: {
+                    status: 'PENDING',
+                }
+            });
         } catch (err) {
             throw new Error("Leave requests not found");
         }
