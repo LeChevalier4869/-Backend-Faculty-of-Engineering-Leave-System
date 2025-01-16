@@ -38,6 +38,7 @@ exports.register = async (req, res, next) => {
         if (userExist) {
             throw createError(400, "มีบัญชีที่ใช้อีเมลนี้แล้ว");
         }
+        console.log(userExist)
 
         const passwordHash = await bcrypt.hash(password, 10);
 
