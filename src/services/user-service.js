@@ -55,6 +55,16 @@ class UserService {
             throw new Error('Error for landing');
         }
     }
+    static async updateUserRole(userId, userRole) {
+        try {
+            return await prisma.users.update({
+                where: { id: userId },
+                data: { role: userRole },
+            });
+        } catch (err) {
+            throw new Error('Update user role error');
+        }
+    }
 }
 
 module.exports = UserService;

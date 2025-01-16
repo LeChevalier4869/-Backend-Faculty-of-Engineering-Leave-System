@@ -43,6 +43,12 @@ leaveType
     - method: get
     - route: /landing
 
+- updateUserRole
+    - method: post
+    - route: /:id/role
+    - params: id
+    - body: { role }
+
 ## leave request (/leave-requests)
 - createRequest 
     - method: post

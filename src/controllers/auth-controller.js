@@ -3,6 +3,8 @@ const createError = require('../utils/createError');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cloudUpload = require('../utils/cloudinary');
+const multer = require('multer');
+const upload = multer();
 
 exports.register = async (req, res, next) => {
     try {
@@ -150,3 +152,23 @@ exports.updateProfile = async (req, res, next) => {
         next(err);
     }
 };
+
+exports.updateUserRole = [ upload.none(), async (req, res, next) => {
+    const userId = parseInt(req.params.id);
+    const { role } = req.body;
+    const userRole = role.toUpperCase();
+    try {
+        if (!userId || isNaN(userId)) {
+            return createError(400, 'Invalid user ID');
+        }
+        if (!role) {
+            return createError(400, 'Role is required')
+        }
+
+        const updatedRole = await UserService.updateUserRole(userId, userRole);
+
+        res.status(200).json({ updatedRole });
+    } catch (err) {
+        next(err);
+    }
+}];

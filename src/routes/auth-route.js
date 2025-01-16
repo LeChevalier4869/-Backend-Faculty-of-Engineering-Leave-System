@@ -8,6 +8,7 @@ router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.get('/me', authMiddleware.authenticate, authController.getMe);
 router.get('/landing', authController.userLanding);
+router.post('/:id/role', authController.updateUserRole);
 
 // error
 router.patch('/update-picture', authMiddleware.authenticate, uploadFile.uploadProfile.single('profilePicturePath'), authController.updateProfile);
