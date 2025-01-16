@@ -15,7 +15,6 @@ exports.createLeaveType = async (req, res, next) => {
   }
 };
 
-// not avaliable when use id
 exports.updateLeaveType = async (req, res, next) => {
   try {
     const { id } = req.params;

@@ -3,6 +3,9 @@ const createError = require('../utils/createError');
 const UserService = require('../services/user-service');
 const LeaveTypeService = require('../services/leaveType-service');
 
+// ในการ update leave request สามารถใช้ updateRequestStatus ได้แบบ Dynamics
+// หรือ แยกแบบ approved or rejected ได้ที่ approved or rejected method
+
 class LeaveRequestService {
     static async createRequest(userId, leaveTypeId, startDate, endDate, reason, isEmergency) {
         //cal request day
@@ -140,6 +143,92 @@ class LeaveRequestService {
 
         } catch (error) {
             throw createError(500, `Failed to update leave request: ${error.message}`);
+        }
+    }
+    static async approveRequest(requestId, approverId) {
+        try {
+            const approvedRequest = await prisma.leaveRequests.update({
+                where: { id: requestId },
+                data: {
+                    status: 'APPROVED',
+                    ApprovalSteps: {
+                        create: {
+                            stepOrder: 1,
+                            status: 'APPROVED',
+                            approverId: approverId, //คนที่เข้าสู่ระบบจะเป็นคนอนุมัติ
+                        },
+                    },
+                },
+            });
+
+            await prisma.auditLogs.create({
+                data: {
+                    action: 'Approved leave request',
+                    details: {
+                        leaveRequestId: requestId,
+                        status: 'APPROVED',
+                    },
+                    user: {
+                        connect: {
+                            id: approverId,
+                        },
+                    },
+                    leaveRequest: {
+                        connect: {
+                            id: requestId,
+                        },
+                    },
+                },
+            });
+
+            return approvedRequest;
+        } catch (err) {
+            console.error(err);
+            throw new Error('Error updating leave request status');
+        }
+    }
+    static async rejectRequest(requestId, remarks, approverId) {
+        try {
+            const rejectRequest = await prisma.leaveRequests.update({
+                where: { id: requestId },
+                data: {
+                    status: 'REJECTED',
+                    ApprovalSteps: {
+                        create: {
+                            stepOrder: 1,
+                            status: 'REJECTED',
+                            remarks: String(remarks),
+                            approverId: approverId,
+                        },
+                    },
+                },
+            });
+
+            await prisma.auditLogs.create({
+                data: {
+                    action: 'Rejected leave request',
+                    details: {
+                        leaveRequestId: requestId,
+                        status: 'REJECTED',
+                        remarks: String(remarks),
+                    },
+                    user: {
+                        connect: {
+                            id: approverId,
+                        },
+                    },
+                    leaveRequest: {
+                        connect: {
+                            id: requestId,
+                        },
+                    },
+                },
+            });
+
+            return rejectRequest;
+        } catch (err) {
+            console.error(err);
+            throw new Error('Error updating leave request status');
         }
     }
 }

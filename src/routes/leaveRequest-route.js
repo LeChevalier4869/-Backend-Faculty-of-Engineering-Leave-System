@@ -1,12 +1,13 @@
 const express = require('express');
 const leaveRequestController = require('../controllers/leaveRequest-controller');
-const authMiddleware = require('../middlewares/auth');
 const router = express.Router();
 
-router.get('/', authMiddleware.authenticate, leaveRequestController.getLeaveRequest);
-router.get('/me', authMiddleware.authenticate, leaveRequestController.getLeaveRequestIsMine);
-router.post('/', authMiddleware.authenticate, leaveRequestController.createLeaveRequest);
-router.patch('/:requestId', authMiddleware.authenticate, leaveRequestController.updateLeaveRequest);
-router.patch('/status', authMiddleware.authenticate, leaveRequestController.updateLeaveStatus);
+router.get('/', leaveRequestController.getLeaveRequest);
+router.get('/me', leaveRequestController.getLeaveRequestIsMine);
+router.post('/', leaveRequestController.createLeaveRequest);
+router.patch('/:id', leaveRequestController.updateLeaveRequest);
+router.patch('/status', leaveRequestController.updateLeaveStatus);
+router.post('/:id/approve', leaveRequestController.approveLeaveRequest);
+router.post('/:id/reject', leaveRequestController.rejectLeaveRequest);
 
 module.exports = router;

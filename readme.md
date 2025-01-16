@@ -11,6 +11,25 @@ leaveType
 
 #API
 ## Auth (/auth)
+- register (not yet for form-data)
+    - method: post
+    - route: /register
+    - body: { 
+        prefixName, 
+        firstName, 
+        lastName, 
+        email, 
+        password, 
+        role,
+        position,
+        faculty,
+        hireYear,
+        levelId,
+        personnelTypeId,
+        departmentId,
+        profilePicturePath 
+        }
+
 - login
     - method: post
     - route: /login

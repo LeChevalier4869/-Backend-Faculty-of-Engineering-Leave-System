@@ -130,3 +130,37 @@ exports.updateLeaveRequest = async (req, res, next) => {
         next(err)
     }
 };
+
+exports.approveLeaveRequest = async (req, res, next) => {
+    try {
+        const leaveRequestId = parseInt(req.params.id);
+        const approverId = req.user.id;
+
+        const updatedLeaveRequest = await LeaveRequestService.approveRequest(leaveRequestId, approverId);
+
+        res.status(200).json({
+            message: 'Leave request approved',
+            leaveRequestId: updatedLeaveRequest,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.rejectLeaveRequest = async (req, res, next) => {
+    try {
+        const leaveRequestId = parseInt(req.params.id);
+        const { remarks } = req.body;
+        const approverId = req.user.id
+
+        const updatedLeaveRequest = await LeaveRequestService.rejectRequest(leaveRequestId, remarks, approverId);
+
+        res.status(200).json({
+            message: 'Leave request rejected',
+            leaveRequest: updatedLeaveRequest,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+

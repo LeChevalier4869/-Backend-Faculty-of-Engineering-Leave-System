@@ -41,6 +41,20 @@ class UserService {
             createError(400, 'Failed to update');
         }
     }
+    static async getUserLanding() {
+        try {
+            const user = await prisma.users.findMany({
+                include: {
+                    personnelType: true,
+                    department: true,
+                },
+            });
+
+            return user.map(({ password, ...rest }) => rest);
+        } catch (err) {
+            throw new Error('Error for landing');
+        }
+    }
 }
 
 module.exports = UserService;
