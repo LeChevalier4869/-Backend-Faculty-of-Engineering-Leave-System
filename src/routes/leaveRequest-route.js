@@ -9,5 +9,6 @@ router.patch('/:id', leaveRequestController.updateLeaveRequest);
 router.patch('/status', leaveRequestController.updateLeaveStatus);
 router.post('/:id/approve', leaveRequestController.approveLeaveRequest);
 router.post('/:id/reject', leaveRequestController.rejectLeaveRequest);
+router.delete('/:id', leaveRequestController.deleteLeaveRequest);
 
 module.exports = router;

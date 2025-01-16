@@ -122,23 +122,11 @@ class LeaveRequestService {
             where: { id: parseInt(requestId) }
         });
     }
-    static async updateRequest(requestId, reason, startDate, endDate, isEmergency) {
+    static async updateRequest(requestId, updateData) {
         try {
-            const leaveRequest = await prisma.leaveRequests.findUnique({
-                where: { id: parseInt(requestId) }
-            });
-            if (!leaveRequest) {
-                throw createError(404, 'Leave request not found');
-            }
-
             return await prisma.leaveRequests.update({
-                where: { id: parseInt(requestId) },
-                data: {
-                    reason,
-                    startDate: new Date(startDate),
-                    endDate: new Date(endDate),
-                    isEmergency
-                }
+                where: { id: requestId },
+                data: updateData
             });
 
         } catch (error) {
@@ -229,6 +217,27 @@ class LeaveRequestService {
         } catch (err) {
             console.error(err);
             throw new Error('Error updating leave request status');
+        }
+    }
+    static async deleteRequest(requestId) {
+        try {
+            const leaveRequest = await prisma.leaveRequests.findUnique({
+                where: {
+                    id: requestId,
+                },
+            });
+
+            if (!leaveRequest) {
+                return null;
+            }
+
+            await prisma.leaveRequests.delete({
+                where: { id: requestId }
+            });
+
+            return true;
+        } catch (err) {
+            throw new Error('Error to delete leave request');
         }
     }
 }

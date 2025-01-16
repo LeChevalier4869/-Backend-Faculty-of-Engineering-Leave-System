@@ -39,6 +39,10 @@ leaveType
     - method: get
     - route: /me
 
+- userLanding
+    - method: get
+    - route: /landing
+
 ## leave request (/leave-requests)
 - createRequest 
     - method: post
@@ -64,6 +68,16 @@ leaveType
     - route: /
     - params: { requestId }
     - body: { requestId, reason, startDate, endDate, isEmergency }
+
+- approveRequest
+    - method: post
+    - route: /:id/approve
+    - params: id
+
+- rejectRequest
+    - method: post
+    - route: /:id/reject
+    - params: id
 
 ## leave type (/leave-types)
 - createLeaveType

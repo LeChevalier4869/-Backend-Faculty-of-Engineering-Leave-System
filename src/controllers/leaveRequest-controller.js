@@ -2,6 +2,8 @@ const LeaveRequestService = require('../services/leaveRequest-service');
 const LeaveBalanceService = require('../services/leaveBalance-service');
 const AuditLogService = require('../services/auditLog-service');
 const createError = require('../utils/createError');
+const multer = require('multer');
+const upload = multer();
 
 exports.createLeaveRequest = async (req, res, next) => {
     try {
@@ -97,39 +99,28 @@ exports.getLeaveRequestIsMine = async (req, res, next) => {
     }
 };
 
-exports.updateLeaveRequest = async (req, res, next) => {
+exports.updateLeaveRequest = [ upload.none(), async (req, res, next) => {
+    const leaveRequestId = parseInt(req.params.id);
+    const updateData = req.body;
     try {
-        const { requestId } = req.params;
-        const { reason, startDate, endDate, isEmergency } = req.body;
-
-        if (!Date.parse(startDate) || !Date.parse(endDate)) {
-            return res.status(400).json({ message: 'Invalid date format' });
-        }
-
-        const leaveRequest = await LeaveRequestService.getRequestsById(requestId);
+        const leaveRequest = await LeaveRequestService.getRequestsById(leaveRequestId);
         if (!leaveRequest) {
-            return createError(404, 'Leave request not found');
+            throw createError(404, 'Leave request not found');
         }
-        if (req.user.role === 'USER' && leaveRequest.userId !== req.user.id) {
-            return createError(403, 'You are not allowed to update');
+        if (leaveRequest.userId !== req.user.id) {
+            throw createError(403, 'You are not allowed to update');
         }
 
-        const updateRequest = await LeaveRequestService.updateRequest(
-            requestId,
-            reason,
-            startDate,
-            endDate,
-            isEmergency
-        );
+        const updateRequest = await LeaveRequestService.updateRequest(leaveRequestId, updateData);
         res.status(200).json({
             message: 'Leave request updated',
             data: updateRequest
         });
 
     } catch (err) {
-        next(err)
+        next(err);
     }
-};
+}];
 
 exports.approveLeaveRequest = async (req, res, next) => {
     try {
@@ -159,6 +150,22 @@ exports.rejectLeaveRequest = async (req, res, next) => {
             message: 'Leave request rejected',
             leaveRequest: updatedLeaveRequest,
         });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.deleteLeaveRequest = async (req, res, next) => {
+    const leaveRequestId = parseInt(req.params.id);
+
+    try {
+        const result = await LeaveRequestService.deleteRequest(leaveRequestId);
+
+        if (!result) {
+            return createError(404, 'Leave request not found');
+        }
+
+        res.status(200).json({ message: 'Leave request deleted' });
     } catch (err) {
         next(err);
     }
