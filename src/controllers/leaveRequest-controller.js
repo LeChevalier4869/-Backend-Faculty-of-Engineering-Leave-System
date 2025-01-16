@@ -171,3 +171,14 @@ exports.deleteLeaveRequest = async (req, res, next) => {
     }
 };
 
+exports.getLeaveRequestLanding = async (req, res, next) => {
+    try {
+        const leaveRequest = await LeaveRequestService.getLanding();
+        if (!leaveRequest) {
+            throw createError(404, 'Leave request not found');
+        }
+        res.status(200).json({ leaveRequest });
+    } catch (err) {
+        next(err);
+    }
+};

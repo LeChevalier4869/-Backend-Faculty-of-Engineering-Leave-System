@@ -240,6 +240,13 @@ class LeaveRequestService {
             throw new Error('Error to delete leave request');
         }
     }
+    static async getLanding() {
+        try {
+            return await prisma.leaveRequests.findMany({});
+        } catch (err) {
+            throw new Error("Leave requests not found");
+        }
+    }
 }
 
 module.exports = LeaveRequestService;
