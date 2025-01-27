@@ -72,17 +72,18 @@ model Users {
 }
 
 model User_Role {
-  id     Int @id @default(autoincrement())
   userId Int
   roleId Int
 
   user Users @relation(fields: [userId], references: [id])
   role Roles @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
 }
 
 model Roles {
   id          Int     @id @default(autoincrement())
-  name        Role
+  name        String  @unique
   description String?
 
   User_Role User_Role[]
@@ -175,11 +176,11 @@ model LeaveBalances {
 }
 
 model Notifications {
-  id        Int        @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   type      String //ประเภทการแจ้งเตือน เช่น การลาอนุมัติ, การลาปฏิเสธ
   message   String
-  isRead    Boolean    @default(false)
-  createdAt DateTime   @default(now())
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   userId Int
 
@@ -214,11 +215,11 @@ model Attachments {
 }
 
 model AuditLogs {
-  id        Int          @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   type      String //created, updated, deleted
   action    String
   details   Json
-  createdAt DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   userId         Int
   leaveRequestId Int

@@ -14,4 +14,15 @@ const authenticate = (req, res, next) => {
     }
 };
 
-module.exports = { authenticate };
+const authorize = (requiredRoles) => (req, res, next) => {
+    const userRoles = req.user.roles.map(role => role.name);
+    const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role));
+
+    if (!hasRequiredRole) {
+        return next(createError(403, 'Forbidden'));
+    }
+
+    next();
+};
+
+module.exports = { authenticate, authorize };

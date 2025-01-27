@@ -3,6 +3,10 @@ const createError = require('../utils/createError');
 
 class UserService {
     static async createUser(data) {
+        if (data.hireDate) {
+            data.hireDate = new Date(data.hireDate);
+        }
+
         return await prisma.users.create({
             data,
         });
@@ -18,6 +22,7 @@ class UserService {
             where: { email },
             include: {
                 personnelType: true,
+                organization: true,
                 department: true,
             }
         });
@@ -55,15 +60,31 @@ class UserService {
             throw new Error('Error for landing');
         }
     }
-    static async updateUserRole(userId, userRole) {
-        try {
-            return await prisma.users.update({
-                where: { id: userId },
-                data: { role: userRole },
-            });
-        } catch (err) {
-            throw new Error('Update user role error');
-        }
+    static async updateUserRole(userId, roleIds) {
+        await prisma.user_Role.deleteMany({
+            where: { userId },
+        });
+        const userRoles = roleIds.map(roleId => ({
+            userId,
+            roleId,
+        }));
+        return await prisma.user_Role.createMany({
+            data: userRoles,
+        });
+    }
+    static async getRolesByNames(roleNames) {
+        return await prisma.roles.findMany({
+            where: { name: { in: roleNames } }
+        });
+    }
+    static async assignRolesToUser(userId, roleIds) {
+        const userRoles = roleIds.map(roleId => ({
+            userId,
+            roleId,
+        }));
+        return await prisma.user_Role.createMany({
+            data: userRoles,
+        });
     }
 }
 

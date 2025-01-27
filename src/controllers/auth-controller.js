@@ -11,16 +11,18 @@ exports.register = async (req, res, next) => {
         const { 
             prefixName,
             firstName, 
-            lastName, 
+            lastName,
+            username, 
             email, 
             password, 
-            role, 
+            phone,
+            roleNames = ['USER'], 
             position, 
-            faculty,
-            hireYear,
+            hireDate,
             levelId,
             personnelTypeId,
-            departmentId
+            organizationId,
+            departmentId,
         } = req.body;
 
         //ตรวจสอบ
@@ -49,21 +51,29 @@ exports.register = async (req, res, next) => {
             profilePicturePath = await cloudUpload(req.file.path);
         }
 
-        await UserService.createUser({
+        const newUser = await UserService.createUser({
             prefixName,
             firstName,
             lastName,
+            username,
             email,
             password: passwordHash,
-            role,
+            phone,
             position,
-            faculty,
-            hireYear,
-            levelId,
-            personnelTypeId,
-            departmentId,
+            hireDate,
+            levelId: Number(levelId),
+            personnelTypeId: Number(personnelTypeId),
+            organizationId: Number(organizationId),
+            departmentId: Number(departmentId),
             profilePicturePath
         });
+
+        const roles = await UserService.getRolesByNames(roleNames);
+        if (!roles || roles.length !== roleNames.length) {
+            throw createError(400, 'Invalid roles provided');
+        }
+        await UserService.assignRolesToUser(newUser.id, roles.map(role => role.id));
+
         res.status(201).json({ message: 'User registered successfully' });
     } catch (err) {
         // จัดการข้อผิดพลาด
@@ -155,19 +165,24 @@ exports.updateProfile = async (req, res, next) => {
 
 exports.updateUserRole = [ upload.none(), async (req, res, next) => {
     const userId = parseInt(req.params.id);
-    const { role } = req.body;
-    const userRole = role.toUpperCase();
+    const { roleNames } = req.body;
+    // const userRole = role.toUpperCase();
     try {
         if (!userId || isNaN(userId)) {
             return createError(400, 'Invalid user ID');
         }
-        if (!role) {
+        if (!roleNames || !Array.isArray(roleNames) || roleNames.length === 0) {
             return createError(400, 'Role is required')
         }
 
-        const updatedRole = await UserService.updateUserRole(userId, userRole);
+        const roles = await UserService.getRolesByNames(roleNames);
+        if (!roles || roles.length !== roleNames.length) {
+            throw createError(400, 'Invalid roles provided');
+        }
 
-        res.status(200).json({ updatedRole });
+        const updatedRole = await UserService.updateUserRole(userId, roles.map(role => role.id));
+
+        res.status(200).json({ message: 'User role updated', roles: updatedRole });
     } catch (err) {
         next(err);
     }
