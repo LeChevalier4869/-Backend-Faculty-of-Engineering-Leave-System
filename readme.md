@@ -1,4 +1,21 @@
-#Error
+# run first time
+
+```bash
+npm i 
+npm start
+```
+
+# Environment Required
+
+PORT=
+DATABASE_URL=
+JWT_SECRET=
+JWT_EXPIRESIN=
+
+CLOUDINARY_SECRET=
+
+
+# Error
 
 leaveType
 - can create 
@@ -14,26 +31,28 @@ leaveType
 - register (not yet for form-data)
     - method: post
     - route: /register
-    - body: { 
+    - body (form-data): { 
         prefixName, 
         firstName, 
         lastName, 
+        username,
         email, 
         password, 
-        role,
+        phone,
+        roleNames[], //default = ['USER']
         position,
-        faculty,
-        hireYear,
+        hireDate,
         levelId,
         personnelTypeId,
+        organizationId,
         departmentId,
-        profilePicturePath 
+        profilePicturePath (error)
         }
 
 - login
     - method: post
     - route: /login
-    - body: { email, password } //password is not hash
+    - body: { email, password } //password is not hash // hashed
 
 - getMe
     - method: get
@@ -47,7 +66,42 @@ leaveType
     - method: post
     - route: /:id/role
     - params: id
-    - body: { role }
+    - body (raw): { roleNames } //array
+
+- updateUser (role = 'ADMIN')
+    - method: put
+    - route: /users/:id
+    - params: id
+    - body (raw): {
+        prefixName,
+        firstName,
+        lastName,
+        username,
+        email,
+        phone,
+        position,
+        hireDate,
+        levelId,
+        personnelTypeId,
+        organizationId,
+        departmentId
+    }
+
+- updateUser (role = 'USER')
+    - method: put
+    - route: /users/:id
+    - params: id
+    - body (raw): {
+        prefixName,
+        firstName,
+        lastName,
+        phone,
+    }
+- updateUserStatus 
+    - method: put
+    - route: /user-status/:id
+    - params: id
+    - body (raw): { inActive }
 
 ## leave request (/leave-requests)
 - createRequest 

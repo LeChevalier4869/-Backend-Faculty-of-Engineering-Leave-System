@@ -57,6 +57,24 @@ async function personnelType() {
     console.log({ Permanent, Government, EmployeesInHigherEdu, RevenueBased });
 }
 
+async function organization() {
+    const Engineering = await prisma.organizations.upsert({
+        where: { id: 1 },
+        update: {},
+        create: { name: 'คณะวิศวกรรมศาสตร์' },
+    });
+    const IndustrialEducation = await prisma.organizations.upsert({
+        where: { id: 2 },
+        update: {},
+        create: { name: 'คณะครุศาสตร์อุตสาหกรรม' },
+    });
+    const BusinessAdministration = await prisma.organizations.upsert({
+        where: { id: 3 },
+        update: {},
+        create: { name: 'คณะบริหารธุรกิจและเทคโนโลยีสารสนเทศ' },
+    });
+}
+
 async function department() {
     const Civil = await prisma.departments.upsert({
         where: { id: 1 },

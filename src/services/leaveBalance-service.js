@@ -3,7 +3,7 @@ const createError = require('../utils/createError');
 
 class LeaveBalanceService {
     static async getUserBalance(userId, leaveTypeId) {
-        return await prisma.leaveBalances.findFirst({
+        return await prisma.leavebalances.findFirst({
             where: { userId, leaveTypeId: parseInt(leaveTypeId) },
         });
     }
@@ -12,17 +12,17 @@ class LeaveBalanceService {
         if (!balance || balance.totalDays <  usedDays) {
             throw createError(400, 'Leave balance is not enough.');
         }
-        return await prisma.leaveBalances.update({
+        return await prisma.leavebalances.update({
             where: { id: balance.id },
             data: { usedDays: balance.usedDays + usedDays },
         });
     }
     static async getByUserId(userId) {
         try {
-            return await prisma.leaveBalances.findMany({
+            return await prisma.leavebalances.findMany({
                 where: { userId: userId },
                 include: {
-                    leaveType: true,
+                    leavetypes: true,
                 }
             });
         } catch (err) {

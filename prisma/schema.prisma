@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,225 +7,244 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  USER
-  APPROVER
-  ADMIN
+model approvalsteps {
+  @@map("approvalsteps")
+
+  id                                    Int                  @id @default(autoincrement())
+  stepOrder                             Int
+  status                                approvalsteps_status @default(PENDING)
+  reviewedAt                            DateTime?
+  remarks                               String?
+  approverId                            Int
+  reviewedBy                            Int?
+  leaveRequestId                        Int
+  users_approvalsteps_approverIdTousers users                @relation("approvalsteps_approverIdTousers", fields: [approverId], references: [id], map: "ApprovalSteps_approverId_fkey")
+  leaverequests                         leaverequests        @relation(fields: [leaveRequestId], references: [id], map: "ApprovalSteps_leaveRequestId_fkey")
+  users_approvalsteps_reviewedByTousers users?               @relation("approvalsteps_reviewedByTousers", fields: [reviewedBy], references: [id], map: "ApprovalSteps_reviewedBy_fkey")
+
+  @@index([approverId], map: "ApprovalSteps_approverId_fkey")
+  @@index([leaveRequestId], map: "ApprovalSteps_leaveRequestId_fkey")
+  @@index([reviewedBy], map: "ApprovalSteps_reviewedBy_fkey")
 }
 
-enum LeaveStatus {
+model attachments {
+  @@map("attachments")
+
+  id             Int           @id @default(autoincrement())
+  fileName       String
+  filePath       String
+  uploadedAt     DateTime      @default(now())
+  leaveRequestId Int
+  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], map: "Attachments_leaveRequestId_fkey")
+
+  @@index([leaveRequestId], map: "Attachments_leaveRequestId_fkey")
+}
+
+model auditlogs {
+  @@map("auditlogs")
+
+  id             Int           @id @default(autoincrement())
+  action         String
+  details        Json
+  createdAt      DateTime      @default(now())
+  userId         Int
+  leaveRequestId Int
+  type           String
+  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], map: "AuditLogs_leaveRequestId_fkey")
+  users          users         @relation(fields: [userId], references: [id], map: "AuditLogs_userId_fkey")
+
+  @@index([leaveRequestId], map: "AuditLogs_leaveRequestId_fkey")
+  @@index([userId], map: "AuditLogs_userId_fkey")
+}
+
+model departments {
+  @@map("departments")
+
+  id                      Int                       @id @default(autoincrement())
+  name                    String
+  organization_department organization_department[]
+  users                   users[]
+}
+
+model holidays {
+  @@map("holidays")
+
+  id          Int      @id @default(autoincrement())
+  name        String
+  date        DateTime
+  description String?
+  recurring   Boolean  @default(false)
+}
+
+model leavebalances {
+  @@map("leavebalances")
+
+  id            Int        @id @default(autoincrement())
+  year          Int
+  totalDays     Int
+  usedDays      Int        @default(0)
+  userId        Int
+  leaveTypeId   Int
+  remainingDays Int        @default(0)
+  leavetypes    leavetypes @relation(fields: [leaveTypeId], references: [id], map: "LeaveBalances_leaveTypeId_fkey")
+  users         users      @relation(fields: [userId], references: [id], map: "LeaveBalances_userId_fkey")
+
+  @@index([leaveTypeId], map: "LeaveBalances_leaveTypeId_fkey")
+  @@index([userId], map: "LeaveBalances_userId_fkey")
+}
+
+model leaverequests {
+  @@map("leaverequests")
+
+  id            Int                  @id @default(autoincrement())
+  startDate     DateTime
+  endDate       DateTime
+  reason        String?
+  status        leaverequests_status @default(PENDING)
+  isEmergency   Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime
+  userId        Int
+  leaveTypeId   Int
+  comment       String?
+  approvalsteps approvalsteps[]
+  attachments   attachments[]
+  auditlogs     auditlogs[]
+  leavetypes    leavetypes           @relation(fields: [leaveTypeId], references: [id], map: "LeaveRequests_leaveTypeId_fkey")
+  users         users                @relation(fields: [userId], references: [id], map: "LeaveRequests_userId_fkey")
+
+  @@index([leaveTypeId], map: "LeaveRequests_leaveTypeId_fkey")
+  @@index([userId], map: "LeaveRequests_userId_fkey")
+}
+
+model leavetypes {
+  @@map("leavetypes")
+
+  id            Int             @id @default(autoincrement())
+  name          String          @unique(map: "LeaveTypes_name_key")
+  maxDays       Int
+  conditions    Json
+  leavebalances leavebalances[]
+  leaverequests leaverequests[]
+}
+
+model levels {
+  @@map("levels")
+
+  id    Int     @id @default(autoincrement())
+  level String
+  users users[]
+}
+
+model notifications {
+  @@map("notifications")
+
+  id        Int      @id @default(autoincrement())
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    Int
+  type      String
+  users     users    @relation(fields: [userId], references: [id], map: "Notifications_userId_fkey")
+
+  @@index([userId], map: "Notifications_userId_fkey")
+}
+
+model organization_department {
+  @@map("organization_department")
+
+  organizationId Int
+  departmentId   Int
+  departments    departments   @relation(fields: [departmentId], references: [id], map: "Organization_Department_departmentId_fkey")
+  organizations  organizations @relation(fields: [organizationId], references: [id], map: "Organization_Department_organizationId_fkey")
+
+  @@id([organizationId, departmentId])
+  @@index([departmentId], map: "Organization_Department_departmentId_fkey")
+}
+
+model organizations {
+  @@map("organizations")
+
+  id                      Int                       @id @default(autoincrement())
+  name                    String
+  organization_department organization_department[]
+  users                   users[]
+}
+
+model personneltypes {
+  @@map("personneltypes")
+
+  id    Int     @id @default(autoincrement())
+  name  String
+  users users[]
+}
+
+model roles {
+  @@map("roles")
+
+  id          Int         @id @default(autoincrement())
+  name        String      @unique(map: "Roles_name_key")
+  description String?
+  user_role   user_role[]
+}
+
+model user_role {
+  @@map("user_role")
+
+  userId Int
+  roleId Int
+  roles  roles @relation(fields: [roleId], references: [id], map: "User_Role_roleId_fkey")
+  users  users @relation(fields: [userId], references: [id], map: "User_Role_userId_fkey")
+
+  @@id([userId, roleId])
+  @@index([roleId], map: "User_Role_roleId_fkey")
+}
+
+model users {
+  @@map("users")
+
+  id                                            Int             @id @default(autoincrement())
+  prefixName                                    String
+  firstName                                     String
+  lastName                                      String
+  email                                         String          @unique(map: "Users_email_key")
+  password                                      String
+  position                                      String
+  profilePicturePath                            String?
+  levelId                                       Int
+  personnelTypeId                               Int
+  departmentId                                  Int
+  hireDate                                      DateTime
+  inActive                                      Boolean         @default(true)
+  organizationId                                Int
+  phone                                         String
+  username                                      String          @unique(map: "Users_username_key")
+  approvalsteps_approvalsteps_approverIdTousers approvalsteps[] @relation("approvalsteps_approverIdTousers")
+  approvalsteps_approvalsteps_reviewedByTousers approvalsteps[] @relation("approvalsteps_reviewedByTousers")
+  auditlogs                                     auditlogs[]
+  leavebalances                                 leavebalances[]
+  leaverequests                                 leaverequests[]
+  notifications                                 notifications[]
+  user_role                                     user_role[]
+  departments                                   departments     @relation(fields: [departmentId], references: [id], map: "Users_departmentId_fkey")
+  levels                                        levels          @relation(fields: [levelId], references: [id], map: "Users_levelId_fkey")
+  organizations                                 organizations   @relation(fields: [organizationId], references: [id], map: "Users_organizationId_fkey")
+  personneltypes                                personneltypes  @relation(fields: [personnelTypeId], references: [id], map: "Users_personnelTypeId_fkey")
+
+  @@index([departmentId], map: "Users_departmentId_fkey")
+  @@index([levelId], map: "Users_levelId_fkey")
+  @@index([organizationId], map: "Users_organizationId_fkey")
+  @@index([personnelTypeId], map: "Users_personnelTypeId_fkey")
+}
+
+enum approvalsteps_status {
   PENDING
   APPROVED
   REJECTED
 }
 
-enum AuditLogType {
-  CREATED
-  UPDATED
-  DELETED
-}
-
-// enum Faculty {
-//   INDUSTRIAL_EDUCATION
-//   ENGINEERING
-//   BUSINESS_ADMINISTRATION
-// }
-
-model Users {
-  id                 Int      @id @default(autoincrement())
-  prefixName         String
-  firstName          String
-  lastName           String
-  username           String   @unique
-  email              String   @unique
-  password           String
-  phone              String
-  position           String
-  hireDate           DateTime
-  inActive           Boolean  @default(true)
-  profilePicturePath String?
-
-  levelId         Int
-  personnelTypeId Int
-  organizationId  Int
-  departmentId    Int
-
-  level         Levels         @relation(fields: [levelId], references: [id])
-  personnelType PersonnelTypes @relation(fields: [personnelTypeId], references: [id])
-  organization  Organizations  @relation(fields: [organizationId], references: [id])
-  department    Departments    @relation(fields: [departmentId], references: [id])
-
-  LeaveRequests           LeaveRequests[]
-  LeaveBalances           LeaveBalances[]
-  Notifications           Notifications[]
-  ApprovalStepsAsApprover ApprovalSteps[] @relation("ApprovalStepApprover")
-  ApprovalStepsAsReviewer ApprovalSteps[] @relation("ApprovalStepReviewedBy")
-  AuditLogs               AuditLogs[]
-
-  User_Role User_Role[]
-}
-
-model User_Role {
-  userId Int
-  roleId Int
-
-  user Users @relation(fields: [userId], references: [id])
-  role Roles @relation(fields: [roleId], references: [id])
-
-  @@id([userId, roleId])
-}
-
-model Roles {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
-  description String?
-
-  User_Role User_Role[]
-}
-
-model Levels {
-  id    Int    @id @default(autoincrement())
-  level String
-
-  Users Users[]
-}
-
-model Organizations {
-  id   Int    @id @default(autoincrement())
-  name String
-
-  Organization_Department Organization_Department[]
-  Users                   Users[]
-}
-
-model Organization_Department {
-  id             Int @id @default(autoincrement())
-  organizationId Int
-  departmentId   Int
-
-  organization Organizations @relation(fields: [organizationId], references: [id])
-  department   Departments   @relation(fields: [departmentId], references: [id])
-}
-
-model Departments {
-  id   Int    @id @default(autoincrement())
-  name String
-
-  Users Users[]
-
-  Organization_Department Organization_Department[]
-}
-
-model PersonnelTypes {
-  id   Int    @id @default(autoincrement())
-  name String
-
-  Users Users[]
-}
-
-model LeaveTypes {
-  id         Int    @id @default(autoincrement())
-  name       String @unique
-  maxDays    Int
-  conditions Json
-
-  LeaveRequests LeaveRequests[]
-  LeaveBalances LeaveBalances[]
-}
-
-model LeaveRequests {
-  id          Int         @id @default(autoincrement())
-  startDate   DateTime
-  endDate     DateTime
-  reason      String?
-  status      LeaveStatus @default(PENDING)
-  isEmergency Boolean     @default(false)
-  comment     String? //หมายเหตุเพิ่มเติม
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  userId      Int
-  leaveTypeId Int
-
-  user      Users      @relation(fields: [userId], references: [id])
-  leaveType LeaveTypes @relation(fields: [leaveTypeId], references: [id])
-
-  ApprovalSteps ApprovalSteps[]
-  Attachments   Attachments[]
-  AuditLogs     AuditLogs[]
-}
-
-model LeaveBalances {
-  id            Int @id @default(autoincrement())
-  year          Int
-  totalDays     Int
-  usedDays      Int @default(0)
-  remainingDays Int @default(0)
-
-  userId      Int
-  leaveTypeId Int
-
-  user      Users      @relation(fields: [userId], references: [id])
-  leaveType LeaveTypes @relation(fields: [leaveTypeId], references: [id])
-}
-
-model Notifications {
-  id        Int      @id @default(autoincrement())
-  type      String //ประเภทการแจ้งเตือน เช่น การลาอนุมัติ, การลาปฏิเสธ
-  message   String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  userId Int
-
-  user Users @relation(fields: [userId], references: [id])
-}
-
-model ApprovalSteps {
-  id         Int         @id @default(autoincrement())
-  stepOrder  Int
-  status     LeaveStatus @default(PENDING)
-  reviewedAt DateTime?
-  remarks    String?
-
-  approverId     Int
-  reviewedBy     Int?
-  leaveRequestId Int
-
-  approver       Users         @relation("ApprovalStepApprover", fields: [approverId], references: [id])
-  reviewedByUser Users?        @relation("ApprovalStepReviewedBy", fields: [reviewedBy], references: [id])
-  leaveRequest   LeaveRequests @relation(fields: [leaveRequestId], references: [id])
-}
-
-model Attachments {
-  id         Int      @id @default(autoincrement())
-  fileName   String
-  filePath   String
-  uploadedAt DateTime @default(now())
-
-  leaveRequestId Int
-
-  leaveRequest LeaveRequests @relation(fields: [leaveRequestId], references: [id])
-}
-
-model AuditLogs {
-  id        Int      @id @default(autoincrement())
-  type      String //created, updated, deleted
-  action    String
-  details   Json
-  createdAt DateTime @default(now())
-
-  userId         Int
-  leaveRequestId Int
-
-  user         Users         @relation(fields: [userId], references: [id])
-  leaveRequest LeaveRequests @relation(fields: [leaveRequestId], references: [id])
-}
-
-model Holidays {
-  id          Int      @id @default(autoincrement())
-  name        String
-  date        DateTime
-  description String?
-  recurring   Boolean  @default(false) //วันหยุดที่อาจจะซ้ำทุกปี เช่น วันสงกรานต์
+enum leaverequests_status {
+  PENDING
+  APPROVED
+  REJECTED
 }
