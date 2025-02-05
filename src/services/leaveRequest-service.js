@@ -248,7 +248,19 @@ class LeaveRequestService {
                 },
                 include: {
                     leavetypes: true,
-                    users:true,
+                    leavebalances: true,
+                    users: {
+                        select: {
+                            id: true,
+                            prefixName: true,
+                            firstName: true,
+                            lastName: true,
+                            email: true,
+                            hireDate: true,
+                            inActive: true,
+                            phone: true,
+                        },
+                    },
                 }
             });
         } catch (err) {
