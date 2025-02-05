@@ -40,7 +40,7 @@ class LeaveRequestService {
         }
 
         //create request
-        return await prisma.leaveRequests.create({
+        return await prisma.leaverequests.create({
             data: {
                 userId,
                 leaveTypeId: parseInt(leaveTypeId),
@@ -53,7 +53,7 @@ class LeaveRequestService {
     }
     static async updateRequestStatus(requestId, status, approverId) {
         try {
-            const leaveRequest = await prisma.leaveRequests.findUnique({
+            const leaveRequest = await prisma.leaverequests.findUnique({
                 where: { id: requestId },
               });
             
@@ -61,7 +61,7 @@ class LeaveRequestService {
                 throw new Error('Leave request not found');
             }
     
-            const currentStep = await prisma.approvalSteps.count({
+            const currentStep = await prisma.approvalsteps.count({
                 where: { leaveRequestId: requestId }
             });
     
@@ -71,7 +71,7 @@ class LeaveRequestService {
                 throw new Error('Invalid status');
             }
     
-            await prisma.approvalSteps.create({
+            await prisma.approvalsteps.create({
                 data: {
                   leaveRequestId: requestId,
                   approverId: approverId,
@@ -81,7 +81,7 @@ class LeaveRequestService {
                 },
               });
             
-            return await prisma.leaveRequests.update({
+            return await prisma.leaverequests.update({
                 where: { id: requestId },
                 data: { status },
             });
@@ -90,10 +90,10 @@ class LeaveRequestService {
         }
     }
     static async getRequests(whereCondition) {
-        return await prisma.leaveRequests.findMany({
+        return await prisma.leaverequests.findMany({
             where: whereCondition,
             include: {
-                user: {
+                users: {
                     select: {
                         prefixName: true,
                         firstName: true,
@@ -101,13 +101,13 @@ class LeaveRequestService {
                         email: true,
                     }
                 },
-                leaveType: {
+                leavetypes: {
                     select: {
                         name: true,
                         maxDays: true,
                     }
                 },
-                ApprovalSteps: {
+                approvalsteps: {
                     select: {
                         stepOrder: true,
                         status: true,
@@ -118,13 +118,13 @@ class LeaveRequestService {
         });
     }
     static async getRequestsById(requestId) {
-        return await prisma. leaveRequests.findUnique({
+        return await prisma.leaverequests.findUnique({
             where: { id: parseInt(requestId) }
         });
     }
     static async updateRequest(requestId, updateData) {
         try {
-            return await prisma.leaveRequests.update({
+            return await prisma.leaverequests.update({
                 where: { id: requestId },
                 data: updateData
             });
@@ -135,11 +135,11 @@ class LeaveRequestService {
     }
     static async approveRequest(requestId, approverId) {
         try {
-            const approvedRequest = await prisma.leaveRequests.update({
+            const approvedRequest = await prisma.leaverequests.update({
                 where: { id: requestId },
                 data: {
                     status: 'APPROVED',
-                    ApprovalSteps: {
+                    approvalsteps: {
                         create: {
                             stepOrder: 1,
                             status: 'APPROVED',
@@ -149,19 +149,19 @@ class LeaveRequestService {
                 },
             });
 
-            await prisma.auditLogs.create({
+            await prisma.auditlogs.create({
                 data: {
                     action: 'Approved leave request',
                     details: {
                         leaveRequestId: requestId,
                         status: 'APPROVED',
                     },
-                    user: {
+                    users: {
                         connect: {
                             id: approverId,
                         },
                     },
-                    leaveRequest: {
+                    leaverequests: {
                         connect: {
                             id: requestId,
                         },
@@ -177,11 +177,11 @@ class LeaveRequestService {
     }
     static async rejectRequest(requestId, remarks, approverId) {
         try {
-            const rejectRequest = await prisma.leaveRequests.update({
+            const rejectRequest = await prisma.leaverequests.update({
                 where: { id: requestId },
                 data: {
                     status: 'REJECTED',
-                    ApprovalSteps: {
+                    approvalsteps: {
                         create: {
                             stepOrder: 1,
                             status: 'REJECTED',
@@ -192,7 +192,7 @@ class LeaveRequestService {
                 },
             });
 
-            await prisma.auditLogs.create({
+            await prisma.auditlogs.create({
                 data: {
                     action: 'Rejected leave request',
                     details: {
@@ -200,12 +200,12 @@ class LeaveRequestService {
                         status: 'REJECTED',
                         remarks: String(remarks),
                     },
-                    user: {
+                    users: {
                         connect: {
                             id: approverId,
                         },
                     },
-                    leaveRequest: {
+                    leaverequests: {
                         connect: {
                             id: requestId,
                         },
@@ -221,7 +221,7 @@ class LeaveRequestService {
     }
     static async deleteRequest(requestId) {
         try {
-            const leaveRequest = await prisma.leaveRequests.findUnique({
+            const leaveRequest = await prisma.leaverequests.findUnique({
                 where: {
                     id: requestId,
                 },
@@ -231,7 +231,7 @@ class LeaveRequestService {
                 return null;
             }
 
-            await prisma.leaveRequests.delete({
+            await prisma.leaverequests.delete({
                 where: { id: requestId }
             });
 
@@ -242,12 +242,25 @@ class LeaveRequestService {
     }
     static async getLanding() {
         try {
-            return await prisma.leaveRequests.findMany({
+            return await prisma.leaverequests.findMany({
                 where: {
                     status: 'PENDING',
                 },
                 include: {
-                    leaveType: true,
+                    leavetypes: true,
+                    leavebalances: true,
+                    users: {
+                        select: {
+                            id: true,
+                            prefixName: true,
+                            firstName: true,
+                            lastName: true,
+                            email: true,
+                            hireDate: true,
+                            inActive: true,
+                            phone: true,
+                        },
+                    },
                 }
             });
         } catch (err) {

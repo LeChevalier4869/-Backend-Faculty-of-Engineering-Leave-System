@@ -2,16 +2,16 @@ const prisma = require("../config/prisma");
 
 class AuditLogService {
   static async createLog(userId, action, requestId, details) {
-    return await prisma.auditLogs.create({
+    return await prisma.auditlogs.create({
       data: {
         action,
         details,
-        user: {
+        users: {
           connect: {
             id: userId,
           },
         },
-        leaveRequest: {
+        leaverequests: {
             connect: {
                 id: requestId
             }
@@ -21,7 +21,7 @@ class AuditLogService {
     });
   }
   static async getLogsByRequestId(requestId) {
-    return await prisma.auditLogs.findMany({
+    return await prisma.auditlogs.findMany({
       where: { requestId },
     });
   }
