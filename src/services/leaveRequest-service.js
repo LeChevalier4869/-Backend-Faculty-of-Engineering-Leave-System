@@ -248,6 +248,7 @@ class LeaveRequestService {
                 },
                 include: {
                     leavetypes: true,
+                    users:true,
                 }
             });
         } catch (err) {
