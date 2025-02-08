@@ -28,27 +28,27 @@ async function level() {
 }
 
 async function personnelType() {
-    const CivilServants = await prisma.personnelTypes.upsert({
+    const CivilServants = await prisma.personneltypes.upsert({
         where: { id: 1 },
         update: {},
         create: { name: "ข้าราชการพลเรือนในสถาบันอุดมศึกษา" }  
     });
-    const Permanent = await prisma.personnelTypes.upsert({
+    const Permanent = await prisma.personneltypes.upsert({
         where: { id: 2 },
         update: {},
         create: { name: 'ลูกจ้างประจำ' },
     });
-    const Government = await prisma.personnelTypes.upsert({
+    const Government = await prisma.personneltypes.upsert({
         where: { id: 3 },
         update: {},
         create: { name: 'พนักงานราชการ' },
     });
-    const EmployeesInHigherEdu = await prisma.personnelTypes.upsert({
+    const EmployeesInHigherEdu = await prisma.personneltypes.upsert({
         where: { id: 4 },
         update: {},
         create: { name: 'พนักงานในสถาบันอุดมศึกษา' },
     });
-    const RevenueBased = await prisma.personnelTypes.upsert({
+    const RevenueBased = await prisma.personneltypes.upsert({
         where: { id: 5 },
         update: {},
         create: { name: 'ลูกจ้างเงินรายได้' },
@@ -152,7 +152,7 @@ async function department() {
 
 async function leaveType() {
     // not complete
-    const SickLeave = await prisma.leaveTypes.upsert({
+    const SickLeave = await prisma.leavetypes.upsert({
         where: { id: 1 },
         update: {},
         create: { 
@@ -171,7 +171,7 @@ async function leaveType() {
          }
     });
     // ลูกจ้างประจำ 
-    const PersonalLeave = await prisma.leaveTypes.upsert({
+    const PersonalLeave = await prisma.leavetypes.upsert({
         where: { id: 2 },
         update: {},
         create: {

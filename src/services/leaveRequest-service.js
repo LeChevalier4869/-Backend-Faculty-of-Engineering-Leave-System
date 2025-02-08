@@ -12,7 +12,7 @@ class LeaveRequestService {
         const requestDays = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24) + 1;
 
         // query user and leave type
-        const user = await UserService.getUserById(userId);
+        const user = await UserService.getUserByIdWithRoles(userId);
         if (!user) {
             console.log(user);
             throw createError(404, 'User not found');
@@ -25,7 +25,7 @@ class LeaveRequestService {
         }
 
         //check maxDays
-        const personnelType = user.personnelType.name;
+        const personnelType = user.personnelTypeId.name;
         let maxDays = leaveType.maxDays;
 
         // to-do here (conditions for leave) //not complete
@@ -166,6 +166,7 @@ class LeaveRequestService {
                             id: requestId,
                         },
                     },
+                    type: "APPROVAL"
                 },
             });
 
@@ -210,6 +211,7 @@ class LeaveRequestService {
                             id: requestId,
                         },
                     },
+                    type: "REJECTION"
                 },
             });
 
