@@ -15,11 +15,13 @@ const authRoute = require('./routes/auth-route');
 const leaveRequestRoute = require('./routes/leaveRequest-route');
 const leaveTypeRoute = require('./routes/leaveType-route');
 const leaveBalance = require('./routes/leaveBalance-route');
+const testRote = require('./routes/test-route');
 
 app.use('/auth', authRoute);
 app.use('/leave-requests', authenticate, leaveRequestRoute);
 app.use('/leave-types', leaveTypeRoute);
 app.use('/leave-balances', authenticate, leaveBalance);
+app.use('/test', authenticate, testRote);
 
 app.use(errorHandler);
 app.use('*', notFoundHandler);

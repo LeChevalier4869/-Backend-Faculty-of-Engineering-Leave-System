@@ -7,9 +7,13 @@ const upload = multer();
 
 exports.createLeaveRequest = async (req, res, next) => {
     try {
-        const { leaveTypeId, startDate, endDate, reason, isEmergency} = req.body;
+        const { leaveTypeId, startDate, endDate, reason, isEmergency, comment} = req.body;
         console.log("req.user.id = " + req.user.id);
-        const leaveBalance = await LeaveBalanceService.getUserBalance(req.userId, leaveTypeId);
+        console.log("Debug leaveTypeId con: ", leaveTypeId);
+        console.log("Debug req.user.id con: ", req.user.id);
+        const leaveBalance = await LeaveBalanceService.getUserBalance(req.user.id, leaveTypeId);
+
+        console.log("Debug leaveBalance: ", leaveBalance);
         const requestedDays = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24) + 1;
         if (requestedDays > leaveBalance.totalDays - leaveBalance.usedDays) {
             return createError(400, 'Leave balance is not enough');
@@ -20,14 +24,15 @@ exports.createLeaveRequest = async (req, res, next) => {
         }
 
         console.log(req.body);
-        console.log(leaveTypeId);
+
         if (!leaveTypeId) {
             throw createError(400, 'Leave type ID is required');
         }
-    
-        const leaveRequest = await LeaveRequestService.createRequest(req.user.id, leaveTypeId, startDate, endDate, reason, isEmergency);
+
+
+        const leaveRequest = await LeaveRequestService.createRequest(req.user.id, leaveTypeId, startDate, endDate, reason, isEmergency, comment);
         await LeaveBalanceService.updateLeaveBalance(req.user.id, leaveTypeId, requestedDays);
-        await AuditLogService.createLog(req.user.id, 'Create Request', leaveRequest.id, `Leave created: ${reason}`, `isEemergency: ${req.body.isEmergency}`);
+        await AuditLogService.createLog(req.user.id, 'Create Request', leaveRequest.id, `Leave created: ${reason} , isEemergency: ${req.body.isEmergency}`, "LEAVE_REQUEST");
         res.status(201).json({ message: 'Leave request created', requestId: leaveRequest.id, });
     } catch (err) {
         next(err);

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const cloudUpload = require('../utils/cloudinary');
 const multer = require('multer');
 const upload = multer();
+const { sendEmail } = require('../utils/emailService');
 
 exports.register = async (req, res, next) => {
     try {
@@ -106,7 +107,7 @@ exports.login = async (req, res, next) => {
         // console.log('user pass = ' + user.password);
 
         const userWithRoles = await UserService.getUserByIdWithRoles(user.id);
-        const roles = userWithRoles.User_Role.map(userRole => userRole.role.name);
+        const roles = userWithRoles.user_role.map(userRole => userRole.roles.name);
     
         const token = jwt.sign(
             { 
@@ -198,13 +199,33 @@ exports.updateUserRole = async (req, res, next) => {
 
     //    console.log('roles array = ' + rolesArray); 
     //    console.log('user role = ' + userRole); 
-    //    console.log('roles = ' + roles); 
+    //   console.log('roles = ' + roles); 
 
         if (!roles || roles.length !== userRole.length) {
             throw createError(400, 'Invalid roles provided');
         }
 
         const updatedRole = await UserService.updateUserRole(userId, roles.map(role => role.id));
+
+        //email
+        const user = await UserService.getUserByIdWithRoles(userId);
+
+        if (user) {
+            const userEmail = user.email;
+            const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+            const newRoles = roles.map(role => role.name);
+
+            const subject = "บทบาทของคุณได้รับการอัพเดตแล้ว!";
+            const message = `
+                <h3>สวัสดี ${userName}</h3>
+                <p>บทบาทของคุณได้รับการอัพเดตแล้ว</p>
+                <p><strong>บทบาทใหม่:</strong> ${newRoles.join(',')}</p>
+                <br/>
+                <p>ขอแสดงความนับถือ</p>
+                <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+            `;
+            await sendEmail(userEmail, subject, message);
+        }
 
         res.status(200).json({ message: 'User role updated', roles: updatedRole });
     } catch (err) {

@@ -1,7 +1,7 @@
 const prisma = require("../config/prisma");
 
 class AuditLogService {
-  static async createLog(userId, action, requestId, details) {
+  static async createLog(userId, action, requestId, details, type) {
     return await prisma.auditlogs.create({
       data: {
         action,
@@ -17,6 +17,7 @@ class AuditLogService {
             }
         },
         createdAt: new Date(),
+        type,
       },
     });
   }

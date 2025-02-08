@@ -8,12 +8,11 @@ datasource db {
 }
 
 model approvalsteps {
-  @@map("approvalsteps")
 
   id                                    Int                  @id @default(autoincrement())
   stepOrder                             Int
   status                                approvalsteps_status @default(PENDING)
-  reviewedAt                            DateTime?
+  reviewedAt                            DateTime? @default(now())
   remarks                               String?
   approverId                            Int
   reviewedBy                            Int?
@@ -25,10 +24,10 @@ model approvalsteps {
   @@index([approverId], map: "ApprovalSteps_approverId_fkey")
   @@index([leaveRequestId], map: "ApprovalSteps_leaveRequestId_fkey")
   @@index([reviewedBy], map: "ApprovalSteps_reviewedBy_fkey")
+  @@map("approvalsteps")
 }
 
 model attachments {
-  @@map("attachments")
 
   id             Int           @id @default(autoincrement())
   fileName       String
@@ -38,10 +37,10 @@ model attachments {
   leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], map: "Attachments_leaveRequestId_fkey")
 
   @@index([leaveRequestId], map: "Attachments_leaveRequestId_fkey")
+  @@map("attachments")
 }
 
 model auditlogs {
-  @@map("auditlogs")
 
   id             Int           @id @default(autoincrement())
   action         String
@@ -55,29 +54,31 @@ model auditlogs {
 
   @@index([leaveRequestId], map: "AuditLogs_leaveRequestId_fkey")
   @@index([userId], map: "AuditLogs_userId_fkey")
+  @@map("auditlogs")
 }
 
 model departments {
-  @@map("departments")
 
   id                      Int                       @id @default(autoincrement())
   name                    String
   organization_department organization_department[]
   users                   users[]
+
+  @@map("departments")
 }
 
 model holidays {
-  @@map("holidays")
 
   id          Int      @id @default(autoincrement())
   name        String
   date        DateTime
   description String?
   recurring   Boolean  @default(false)
+
+  @@map("holidays")
 }
 
 model leavebalances {
-  @@map("leavebalances")
 
   id            Int        @id @default(autoincrement())
   year          Int
@@ -91,10 +92,10 @@ model leavebalances {
 
   @@index([leaveTypeId], map: "LeaveBalances_leaveTypeId_fkey")
   @@index([userId], map: "LeaveBalances_userId_fkey")
+  @@map("leavebalances")
 }
 
 model leaverequests {
-  @@map("leaverequests")
 
   id            Int                  @id @default(autoincrement())
   startDate     DateTime
@@ -103,7 +104,7 @@ model leaverequests {
   status        leaverequests_status @default(PENDING)
   isEmergency   Boolean              @default(false)
   createdAt     DateTime             @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime             @default(now())
   userId        Int
   leaveTypeId   Int
   comment       String?
@@ -115,10 +116,10 @@ model leaverequests {
 
   @@index([leaveTypeId], map: "LeaveRequests_leaveTypeId_fkey")
   @@index([userId], map: "LeaveRequests_userId_fkey")
+  @@map("leaverequests")
 }
 
 model leavetypes {
-  @@map("leavetypes")
 
   id            Int             @id @default(autoincrement())
   name          String          @unique(map: "LeaveTypes_name_key")
@@ -126,18 +127,20 @@ model leavetypes {
   conditions    Json
   leavebalances leavebalances[]
   leaverequests leaverequests[]
+
+  @@map("leavetypes")
 }
 
 model levels {
-  @@map("levels")
 
   id    Int     @id @default(autoincrement())
   level String
   users users[]
+
+  @@map("levels")
 }
 
 model notifications {
-  @@map("notifications")
 
   id        Int      @id @default(autoincrement())
   message   String
@@ -148,10 +151,10 @@ model notifications {
   users     users    @relation(fields: [userId], references: [id], map: "Notifications_userId_fkey")
 
   @@index([userId], map: "Notifications_userId_fkey")
+  @@map("notifications")
 }
 
 model organization_department {
-  @@map("organization_department")
 
   organizationId Int
   departmentId   Int
@@ -160,36 +163,39 @@ model organization_department {
 
   @@id([organizationId, departmentId])
   @@index([departmentId], map: "Organization_Department_departmentId_fkey")
+  @@map("organization_department")
 }
 
 model organizations {
-  @@map("organizations")
 
   id                      Int                       @id @default(autoincrement())
   name                    String
   organization_department organization_department[]
   users                   users[]
+
+  @@map("organizations")
 }
 
 model personneltypes {
-  @@map("personneltypes")
 
   id    Int     @id @default(autoincrement())
   name  String
   users users[]
+
+  @@map("personneltypes")
 }
 
 model roles {
-  @@map("roles")
 
   id          Int         @id @default(autoincrement())
   name        String      @unique(map: "Roles_name_key")
   description String?
   user_role   user_role[]
+
+  @@map("roles")
 }
 
 model user_role {
-  @@map("user_role")
 
   userId Int
   roleId Int
@@ -198,10 +204,10 @@ model user_role {
 
   @@id([userId, roleId])
   @@index([roleId], map: "User_Role_roleId_fkey")
+  @@map("user_role")
 }
 
 model users {
-  @@map("users")
 
   id                                            Int             @id @default(autoincrement())
   prefixName                                    String
@@ -235,6 +241,7 @@ model users {
   @@index([levelId], map: "Users_levelId_fkey")
   @@index([organizationId], map: "Users_organizationId_fkey")
   @@index([personnelTypeId], map: "Users_personnelTypeId_fkey")
+  @@map("users")
 }
 
 enum approvalsteps_status {
