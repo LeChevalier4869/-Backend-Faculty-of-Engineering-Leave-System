@@ -43,6 +43,36 @@ class LeaveBalanceService {
             throw createError(404, 'Leave balance not found');
         }
     }
+    static async updatePendingLeaveBalance(userId, leaveTypeId, requestedDays) {
+        const balance = await this.getUserBalance(userId, leaveTypeId);
+
+        if (!balance || balance.totalDays < requestedDays || balance.remainingDays < requestedDays) {
+            throw createError(400, 'Leave balance is not enough.');
+        }
+
+        return await prisma.leavebalances.update({
+            where: { id: balance.id },
+            data: { 
+                pendingDays: balance.pendingDays + requestedDays,  // 🔥 เพิ่ม pendingDays
+                remainingDays: balance.remainingDays - requestedDays,  // 🔥 หักจาก remainingDays ชั่วคราว
+            },
+        });
+    }
+    static async finalizeLeaveBalance(userId, leaveTypeId, requestedDays) {
+        const balance = await this.getUserBalance(userId, leaveTypeId);
+
+        if (!balance || balance.pendingDays < requestedDays) {
+            throw createError(400, 'Pending leave days are not enough.');
+        }
+
+        return await prisma.leavebalances.update({
+            where: { id: balance.id },
+            data: {
+                usedDays: balance.usedDays + requestedDays,
+                pendingDays: balance.pendingDays - requestedDays,
+            }
+        });
+    }
 }
 
 module.exports = LeaveBalanceService;

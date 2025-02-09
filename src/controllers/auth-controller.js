@@ -13,6 +13,7 @@ exports.register = async (req, res, next) => {
             prefixName,
             firstName, 
             lastName,
+            sex, //default ไม่ระบุ
             username, 
             email, 
             password, 
@@ -20,10 +21,11 @@ exports.register = async (req, res, next) => {
             roleNames = ['USER'], 
             position, 
             hireDate,
-            levelId,
+            inActive, //default true
+            employmentType, //ACADEMIC, SUPPORT
             personnelTypeId,
-            organizationId,
-            departmentId,
+            department,
+            organization,
         } = req.body;
 
         //ตรวจสอบ
@@ -45,6 +47,14 @@ exports.register = async (req, res, next) => {
         }
         console.log(userExist)
 
+        // 1 user 1 department 1 organization
+        if (!Array.isArray(department) || department.length !== 1) {
+            throw createError(400, "สามารถเลือกภาควิชาได้เพียง 1 รายการ");
+        }
+        if (!Array.isArray(organization) || organization.length !== 1) {
+            throw createError(400, "สามารถเลือกหน่วยงานได้เพียง 1 รายการ");
+        }
+
         const passwordHash = await bcrypt.hash(password, 10);
 
         let profilePicturePath = null;
@@ -52,22 +62,32 @@ exports.register = async (req, res, next) => {
             profilePicturePath = await cloudUpload(req.file.path);
         }
 
+        const employmentTypeMap = {
+            ACADEMIC: "สายวิชาการ",
+            SUPPORT: "สายสนับสนุน",
+        };
+
+        const mapEmploymentType = employmentTypeMap[employmentType] || null;
+        if (!mapEmploymentType) {
+            throw createError(400, "ประเภทพนักงานไม่ถูกต้อง")
+        }
+
         const newUser = await UserService.createUser({
             prefixName,
             firstName,
             lastName,
+            sex,
             username,
             email,
             password: passwordHash,
             phone,
             position,
             hireDate,
-            levelId: Number(levelId),
-            personnelTypeId: Number(personnelTypeId),
-            organizationId: Number(organizationId),
-            departmentId: Number(departmentId),
+            inActive,
+            employmentType: mapEmploymentType,
+            personnelTypeId: parseInt(personnelTypeId),
             profilePicturePath
-        });
+        }, department[0], organization[0]);
 
         const roles = await UserService.getRolesByNames(roleNames);
         if (!roles || roles.length !== roleNames.length) {
@@ -90,9 +110,16 @@ exports.login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
 
+        if (!email) {
+            return createError(400, 'กรุณากรอกอีเมล');
+        }
+
+        if (!password) {
+            return createError(400, 'กรุณากรอกรหัสผ่าน');
+        }
+
         const user = await UserService.getUserByEmail(email);
 
-        
         if(!user) {
             return createError(404, 'User not found');
         }
@@ -108,6 +135,9 @@ exports.login = async (req, res, next) => {
 
         const userWithRoles = await UserService.getUserByIdWithRoles(user.id);
         const roles = userWithRoles.user_role.map(userRole => userRole.roles.name);
+
+        const departments = await UserService.getDepartment(user.id);
+        const organization = await UserService.getOrganization(user.id);
     
         const token = jwt.sign(
             { 
@@ -116,14 +146,16 @@ exports.login = async (req, res, next) => {
                 prefixName: user.prefixName,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                username: user.username,
+                sex: user.sex,
                 role: roles,
                 phone: user.phone,
-                organization: user.organization.name,
-                department: user.department.name,
+                organization: organization.map(i => i.organizations),
+                department: departments.map(i => i.departments),
                 position: user.position,
-                personnelType: user.personnelType.name,
+                personnelType: user.personnelTypeId.name,
                 hireDate: user.hireDate,
+                inActive: user.inActive,
+                employmentType: user.empolymentType,
             }, 
             process.env.JWT_SECRET, 
             { expiresIn: process.env.JWT_EXPIRESIN });
@@ -157,6 +189,7 @@ exports.userLanding = async (req, res) => {
     }
 };
 
+//error
 exports.updateProfile = async (req, res, next) => {
     try {
         const userEmail = req.user.email;
@@ -241,15 +274,16 @@ exports.updateUser = async (req, res, next) => {
             prefixName,
             firstName, 
             lastName,
-            username, 
-            email, // *
+            sex, 
+            email, 
             phone,
             position, // *
             hireDate, // *
-            levelId, // *
+            inActive, // *
+            employmentType, // *
             personnelTypeId, // *
-            organizationId, // *
-            departmentId, // *
+            department, // *
+            organization, // *
         } = req.body;
 
         if (!userId || isNaN(userId)) {
@@ -268,33 +302,37 @@ exports.updateUser = async (req, res, next) => {
                 prefixName,
                 firstName,
                 lastName,
-                username,
+                sex,
                 email,
                 phone,
                 position,
                 hireDate: new Date(hireDate),
-                levelId,
+                inActive,
+                employmentType,
                 personnelTypeId,
-                organizationId,
-                departmentId,
             };
         } else if (userRole === 'USER') {
             updateData = {
                 prefixName,
                 firstName,
                 lastName,
-                username,
+                sex,
+                email,
                 phone,
             };
         } else {
             return createError(403, 'Permission denied');
         }
+
+        if (!departments || !organizations) {
+            return createError(400, 'Required department or organization field');
+        }
         
-        if (!username || !email || !position || !hireDate || !levelId || !personnelTypeId || !organizationId || !departmentId) {
+        if (!sex || !email || !position || !hireDate || !inActive || !personnelTypeId || !employmentType) {
             return createError(400, 'Required fields are missing');
         }
 
-       const updateUser = await UserService.updateUserById(userId, updateData);
+       const updateUser = await UserService.updateUserById(userId, updateData, department, organization);
 
        res.status(200).json({ message: 'User updated', user: updateUser });     
     } catch (err) {
@@ -324,6 +362,22 @@ exports.updateUserStatus = async (req, res, next) => {
         const updateUserStatus = await UserService.updateUserStatusById(userId, inActived);
 
         res.status(200).json({ message: 'User status updated', user: updateUserStatus });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.checkUserRole = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const userRole = await UserService.getUserByIdWithRoles(userId);
+
+        if (!userRole) {
+            console.log("Debug userRole", userRole.role);
+            throw createError(404, 'User role not found');
+        }
+
+        res.status(200).json({ message: "User role checked", role: userRole.role });
     } catch (err) {
         next(err);
     }

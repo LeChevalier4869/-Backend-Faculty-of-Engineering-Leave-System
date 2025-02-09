@@ -8,27 +8,23 @@ datasource db {
 }
 
 model approvalsteps {
-
   id                                    Int                  @id @default(autoincrement())
   stepOrder                             Int
   status                                approvalsteps_status @default(PENDING)
-  reviewedAt                            DateTime? @default(now())
+  reviewedAt                            DateTime?            @default(now())
+  previousApproved                      Boolean              @default(false)
   remarks                               String?
   approverId                            Int
-  reviewedBy                            Int?
   leaveRequestId                        Int
   users_approvalsteps_approverIdTousers users                @relation("approvalsteps_approverIdTousers", fields: [approverId], references: [id], map: "ApprovalSteps_approverId_fkey")
   leaverequests                         leaverequests        @relation(fields: [leaveRequestId], references: [id], map: "ApprovalSteps_leaveRequestId_fkey")
-  users_approvalsteps_reviewedByTousers users?               @relation("approvalsteps_reviewedByTousers", fields: [reviewedBy], references: [id], map: "ApprovalSteps_reviewedBy_fkey")
 
   @@index([approverId], map: "ApprovalSteps_approverId_fkey")
   @@index([leaveRequestId], map: "ApprovalSteps_leaveRequestId_fkey")
-  @@index([reviewedBy], map: "ApprovalSteps_reviewedBy_fkey")
   @@map("approvalsteps")
 }
 
 model attachments {
-
   id             Int           @id @default(autoincrement())
   fileName       String
   filePath       String
@@ -41,7 +37,6 @@ model attachments {
 }
 
 model auditlogs {
-
   id             Int           @id @default(autoincrement())
   action         String
   details        Json
@@ -57,35 +52,23 @@ model auditlogs {
   @@map("auditlogs")
 }
 
-model departments {
-
-  id                      Int                       @id @default(autoincrement())
-  name                    String
-  organization_department organization_department[]
-  users                   users[]
-
-  @@map("departments")
-}
-
 model holidays {
-
   id          Int      @id @default(autoincrement())
   name        String
   date        DateTime
   description String?
-  recurring   Boolean  @default(false)
 
   @@map("holidays")
 }
 
 model leavebalances {
-
   id            Int        @id @default(autoincrement())
   year          Int
-  totalDays     Int
+  maxDays       Int
   usedDays      Int        @default(0)
   userId        Int
   leaveTypeId   Int
+  pendingDays   Int        @default(0)
   remainingDays Int        @default(0)
   leavetypes    leavetypes @relation(fields: [leaveTypeId], references: [id], map: "LeaveBalances_leaveTypeId_fkey")
   users         users      @relation(fields: [userId], references: [id], map: "LeaveBalances_userId_fkey")
@@ -96,34 +79,39 @@ model leavebalances {
 }
 
 model leaverequests {
-
-  id            Int                  @id @default(autoincrement())
-  startDate     DateTime
-  endDate       DateTime
-  reason        String?
-  status        leaverequests_status @default(PENDING)
-  isEmergency   Boolean              @default(false)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @default(now())
-  userId        Int
-  leaveTypeId   Int
-  comment       String?
-  approvalsteps approvalsteps[]
-  attachments   attachments[]
-  auditlogs     auditlogs[]
-  leavetypes    leavetypes           @relation(fields: [leaveTypeId], references: [id], map: "LeaveRequests_leaveTypeId_fkey")
-  users         users                @relation(fields: [userId], references: [id], map: "LeaveRequests_userId_fkey")
+  id                 Int                  @id @default(autoincrement())
+  startDate          DateTime
+  endDate            DateTime
+  reason             String?
+  status             leaverequests_status @default(PENDING)
+  isEmergency        Boolean              @default(false)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now())
+  userId             Int
+  leaveTypeId        Int
+  comment            String?
+  documentNumber     String?              @unique
+  documentIssuedDate DateTime?
+  verifierId         Int?
+  receiverId         Int?
+  approvalsteps      approvalsteps[]
+  attachments        attachments[]
+  auditlogs          auditlogs[]
+  leavetypes         leavetypes           @relation(fields: [leaveTypeId], references: [id], map: "LeaveRequests_leaveTypeId_fkey")
+  users              users                @relation(fields: [userId], references: [id], map: "LeaveRequests_userId_fkey")
+  verifier  users? @relation("leaveRequests_verifierId", fields: [verifierId], references: [id], map: "LeaveRequests_verifierId_fkey")
+  receiver users? @relation("leaveRequests_receiverId", fields: [receiverId], references: [id], map: "LeaveRequests_receiverId_fkey")
 
   @@index([leaveTypeId], map: "LeaveRequests_leaveTypeId_fkey")
   @@index([userId], map: "LeaveRequests_userId_fkey")
+  @@index([verifierId], map: "LeaveRequests_verifierId_fkey")
+  @@index([receiverId], map: "LeaveRequests_receiverId_fkey")
   @@map("leaverequests")
 }
 
 model leavetypes {
-
   id            Int             @id @default(autoincrement())
   name          String          @unique(map: "LeaveTypes_name_key")
-  maxDays       Int
   conditions    Json
   leavebalances leavebalances[]
   leaverequests leaverequests[]
@@ -131,17 +119,7 @@ model leavetypes {
   @@map("leavetypes")
 }
 
-model levels {
-
-  id    Int     @id @default(autoincrement())
-  level String
-  users users[]
-
-  @@map("levels")
-}
-
 model notifications {
-
   id        Int      @id @default(autoincrement())
   message   String
   isRead    Boolean  @default(false)
@@ -154,8 +132,29 @@ model notifications {
   @@map("notifications")
 }
 
-model organization_department {
+model user_department {
+  userId       Int
+  departmentId Int
+  isHead       Boolean @default(false)
 
+  users       users       @relation(fields: [userId], references: [id])
+  departments departments @relation(fields: [departmentId], references: [id])
+
+  @@id([userId, departmentId])
+  @@index([departmentId], map: "User_Department_departmentId_fkey")
+  @@map("user_department")
+}
+
+model departments {
+  id                      Int                       @id @default(autoincrement())
+  name                    String
+  organization_department organization_department[]
+  user_department          user_department[]
+
+  @@map("departments")
+}
+
+model organization_department {
   organizationId Int
   departmentId   Int
   departments    departments   @relation(fields: [departmentId], references: [id], map: "Organization_Department_departmentId_fkey")
@@ -167,17 +166,14 @@ model organization_department {
 }
 
 model organizations {
-
   id                      Int                       @id @default(autoincrement())
   name                    String
   organization_department organization_department[]
-  users                   users[]
 
   @@map("organizations")
 }
 
 model personneltypes {
-
   id    Int     @id @default(autoincrement())
   name  String
   users users[]
@@ -186,7 +182,6 @@ model personneltypes {
 }
 
 model roles {
-
   id          Int         @id @default(autoincrement())
   name        String      @unique(map: "Roles_name_key")
   description String?
@@ -196,7 +191,6 @@ model roles {
 }
 
 model user_role {
-
   userId Int
   roleId Int
   roles  roles @relation(fields: [roleId], references: [id], map: "User_Role_roleId_fkey")
@@ -208,50 +202,65 @@ model user_role {
 }
 
 model users {
-
-  id                                            Int             @id @default(autoincrement())
+  id                                            Int              @id @default(autoincrement())
   prefixName                                    String
   firstName                                     String
   lastName                                      String
-  email                                         String          @unique(map: "Users_email_key")
+  sex                                           String           @default("ไม่ระบุ")
+  email                                         String           @unique(map: "Users_email_key")
   password                                      String
   position                                      String
   profilePicturePath                            String?
-  levelId                                       Int
   personnelTypeId                               Int
-  departmentId                                  Int
   hireDate                                      DateTime
-  inActive                                      Boolean         @default(true)
-  organizationId                                Int
+  inActive                                      Boolean          @default(true)
+  empolymentType                                employment_type
   phone                                         String
-  username                                      String          @unique(map: "Users_username_key")
-  approvalsteps_approvalsteps_approverIdTousers approvalsteps[] @relation("approvalsteps_approverIdTousers")
-  approvalsteps_approvalsteps_reviewedByTousers approvalsteps[] @relation("approvalsteps_reviewedByTousers")
+  approvalsteps_approvalsteps_approverIdTousers approvalsteps[]  @relation("approvalsteps_approverIdTousers")
   auditlogs                                     auditlogs[]
   leavebalances                                 leavebalances[]
   leaverequests                                 leaverequests[]
   notifications                                 notifications[]
   user_role                                     user_role[]
-  departments                                   departments     @relation(fields: [departmentId], references: [id], map: "Users_departmentId_fkey")
-  levels                                        levels          @relation(fields: [levelId], references: [id], map: "Users_levelId_fkey")
-  organizations                                 organizations   @relation(fields: [organizationId], references: [id], map: "Users_organizationId_fkey")
-  personneltypes                                personneltypes  @relation(fields: [personnelTypeId], references: [id], map: "Users_personnelTypeId_fkey")
+  personneltypes                                personneltypes   @relation(fields: [personnelTypeId], references: [id], map: "Users_personnelTypeId_fkey")
+  user_department                                user_department[]
+  signatures                                    signatures[]
 
-  @@index([departmentId], map: "Users_departmentId_fkey")
-  @@index([levelId], map: "Users_levelId_fkey")
-  @@index([organizationId], map: "Users_organizationId_fkey")
   @@index([personnelTypeId], map: "Users_personnelTypeId_fkey")
   @@map("users")
+  leaverequests_verifierId leaverequests[] @relation("leaveRequests_verifierId")
+  leaverequests_receiverId leaverequests[] @relation("leaveRequests_receiverId")
+
+}
+
+model signatures {
+  id     Int    @id @default(autoincrement())
+  userId Int
+  file   String
+
+  users users @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "Signatures_userId_fkey")
+  @@map("signatures")
 }
 
 enum approvalsteps_status {
   PENDING
   APPROVED
   REJECTED
+  WAITING_FOR_VERIFICATION
+  WAITING_FOR_RECEIVER
 }
 
 enum leaverequests_status {
   PENDING
   APPROVED
   REJECTED
+  WAITING_FOR_VERIFICATION
+  WAITING_FOR_RECEIVER
+}
+
+enum employment_type {
+  ACADEMIC //สายวิชาการ
+  SUPPORT //สายสนับสนุน
 }

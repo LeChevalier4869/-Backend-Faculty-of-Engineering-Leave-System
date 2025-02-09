@@ -1,30 +1,31 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function level() {
-
-    const Individual = await prisma.levels.upsert({
+async function role() {
+    const User = await prisma.roles.upsert({
         where: { id: 1 },
         update: {},
-        create: { level: 'ระดับบุคคล' },
+        create: {
+            name: "USER",
+            description: "ผู้ใช้งานทั่วไป"
+        },
     });
-    const Advisor = await prisma.levels.upsert({
+    const Approver = await prisma.roles.upsert({
         where: { id: 2 },
         update: {},
-        create: { level: 'หัวหน้าภาควิชา' },
+        create: {
+            name: "APPROVER",
+            description: "ผู้ทีมีอำนาจในการอนุมัติ"
+        },
     });
-    const Faculty = await prisma.levels.upsert({
+    const Admin = await prisma.roles.upsert({
         where: { id: 3 },
         update: {},
-        create: { level: 'ระดับคณะ' },
+        create: {
+            name: "ADMIN",
+            description: "ผู้ที่สามารถทำได้ทุกอย่าง"
+        },
     });
-    const University = await prisma.levels.upsert({
-        where: { id: 4 },
-        update: {},
-        create: { level: 'ระดับมหาวิทยาลัย' },
-    });
-
-    console.log({ Individual, Advisor, Faculty, University });
 }
 
 async function personnelType() {
@@ -212,8 +213,9 @@ async function leaveType() {
 }
 
 async function main() {
-    await level();
+    await role();
     await personnelType();
+    await organization();
     await department();
 }
 

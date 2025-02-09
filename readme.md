@@ -35,6 +35,7 @@ leaveType
         prefixName, 
         firstName, 
         lastName, 
+        sex, 
         username,
         email, 
         password, 
@@ -42,10 +43,9 @@ leaveType
         roleNames[], //default = ['USER']
         position,
         hireDate,
-        levelId,
+        inActive,
+        employmentType, //ACADEMIC, SUPPORT
         personnelTypeId,
-        organizationId,
-        departmentId,
         profilePicturePath (error)
         }
 

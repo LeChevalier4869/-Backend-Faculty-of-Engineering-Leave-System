@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE `approvalsteps` MODIFY `reviewedAt` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3);
