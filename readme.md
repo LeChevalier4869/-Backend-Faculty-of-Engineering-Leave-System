@@ -103,6 +103,10 @@ leaveType
     - params: id
     - body (raw): { inActive }
 
+- checkRole
+    - method: get
+    - route: /role
+
 ## leave request (/leave-requests)
 - createRequest 
     - method: post

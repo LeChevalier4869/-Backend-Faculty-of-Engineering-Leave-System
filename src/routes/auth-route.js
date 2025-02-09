@@ -8,6 +8,7 @@ router.post('/register', uploadFile.uploadProfile.none(), authController.registe
 router.post('/login', uploadFile.uploadProfile.none(), authController.login);
 router.get('/me', uploadFile.uploadProfile.none(), authMiddleware.authenticate, authController.getMe);
 router.get('/landing', authController.userLanding);
+router.get('/role', authMiddleware.authenticate, authController.checkUserRole);
 //router.post('/:id/role', authMiddleware.authenticate, uploadFile.uploadProfile.none(), authController.updateUserRole);
 
 router.post('/:id/role', authMiddleware.authenticate, authMiddleware.authorize(['ADMIN']), authController.updateUserRole);
