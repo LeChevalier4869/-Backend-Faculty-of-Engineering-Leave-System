@@ -13,13 +13,11 @@ exports.register = async (req, res, next) => {
             prefixName,
             firstName, 
             lastName,
-            sex, //default ไม่ระบุ
-            username, 
+            sex, //default ไม่ระบุ 
             email, 
             password, 
             phone,
             roleNames = ['USER'], 
-            position, 
             hireDate,
             inActive, //default true
             employmentType, //ACADEMIC, SUPPORT
@@ -70,11 +68,9 @@ exports.register = async (req, res, next) => {
             firstName,
             lastName,
             sex,
-            username,
             email,
             password: passwordHash,
             phone,
-            position,
             hireDate,
             inActive,
             employmentType: mapEmploymentType,
