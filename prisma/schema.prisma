@@ -201,7 +201,7 @@ model users {
   personnelTypeId                               Int
   hireDate                                      DateTime
   inActive                                      Boolean          @default(true)
-  empolymentType                                employment_type
+  employmentType                                employment_type
   phone                                         String
   approvalsteps_approvalsteps_approverIdTousers approvalsteps[]  @relation("approvalsteps_approverIdTousers")
   auditlogs                                     auditlogs[]

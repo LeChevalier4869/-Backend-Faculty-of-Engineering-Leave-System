@@ -56,8 +56,8 @@ exports.register = async (req, res, next) => {
         }
 
         const employmentTypeMap = {
-            ACADEMIC: "สายวิชาการ",
-            SUPPORT: "สายสนับสนุน",
+            ACADEMIC: "ACADEMIC",
+            SUPPORT: "SUPPORT",
         };
 
         const mapEmploymentType = employmentTypeMap[employmentType] || null;
