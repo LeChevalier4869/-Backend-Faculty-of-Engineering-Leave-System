@@ -2,7 +2,7 @@ const prisma = require('../config/prisma');
 const createError = require('../utils/createError');
 
 class UserService {
-    static async createUser(data, department, organization) {
+    static async createUser(data) {
         try {
             if (data.hireDate) {
                 data.hireDate = new Date(data.hireDate);
