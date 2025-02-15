@@ -50,6 +50,22 @@ async function role() {
             description: "ผู้ทีมีอำนาจในการอนุมัติลำดับที่ 4"
         },
     });
+    const Verifier = await prisma.roles.upsert({
+        where: { id: 7 },
+        update: {},
+        create: {
+            name: "VERIFIER",
+            description: "ผู้ตรวจสอบ"
+        },
+    });
+    const Receiver = await prisma.roles.upsert({
+        where: { id: 8 },
+        update: {},
+        create: {
+            name: "RECEIVER",
+            description: "ผู้รับหนังสือ"
+        },
+    });
 }
 
 async function personnelType() {
@@ -79,7 +95,7 @@ async function personnelType() {
         create: { name: 'ลูกจ้างเงินรายได้' },
     });
 
-    console.log({ Permanent, Government, EmployeesInHigherEdu, RevenueBased });
+    console.log({ CivilServants, Permanent, Government, EmployeesInHigherEdu, RevenueBased });
 }
 
 async function organization() {
@@ -98,78 +114,80 @@ async function organization() {
         update: {},
         create: { name: 'คณะบริหารธุรกิจและเทคโนโลยีสารสนเทศ' },
     });
+
+    console.log({ Engineering, IndustrialEducation, BusinessAdministration });
 }
 
 async function department() {
     const Civil = await prisma.departments.upsert({
         where: { id: 1 },
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมโยธา', organizationId: 1, isHeadId: 1 },
+        create: { name: 'สาขาวิชาวิศวกรรมโยธา', organizationId: 1},
     });
     const Electrical = await prisma.departments.upsert({
         where: { id: 2 },
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมไฟฟ้า', organizationId: 1, isHeadId: 2 },
+        create: { name: 'สาขาวิชาวิศวกรรมไฟฟ้า', organizationId: 1},
     });
     const Electronics = await prisma.departments.upsert({
         where: {id: 3},
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมอิเล็กทรอนิกส์ฯ', organizationId: 1, isHeadId: 3  },
+        create: { name: 'สาขาวิชาวิศวกรรมอิเล็กทรอนิกส์ฯ', organizationId: 1},
     });
     const Computer = await prisma.departments.upsert({
         where: {id: 4},
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมคอมพิวเตอร์', organizationId: 1, isHeadId: 4  },
+        create: { name: 'สาขาวิชาวิศวกรรมคอมพิวเตอร์', organizationId: 1},
     });
     const Mechatronics = await prisma.departments.upsert({
         where: {id: 5},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมเมคคาทรอนิกส์', organizationId: 1, isHeadId: 5},
+        create: {name: 'สาขาวิชาวิศวกรรมเมคคาทรอนิกส์', organizationId: 1},
     });
     const Mechanical = await prisma.departments.upsert({
         where: {id: 6},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมเครื่องกล', organizationId: 1, isHeadId: 6 },
+        create: {name: 'สาขาวิชาวิศวกรรมเครื่องกล', organizationId: 1},
     });
     const AgriculturalMachinery = await prisma.departments.upsert({
         where: {id: 7},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมเครื่องจักรกลเกษตร', organizationId: 1, isHeadId: 7 },
+        create: {name: 'สาขาวิชาวิศวกรรมเครื่องจักรกลเกษตร', organizationId: 1},
     });
     const FoodAndBioprocess = await prisma.departments.upsert({
         where: {id: 8},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมอาหารและชีวภาพ', organizationId: 1, isHeadId: 8},
+        create: {name: 'สาขาวิชาวิศวกรรมอาหารและชีวภาพ', organizationId: 1},
     });
     const Industrial = await prisma.departments.upsert({
         where: {id: 9},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมอุตสาหการ', organizationId: 1, isHeadId: 9},
+        create: {name: 'สาขาวิชาวิศวกรรมอุตสาหการ', organizationId: 1},
     });
     const Metallurgical = await prisma.departments.upsert({
         where: {id: 10},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมโลหการ', organizationId: 1, isHeadId: 10},
+        create: {name: 'สาขาวิชาวิศวกรรมโลหการ', organizationId: 1},
     });
     const Chemistry = await prisma.departments.upsert({
         where: {id: 11},
         update: {},
-        create: {name: 'สาขาวิชาสาขาวิชาเคมี', organizationId: 1, isHeadId: 11},
+        create: {name: 'สาขาวิชาสาขาวิชาเคมี', organizationId: 1},
     });
     const Mathematics = await prisma.departments.upsert({
         where: {id: 12},
         update: {},
-        create: {name: 'สาขาวิชาคณิตศาสตร์', organizationId: 1, isHeadId: 12},
+        create: {name: 'สาขาวิชาคณิตศาสตร์', organizationId: 1},
     });
     const AppliedPhysics = await prisma.departments.upsert({
         where: {id: 13},
         update: {},
-        create: {name: 'สาขาวิชาฟิสิกส์ประยุกต์', organizationId: 1, isHeadId: 13},
+        create: {name: 'สาขาวิชาฟิสิกส์ประยุกต์', organizationId: 1},
     });
     const AppliedStatistics = await prisma.departments.upsert({
         where: {id: 14},
         update: {},
-        create: {name: 'สาขาวิชาสถิติประยุกต์', organizationId: 1, isHeadId: 14},
+        create: {name: 'สาขาวิชาสถิติประยุกต์', organizationId: 1},
     });
 
     console.log({ Civil, Electrical, Electronics, Computer, Mechatronics, Mechanical, AgriculturalMachinery, FoodAndBioprocess, Industrial, Metallurgical, Chemistry, Mathematics, AppliedPhysics, AppliedStatistics });
@@ -177,63 +195,79 @@ async function department() {
 
 async function leaveType() {
     // not complete
-    const SickLeave = await prisma.leavetypes.upsert({
-        where: { id: 1 },
-        update: {},
-        create: { 
-            data: {
-                name: 'ลาป่วย',
-                maxDays: 30,
-                conditions: JSON.stringify({
-                    requireDocument: { minDays: 2, documentType: 'ใบรับรองแพทย์' },
-                    advanceNoticeDays: { required: false, ifKnown: 3 },
-                    maxDaysPerRequest: 7,
-                    maxDaysPerYear: 30,
-                    allowEmergency: true,
-                    emergencyPolicy: { notifyLater: true, gracePeriodDays: 3 }
-                })
-            }
-         }
-    });
+    // const SickLeave = await prisma.leavetypes.upsert({
+    //     where: { id: 1 },
+    //     update: {},
+    //     create: { 
+    //         data: {
+    //             name: 'ลาป่วย',
+    //             maxDays: 30,
+    //             conditions: JSON.stringify({
+    //                 requireDocument: { minDays: 2, documentType: 'ใบรับรองแพทย์' },
+    //                 advanceNoticeDays: { required: false, ifKnown: 3 },
+    //                 maxDaysPerRequest: 7,
+    //                 maxDaysPerYear: 30,
+    //                 allowEmergency: true,
+    //                 emergencyPolicy: { notifyLater: true, gracePeriodDays: 3 }
+    //             })
+    //         }
+    //      }
+    // });
     // ลูกจ้างประจำ 
-    const PersonalLeave = await prisma.leavetypes.upsert({
-        where: { id: 2 },
-        update: {},
-        create: {
-            data: {
-                name: 'ลากิจส่วนตัว',
-                maxDays: 45,
-                conditions: JSON.stringify({
-                    requireDocument: {
-                        mandatory: true,
-                        forReasons: ["เลี้ยงดูบุตร", "งานส่วนตัว", "ธุระสำคัญ"],
-                        documentTypes: ["ใบลา", "เอกสารชี้แจง"]
-                    },
-                    advanceNoticeDays: { required: true, days: 3 },
-                    maxDaysPerRequest: 5,
-                    maxDaysPerYear: 45,
-                    allowEmergency: true,
-                    emergencyPolicy: { notifyLater: true, gracePeriodDays: 1 }, 
-                    limitedReasons: ["เลี้ยงดูบุตร", "ธุระส่วนตัว"],
-                    disallowedReasons: ["ท่องเที่ยว", "เหตุผลส่วนตัวที่ไม่จำเป็น"],
-                    specialConditions: {
-                        firstYear: {
-                            maxDaysPerYear: 15,
-                            allowedWithoutPay: true,
-                        },
-                        afterFirstYear: {
-                            additionalDays: 30,
-                            allowedWithPay: true,
-                        },
-                        maternityToChildcare: {
-                            maxDays: 150,
-                            allowedWithoutPay: true,
-                        }
-                    }
-                })
-            }
-        }
-    });
+    // const PersonalLeave = await prisma.leavetypes.upsert({
+    //     where: { id: 2 },
+    //     update: {},
+    //     create: {
+    //         data: {
+    //             name: 'ลากิจส่วนตัว',
+    //             maxDays: 45,
+    //             conditions: JSON.stringify({
+    //                 requireDocument: {
+    //                     mandatory: true,
+    //                     forReasons: ["เลี้ยงดูบุตร", "งานส่วนตัว", "ธุระสำคัญ"],
+    //                     documentTypes: ["ใบลา", "เอกสารชี้แจง"]
+    //                 },
+    //                 advanceNoticeDays: { required: true, days: 3 },
+    //                 maxDaysPerRequest: 5,
+    //                 maxDaysPerYear: 45,
+    //                 allowEmergency: true,
+    //                 emergencyPolicy: { notifyLater: true, gracePeriodDays: 1 }, 
+    //                 limitedReasons: ["เลี้ยงดูบุตร", "ธุระส่วนตัว"],
+    //                 disallowedReasons: ["ท่องเที่ยว", "เหตุผลส่วนตัวที่ไม่จำเป็น"],
+    //                 specialConditions: {
+    //                     firstYear: {
+    //                         maxDaysPerYear: 15,
+    //                         allowedWithoutPay: true,
+    //                     },
+    //                     afterFirstYear: {
+    //                         additionalDays: 30,
+    //                         allowedWithPay: true,
+    //                     },
+    //                     maternityToChildcare: {
+    //                         maxDays: 150,
+    //                         allowedWithoutPay: true,
+    //                     }
+    //                 }
+    //             })
+    //         }
+    //     }
+    // });
+
+    const leaveTypes = [
+        { name: "ลาป่วย", conditions: {} },
+        { name: "ลากิจส่วนตัว", conditions: {} },
+        { name: "ลาพักผ่อน", conditions: {} },
+    ];
+
+    for (const leave of leaveTypes) {
+        await prisma.leavetypes.upsert({
+            where: { name: leave.name },
+            update: {},
+            create: leave,
+        });
+    }
+
+    console.log("Seed data inserted successfully!");
 }
 
 async function main() {
@@ -241,6 +275,7 @@ async function main() {
     await personnelType();
     await organization();
     await department();
+    await leaveType();
 }
 
 main()

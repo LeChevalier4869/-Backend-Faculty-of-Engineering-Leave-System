@@ -3,9 +3,27 @@ const createError = require("../utils/createError");
 const UserService = require("../services/user-service");
 const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("./leaveBalance-service");
+const { checkLeaveEligibility } = require("../utils/checkLeaveEligibility");
 
 // ในการ update leave request สามารถใช้ updateRequestStatus ได้แบบ Dynamics
 // หรือ แยกแบบ approved or rejected ได้ที่ approved or rejected method
+
+/** Descriptions
+ * LeaveRequestService - บริการจัดการคำขอลา
+ * - createRequest: สร้างคำขอลา
+ * - updateRequestStatus: อัปเดตสถานะคำขอลา
+ * - getRequests: ดึงข้อมูลคำขอลาทั้งหมด
+ * - getRequestsById: ดึงข้อมูลคำขอลาตาม ID
+ * - updateRequest: อัปเดตคำขอลา
+ * - approveRequest: อนุมัติคำขอลา
+ * - rejectRequest: ปฏิเสธคำขอลา
+ * - deleteRequest: ลบคำขอลา
+ * - getLanding: ดึงคำขอลาที่ยังค้างอยู่
+ * - getApprovalSteps: ดึงขั้นตอนการอนุมัติ
+ * - updateDocumentInfo: อัปเดตข้อมูลเอกสาร
+ * - getRequestForVerifier: ดึงคำขอลาสำหรับผู้ตรวจสอบ
+ * - getRequestForReceiver: ดึงคำขอลาสำหรับผู้รับเอกสาร
+ */
 
 class LeaveRequestService {
   static async createRequest(
@@ -16,59 +34,51 @@ class LeaveRequestService {
     reason,
     isEmergency
   ) {
+
+    if (!userId || !leaveTypeId || !startDate || !endDate) {
+      throw createError(400, "Missing required fields.");
+    }
+
+    //Validate date format & logic
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start) || isNaN(end)) {
+      throw createError(400, "Invalid date format.");
+    }
+
+    if (start > end) {
+      throw createError(400, "Start date cannot be later than end date.");
+    }
+
     //cal request day
-    const requestDays =
-      (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24) + 1;
+    const requestDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    // (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24) + 1;
 
-    // query user and leave type
-    const user = await UserService.getUserByIdWithRoles(userId);
-    if (!user) {
-      console.log(user);
-      throw createError(404, "User not found");
+    if (requestDays <= 0) {
+      throw createError(400, "Requested leave days must be greater than zero.");
     }
 
-    const leaveType = await LeaveTypeService.getLeaveTypeByID(leaveTypeId);
-    if (!leaveType) {
-      console.log(leaveType);
-      throw createError(404, "Leave type not found");
-    }
-
-    //check maxDays
-    const personnelType = user.personnelTypeId.name;
-    //let maxDays =
-
-    // to-do here (conditions for leave) //not complete
-    if (personnelType === "permanent") {
-      // maxDays = 60;
-      console.log("ประเภทบุคลากร", personnelType);
-    } else if (personnelType === "government") {
-      //maxDays = 30;
-      console.log("ประเภทบุคลากร", personnelType);
-    }
-
-    // if (requestDays > maxDays) {
-    //     throw createError(400, `Requested leave exceeds the maximum allowed days (${maxDays})`);
-    // }
-
-    await LeaveBalanceService.updatePendingLeaveBalance(
+    //ตรวจสอบสิทธิ์ก่อน
+    const eligibility = await checkLeaveEligibility(
       userId,
       leaveTypeId,
       requestDays
     );
+    if (!eligibility.success) throw createError(400, eligibility.message);
 
-    const userDepartment = await prisma.user_department.findFirst({
-      where: { userId: userId },
-      select: { departmentId: true },
+    //Update pending leave balance
+    await LeaveBalanceService.updatePendingLeaveBalance(userId, leaveTypeId, requestDays);
+
+    //Get department head, verifier, and receiver
+    const userDepartment = await prisma.departments.findUnique({
+      where: { id: eligibility.departmentId },
+      select: { isHeadId: true }
     });
 
-    if (!userDepartment) throw createError(404, "User's department not found.");
-
-    // 🔥 ดึงหัวหน้าสาขา
-    const headOfDepartmentId = await UserService.getHeadOfDepartment(
-      userDepartment.departmentId
-    );
-    if (!headOfDepartmentId)
-      throw createError(500, "No head of department found.");
+    if (!userDepartment || !userDepartment.isHeadId) {
+      throw createError(500, "Department head not found.");
+    }
 
     const verifier = await UserService.getVerifier();
     const receiver = await UserService.getReceiver();
@@ -92,14 +102,14 @@ class LeaveRequestService {
     const newRequest = await prisma.leaverequests.create({
       data: {
         userId,
-        leaveTypeId: parseInt(leaveTypeId),
+        leaveTypeId,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         reason,
         isEmergency,
         status: "PENDING",
-        verifierId: verifier.id, // บันทึกผู้ตรวจสอบ
-        receiverId: receiver.id, // บันทึกผู้รับหนังสือ
+        verifierId: verifier, // บันทึกผู้ตรวจสอบ
+        receiverId: receiver, // บันทึกผู้รับหนังสือ
       },
     });
 
@@ -107,7 +117,7 @@ class LeaveRequestService {
     await prisma.approvalsteps.create({
       data: {
         leaveRequestId: newRequest.id,
-        approverId: headOfDepartmentId,
+        approverId: userDepartment.isHeadId,
         stepOrder: 1,
         status: "PENDING",
       },
@@ -266,7 +276,10 @@ class LeaveRequestService {
       throw new Error(`Failed to update request status: ${error.message}`);
     }
   }
-  static async getRequests(whereCondition) {
+  static async getRequestsByCondition(whereCondition) {
+    if (typeof whereCondition !== "object") {
+      throw createError(400, "Invalid filter conditions.");
+    }
     return await prisma.leaverequests.findMany({
       where: whereCondition,
       include: {
@@ -297,7 +310,7 @@ class LeaveRequestService {
             firstName: true,
             lastName: true,
             email: true,
-          }
+          },
         },
         receiver: {
           select: {
@@ -305,12 +318,15 @@ class LeaveRequestService {
             firstName: true,
             lastName: true,
             email: true,
-          }
-        }
+          },
+        },
       },
     });
   }
   static async getRequestsById(requestId) {
+    if (!requestId || isNaN(requestId)) {
+      throw createError(400, "Invalid request ID.");
+    }
     return await prisma.leaverequests.findUnique({
       where: { id: parseInt(requestId) },
       include: {
@@ -320,7 +336,7 @@ class LeaveRequestService {
             firstName: true,
             lastName: true,
             email: true,
-          }
+          },
         },
         receiver: {
           select: {
@@ -328,7 +344,7 @@ class LeaveRequestService {
             firstName: true,
             lastName: true,
             email: true,
-          }
+          },
         },
         users: {
           select: {
@@ -351,7 +367,7 @@ class LeaveRequestService {
             approverId: true,
           },
         },
-      }
+      },
     });
   }
   static async updateRequest(requestId, updateData) {
@@ -457,6 +473,9 @@ class LeaveRequestService {
   }
   static async deleteRequest(requestId) {
     try {
+      if (!requestId || isNaN(requestId)) {
+        throw createError(400, "Invalid request ID.");
+      }
       const leaveRequest = await prisma.leaverequests.findUnique({
         where: {
           id: requestId,

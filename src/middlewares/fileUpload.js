@@ -1,4 +1,5 @@
 const multer = require('multer');
+//const fileType = require('file-type');
 const path = require('path');
 const createError = require('../utils/createError');
 

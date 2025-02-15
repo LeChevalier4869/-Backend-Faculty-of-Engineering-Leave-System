@@ -3,15 +3,23 @@ const jwt = require('jsonwebtoken');
 const authenticate = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if(!token) {
-        return createError(401, 'Unauthorized');
+        return next(createError(401, 'Unauthorized'));
     }
     try {
-        const user = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         //console.log("Decoded User: ", user);
-        req.user = user;
+
+        // check token expiration
+
+        const now = Date.now().valueOf() / 1000;
+        if (decoded.exp < now) {
+            throw createError(401, 'Token expired');
+        }
+
+        req.user = decoded;
         next();
     } catch {
-        createError(401, 'Unauthorized');
+        next(createError(401, 'Unauthorized'));
     }
 };
 

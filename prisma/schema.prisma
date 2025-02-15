@@ -136,10 +136,10 @@ model departments {
   id                      Int                       @id @default(autoincrement())
   name                    String
 
-  isHeadId Int  @unique
+  isHeadId Int?  @unique
   organizationId Int
 
-  userIshead users @relation("department_IsHead", fields: [isHeadId], references: [id])
+  userIshead users? @relation("department_IsHead", fields: [isHeadId], references: [id])
   organizations organizations @relation(fields: [organizationId], references: [id])
 
   @@map("departments")

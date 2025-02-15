@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
+// const helmet = require('helmet');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -16,6 +17,17 @@ const leaveRequestRoute = require('./routes/leaveRequest-route');
 const leaveTypeRoute = require('./routes/leaveType-route');
 const leaveBalance = require('./routes/leaveBalance-route');
 const testRote = require('./routes/test-route');
+
+// ทดสอบ pdf------------------------------------------------------------------------------------------------------------------------
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+
+const reportRoutes = require('./routes/reportRoutes');
+app.use('/api', reportRoutes);
+app.use('/public', express.static('public'));
+// ทดสอบ pdf------------------------------------------------------------------------------------------------------------------------
+
 
 app.use('/auth', authRoute);
 app.use('/leave-requests', authenticate, leaveRequestRoute);
