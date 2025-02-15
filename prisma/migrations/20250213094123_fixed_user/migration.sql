@@ -2,8 +2,9 @@
 CREATE TABLE `approvalsteps` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `stepOrder` INTEGER NOT NULL,
-    `status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `status` ENUM('PENDING', 'APPROVED', 'REJECTED', 'WAITING_FOR_VERIFICATION', 'WAITING_FOR_RECEIVER') NOT NULL DEFAULT 'PENDING',
     `reviewedAt` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `previousApproved` BOOLEAN NOT NULL DEFAULT false,
     `remarks` VARCHAR(191) NULL,
     `approverId` INTEGER NOT NULL,
     `leaveRequestId` INTEGER NOT NULL,
@@ -72,7 +73,7 @@ CREATE TABLE `leaverequests` (
     `startDate` DATETIME(3) NOT NULL,
     `endDate` DATETIME(3) NOT NULL,
     `reason` VARCHAR(191) NULL,
-    `status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `status` ENUM('PENDING', 'APPROVED', 'REJECTED', 'WAITING_FOR_VERIFICATION', 'WAITING_FOR_RECEIVER') NOT NULL DEFAULT 'PENDING',
     `isEmergency` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -81,10 +82,14 @@ CREATE TABLE `leaverequests` (
     `comment` VARCHAR(191) NULL,
     `documentNumber` VARCHAR(191) NULL,
     `documentIssuedDate` DATETIME(3) NULL,
+    `verifierId` INTEGER NULL,
+    `receiverId` INTEGER NULL,
 
     UNIQUE INDEX `leaverequests_documentNumber_key`(`documentNumber`),
     INDEX `LeaveRequests_leaveTypeId_fkey`(`leaveTypeId`),
     INDEX `LeaveRequests_userId_fkey`(`userId`),
+    INDEX `LeaveRequests_verifierId_fkey`(`verifierId`),
+    INDEX `LeaveRequests_receiverId_fkey`(`receiverId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -112,30 +117,14 @@ CREATE TABLE `notifications` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `user_department` (
-    `userId` INTEGER NOT NULL,
-    `departmentId` INTEGER NOT NULL,
-    `isHead` BOOLEAN NOT NULL DEFAULT false,
-
-    INDEX `User_Department_departmentId_fkey`(`departmentId`),
-    PRIMARY KEY (`userId`, `departmentId`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
 CREATE TABLE `departments` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
-
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `organization_department` (
+    `isHeadId` INTEGER NOT NULL,
     `organizationId` INTEGER NOT NULL,
-    `departmentId` INTEGER NOT NULL,
 
-    INDEX `Organization_Department_departmentId_fkey`(`departmentId`),
-    PRIMARY KEY (`organizationId`, `departmentId`)
+    UNIQUE INDEX `departments_isHeadId_key`(`isHeadId`),
+    PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -182,8 +171,9 @@ CREATE TABLE `users` (
     `sex` VARCHAR(191) NOT NULL DEFAULT 'ไม่ระบุ',
     `email` VARCHAR(191) NOT NULL,
     `password` VARCHAR(191) NOT NULL,
-    `position` VARCHAR(191) NOT NULL,
     `profilePicturePath` VARCHAR(191) NULL,
+    `organizationId` INTEGER NOT NULL,
+    `departmentId` INTEGER NOT NULL,
     `personnelTypeId` INTEGER NOT NULL,
     `hireDate` DATETIME(3) NOT NULL,
     `inActive` BOOLEAN NOT NULL DEFAULT true,
@@ -233,25 +223,31 @@ ALTER TABLE `leaverequests` ADD CONSTRAINT `LeaveRequests_leaveTypeId_fkey` FORE
 ALTER TABLE `leaverequests` ADD CONSTRAINT `LeaveRequests_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `leaverequests` ADD CONSTRAINT `LeaveRequests_verifierId_fkey` FOREIGN KEY (`verifierId`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `leaverequests` ADD CONSTRAINT `LeaveRequests_receiverId_fkey` FOREIGN KEY (`receiverId`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `notifications` ADD CONSTRAINT `Notifications_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `user_department` ADD CONSTRAINT `user_department_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `departments` ADD CONSTRAINT `departments_isHeadId_fkey` FOREIGN KEY (`isHeadId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `user_department` ADD CONSTRAINT `user_department_departmentId_fkey` FOREIGN KEY (`departmentId`) REFERENCES `departments`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `organization_department` ADD CONSTRAINT `Organization_Department_departmentId_fkey` FOREIGN KEY (`departmentId`) REFERENCES `departments`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `organization_department` ADD CONSTRAINT `Organization_Department_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `organizations`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `departments` ADD CONSTRAINT `departments_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `organizations`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `user_role` ADD CONSTRAINT `User_Role_roleId_fkey` FOREIGN KEY (`roleId`) REFERENCES `roles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `user_role` ADD CONSTRAINT `User_Role_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `users` ADD CONSTRAINT `users_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `organizations`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `users` ADD CONSTRAINT `users_departmentId_fkey` FOREIGN KEY (`departmentId`) REFERENCES `departments`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `users` ADD CONSTRAINT `Users_personnelTypeId_fkey` FOREIGN KEY (`personnelTypeId`) REFERENCES `personneltypes`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

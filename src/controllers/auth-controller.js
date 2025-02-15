@@ -24,8 +24,8 @@ exports.register = async (req, res, next) => {
             inActive, //default true
             employmentType, //ACADEMIC, SUPPORT
             personnelTypeId,
-            department,
-            organization,
+            departmentId,
+            organizationId,
         } = req.body;
 
         //ตรวจสอบ
@@ -47,13 +47,6 @@ exports.register = async (req, res, next) => {
         }
         console.log(userExist)
 
-        // 1 user 1 department 1 organization
-        if (!Array.isArray(department) || department.length !== 1) {
-            throw createError(400, "สามารถเลือกภาควิชาได้เพียง 1 รายการ");
-        }
-        if (!Array.isArray(organization) || organization.length !== 1) {
-            throw createError(400, "สามารถเลือกหน่วยงานได้เพียง 1 รายการ");
-        }
 
         const passwordHash = await bcrypt.hash(password, 10);
 
@@ -86,8 +79,10 @@ exports.register = async (req, res, next) => {
             inActive,
             employmentType: mapEmploymentType,
             personnelTypeId: parseInt(personnelTypeId),
+            departmentId: parseInt(departmentId),
+            organizationId: parseInt(organizationId),
             profilePicturePath
-        }, department[0], organization[0]);
+        });
 
         const roles = await UserService.getRolesByNames(roleNames);
         if (!roles || roles.length !== roleNames.length) {
@@ -136,8 +131,8 @@ exports.login = async (req, res, next) => {
         const userWithRoles = await UserService.getUserByIdWithRoles(user.id);
         const roles = userWithRoles.user_role.map(userRole => userRole.roles.name);
 
-        const departments = await UserService.getDepartment(user.id);
-        const organization = await UserService.getOrganization(user.id);
+        // const departments = await UserService.getDepartment(user.id);
+        // const organization = await UserService.getOrganization(user.id);
     
         const token = jwt.sign(
             { 
@@ -149,8 +144,9 @@ exports.login = async (req, res, next) => {
                 sex: user.sex,
                 role: roles,
                 phone: user.phone,
-                organization: organization.map(i => i.organizations),
-                department: departments.map(i => i.departments),
+                organizationId: user.organizationId.name,
+                department: user.departmentId.name,
+                // isHeadOfDepartment: ตรวจสอบว่า user เป็นหัวหน้าของสาขานี้หรือไม่,
                 position: user.position,
                 personnelType: user.personnelTypeId.name,
                 hireDate: user.hireDate,

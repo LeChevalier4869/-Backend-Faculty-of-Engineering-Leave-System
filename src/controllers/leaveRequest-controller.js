@@ -8,7 +8,7 @@ const upload = multer();
 
 exports.createLeaveRequest = async (req, res, next) => {
   try {
-    // const { leaveTypeId, startDate, endDate, reason, isEmergency, comment} = req.body;
+    const { leaveTypeId, startDate, endDate, reason, isEmergency } = req.body;
     // console.log("req.user.id = ", req.user.id);
     // console.log("Debug leaveTypeId con: ", leaveTypeId);
     // console.log("Debug req.user.id con: ", req.user.id);
@@ -53,8 +53,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       startDate,
       endDate,
       reason,
-      isEmergency,
-      comment
+      isEmergency
     );
     await LeaveBalanceService.updateLeaveBalance(
       req.user.id,
@@ -68,6 +67,26 @@ exports.createLeaveRequest = async (req, res, next) => {
       `Leave created: ${reason} , isEemergency: ${req.body.isEmergency}`,
       "LEAVE_REQUEST"
     );
+
+    //sent email ตัวเอง
+    const user = await UserService.getUserByIdWithRoles(req.user.id);
+
+    if (user) {
+      const userEmail = user.email;
+      const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+
+      const subject = "บทบาทของคุณได้รับการอัพเดตแล้ว!";
+      const message = `
+              <h3>สวัสดี ${userName}</h3>
+              <p>บทบาทของคุณได้รับการอัพเดตแล้ว</p>
+
+              <br/>
+              <p>ขอแสดงความนับถือ</p>
+              <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+          `;
+      await sendEmail(userEmail, subject, message);
+    }
+
     res
       .status(201)
       .json({ message: "Leave request created", requestId: leaveRequest.id });
@@ -140,7 +159,9 @@ exports.getLeaveRequest = async (req, res, next) => {
       throw createError(404, "User's department not found.");
     }
 
-    const headOfDepartment = await UserService.getHeadOfDepartment(userDepartment.departmentId);
+    const headOfDepartment = await UserService.getHeadOfDepartment(
+      userDepartment.departmentId
+    );
 
     if (!headOfDepartment) {
       throw createError(404, "No head of department found.");
@@ -152,7 +173,9 @@ exports.getLeaveRequest = async (req, res, next) => {
       message: "Leave requests retrieved",
       data: {
         ...leaveRequests[0],
-        headOfDepartment: headOfDepartment ? await UserService.getUserById(headOfDepartment) : null,
+        headOfDepartment: headOfDepartment
+          ? await UserService.getUserById(headOfDepartment)
+          : null,
         verifier: await UserService.getUserByIdWithRoles(leaveRequests[0]),
         receiver: await UserService.getUserByIdWithRoles(leaveRequests[0]),
         approvalSteps,

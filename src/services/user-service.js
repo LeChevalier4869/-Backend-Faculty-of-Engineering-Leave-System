@@ -11,24 +11,6 @@ class UserService {
             const newUser = await prisma.users.create({
                 data,
             });
-    
-            if (department && department.length > 0) {
-                await prisma.user_deparment.createMany({
-                    data: department.map(deptId => ({
-                        userId: newUser.id,
-                        departmentId: deptId,
-                        isHead: false // กำหนดค่าเริ่มต้นเป็นไม่ใช่หัวหน้าภาควิชา
-                    }))
-                });
-            }
-            if (organization && organization.length > 0) {
-                await prisma.organization_department.createMany({
-                    data: organization.map(orgId => ({
-                        organizationId: orgId,
-                        departmentId: department[0] // 🔥 อ้างอิงจาก departmentId ตัวแรก (ถ้ามีหลายภาควิชาอาจต้องปรับ logic)
-                    }))
-                });
-            }
             return newUser;
         } catch (err) {
             if (err.code === 'P2002') { 
@@ -78,7 +60,7 @@ class UserService {
             createError(400, 'Failed to update');
         }
     }
-    static async updateUserById(userId, data, department, organization) {
+    static async updateUserById(userId, data) {
         try {
             const user = await prisma.users.findUnique({
                 where: { id: userId },
@@ -92,35 +74,6 @@ class UserService {
                 where: { id: userId },
                 data: data,
             });
-
-            if (department && department.length > 0) {
-                await prisma.user_deparment.deleteMany({
-                    where: { userId: userId },
-                });
-
-                await prisma.user_deparment.createMany({
-                    data: department.map(depId => ({
-                        userId: userId,
-                        departmentId: depId,
-                        isHead: false
-                    }))
-                });
-            }
-
-            if (organization && organization.length > 0) {
-                await prisma.organization_department.deleteMany({
-                    where: {
-                        departmentId: { in: department }
-                    }
-                });
-
-                await prisma.organization_department.createMany({
-                    data: organization.map(orgId => ({
-                        organizationId: orgId,
-                        departmentId: department[0]
-                    }))
-                });
-            }
 
             return updatedUser;
         } catch (err) {
@@ -160,19 +113,8 @@ class UserService {
                             roles: true,
                         }
                     },
-                    user_deparment: {
-                        include: {
-                            departments: {
-                                include: {
-                                    organization_department: {
-                                        include: {
-                                            organizations: true
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    organizations: true,
+                    departments: true,
                 },
             });
 
@@ -212,40 +154,40 @@ class UserService {
             data: userRoles,
         });
     }
-    static async getDepartment(userId) {
-        const departments = await prisma.user_deparment.findMany({
-            where: { userId: userId },
-            select: {
-                departments: {
-                    select: {
-                        id: true,
-                        name: true,
-                    }
-                }
-            }
-        });
-        return departments;
-    }
-    static async getOrganization(userId) {
-        const organizations = await prisma.organization_department.findMany({
-            where: {
-                departments: {
-                    user_deparment: {
-                        some: { userId: userId },
-                    }
-                }
-            },
-            select: {
-                organizations: {
-                    select: {
-                        id: true,
-                        name: true,
-                    }
-                }
-            }
-        });
-        return organizations;
-    }
+    // static async getDepartment(userId) {
+    //     const departments = await prisma.user_deparment.findMany({
+    //         where: { userId: userId },
+    //         select: {
+    //             departments: {
+    //                 select: {
+    //                     id: true,
+    //                     name: true,
+    //                 }
+    //             }
+    //         }
+    //     });
+    //     return departments;
+    // }
+    // static async getOrganization(userId) {
+    //     const organizations = await prisma.organization_department.findMany({
+    //         where: {
+    //             departments: {
+    //                 user_deparment: {
+    //                     some: { userId: userId },
+    //                 }
+    //             }
+    //         },
+    //         select: {
+    //             organizations: {
+    //                 select: {
+    //                     id: true,
+    //                     name: true,
+    //                 }
+    //             }
+    //         }
+    //     });
+    //     return organizations;
+    // }
     static async getVerifier() {
         const verifier = await prisma.users.findFirst({
             where: { role: "VERIFIER" },

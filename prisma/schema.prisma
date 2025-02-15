@@ -132,45 +132,27 @@ model notifications {
   @@map("notifications")
 }
 
-model user_department {
-  userId       Int
-  departmentId Int
-  isHead       Boolean @default(false)
-
-  users       users       @relation(fields: [userId], references: [id])
-  departments departments @relation(fields: [departmentId], references: [id])
-
-  @@id([userId, departmentId])
-  @@index([departmentId], map: "User_Department_departmentId_fkey")
-  @@map("user_department")
-}
-
 model departments {
   id                      Int                       @id @default(autoincrement())
   name                    String
-  organization_department organization_department[]
-  user_department          user_department[]
+
+  isHeadId Int  @unique
+  organizationId Int
+
+  userIshead users @relation("department_IsHead", fields: [isHeadId], references: [id])
+  organizations organizations @relation(fields: [organizationId], references: [id])
 
   @@map("departments")
-}
-
-model organization_department {
-  organizationId Int
-  departmentId   Int
-  departments    departments   @relation(fields: [departmentId], references: [id], map: "Organization_Department_departmentId_fkey")
-  organizations  organizations @relation(fields: [organizationId], references: [id], map: "Organization_Department_organizationId_fkey")
-
-  @@id([organizationId, departmentId])
-  @@index([departmentId], map: "Organization_Department_departmentId_fkey")
-  @@map("organization_department")
+  users users[] @relation("departmentId")
 }
 
 model organizations {
   id                      Int                       @id @default(autoincrement())
   name                    String
-  organization_department organization_department[]
 
   @@map("organizations")
+  departments departments[]
+  users users[]
 }
 
 model personneltypes {
@@ -209,8 +191,13 @@ model users {
   sex                                           String           @default("ไม่ระบุ")
   email                                         String           @unique(map: "Users_email_key")
   password                                      String
-  position                                      String
   profilePicturePath                            String?
+  organizationId Int
+  departmentId Int
+
+  organizations organizations @relation(fields: [organizationId], references: [id])
+  departments departments @relation("departmentId" ,fields: [departmentId], references: [id])
+
   personnelTypeId                               Int
   hireDate                                      DateTime
   inActive                                      Boolean          @default(true)
@@ -223,7 +210,6 @@ model users {
   notifications                                 notifications[]
   user_role                                     user_role[]
   personneltypes                                personneltypes   @relation(fields: [personnelTypeId], references: [id], map: "Users_personnelTypeId_fkey")
-  user_department                                user_department[]
   signatures                                    signatures[]
 
   @@index([personnelTypeId], map: "Users_personnelTypeId_fkey")
@@ -231,6 +217,7 @@ model users {
   leaverequests_verifierId leaverequests[] @relation("leaveRequests_verifierId")
   leaverequests_receiverId leaverequests[] @relation("leaveRequests_receiverId")
 
+  departmentIsHead departments[] @relation("department_IsHead")
 }
 
 model signatures {

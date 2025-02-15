@@ -46,6 +46,8 @@ leaveType
         inActive,
         employmentType, //ACADEMIC, SUPPORT
         personnelTypeId,
+        departmentId,
+        organizationId,
         profilePicturePath (error)
         }
 
