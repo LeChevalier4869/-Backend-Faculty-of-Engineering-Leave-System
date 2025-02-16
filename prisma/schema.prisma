@@ -99,8 +99,8 @@ model leaverequests {
   auditlogs          auditlogs[]
   leavetypes         leavetypes           @relation(fields: [leaveTypeId], references: [id], map: "LeaveRequests_leaveTypeId_fkey")
   users              users                @relation(fields: [userId], references: [id], map: "LeaveRequests_userId_fkey")
-  verifier  users? @relation("leaveRequests_verifierId", fields: [verifierId], references: [id], map: "LeaveRequests_verifierId_fkey")
-  receiver users? @relation("leaveRequests_receiverId", fields: [receiverId], references: [id], map: "LeaveRequests_receiverId_fkey")
+  verifier           users?               @relation("leaveRequests_verifierId", fields: [verifierId], references: [id], map: "LeaveRequests_verifierId_fkey")
+  receiver           users?               @relation("leaveRequests_receiverId", fields: [receiverId], references: [id], map: "LeaveRequests_receiverId_fkey")
 
   @@index([leaveTypeId], map: "LeaveRequests_leaveTypeId_fkey")
   @@index([userId], map: "LeaveRequests_userId_fkey")
@@ -133,26 +133,26 @@ model notifications {
 }
 
 model departments {
-  id                      Int                       @id @default(autoincrement())
-  name                    String
+  id   Int    @id @default(autoincrement())
+  name String
 
-  isHeadId Int?  @unique
+  isHeadId       Int? @unique
   organizationId Int
 
-  userIshead users? @relation("department_IsHead", fields: [isHeadId], references: [id])
+  userIshead    users?        @relation("department_IsHead", fields: [isHeadId], references: [id])
   organizations organizations @relation(fields: [organizationId], references: [id])
+  users         users[]       @relation("departmentId")
 
   @@map("departments")
-  users users[] @relation("departmentId")
 }
 
 model organizations {
-  id                      Int                       @id @default(autoincrement())
-  name                    String
+  id          Int           @id @default(autoincrement())
+  name        String
+  departments departments[]
+  users       users[]
 
   @@map("organizations")
-  departments departments[]
-  users users[]
 }
 
 model personneltypes {
@@ -184,40 +184,44 @@ model user_role {
 }
 
 model users {
-  id                                            Int              @id @default(autoincrement())
-  prefixName                                    String
-  firstName                                     String
-  lastName                                      String
-  sex                                           String           @default("ไม่ระบุ")
-  email                                         String           @unique(map: "Users_email_key")
-  password                                      String
-  profilePicturePath                            String?
-  organizationId Int
-  departmentId Int
+  id                 Int     @id @default(autoincrement())
+  prefixName         String
+  firstName          String
+  lastName           String
+  sex                String  @default("ไม่ระบุ")
+  email              String  @unique(map: "Users_email_key")
+  password           String
+  profilePicturePath String?
+  organizationId     Int
+  departmentId       Int
 
   organizations organizations @relation(fields: [organizationId], references: [id])
-  departments departments @relation("departmentId" ,fields: [departmentId], references: [id])
+  departments   departments   @relation("departmentId", fields: [departmentId], references: [id])
 
-  personnelTypeId                               Int
-  hireDate                                      DateTime
-  inActive                                      Boolean          @default(true)
-  employmentType                                employment_type
-  phone                                         String
-  approvalsteps_approvalsteps_approverIdTousers approvalsteps[]  @relation("approvalsteps_approverIdTousers")
+  personnelTypeId Int
+  hireDate        DateTime
+  inActive        Boolean         @default(true)
+  employmentType  employment_type
+  phone           String
+
+  isGoogleAccount Boolean @default(false)
+  googleId        String? @unique
+
+  approvalsteps_approvalsteps_approverIdTousers approvalsteps[] @relation("approvalsteps_approverIdTousers")
   auditlogs                                     auditlogs[]
   leavebalances                                 leavebalances[]
   leaverequests                                 leaverequests[]
   notifications                                 notifications[]
   user_role                                     user_role[]
-  personneltypes                                personneltypes   @relation(fields: [personnelTypeId], references: [id], map: "Users_personnelTypeId_fkey")
+  personneltypes                                personneltypes  @relation(fields: [personnelTypeId], references: [id], map: "Users_personnelTypeId_fkey")
   signatures                                    signatures[]
+  leaverequests_verifierId                      leaverequests[] @relation("leaveRequests_verifierId")
+  leaverequests_receiverId                      leaverequests[] @relation("leaveRequests_receiverId")
+
+  departmentIsHead departments[] @relation("department_IsHead")
 
   @@index([personnelTypeId], map: "Users_personnelTypeId_fkey")
   @@map("users")
-  leaverequests_verifierId leaverequests[] @relation("leaveRequests_verifierId")
-  leaverequests_receiverId leaverequests[] @relation("leaveRequests_receiverId")
-
-  departmentIsHead departments[] @relation("department_IsHead")
 }
 
 model signatures {

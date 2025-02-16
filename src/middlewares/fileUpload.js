@@ -1,5 +1,5 @@
 const multer = require('multer');
-//const fileType = require('file-type');
+const fileType = require('file-type');
 const path = require('path');
 const createError = require('../utils/createError');
 
@@ -28,9 +28,13 @@ const storageEvidence = multer.diskStorage({
 });
 
 // ตรวจสอบประเภทของไฟล์
-const fileFilter = (req, file, cb) => {
+const fileFilter = async (req, file, cb) => {
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (allowedMimeTypes.includes(file.mimetype)) {
+
+    const buffer = await fs.promise.readFile(file.path);
+    const type = await fileType.fromBuffer(buffer);
+
+    if (type && allowedMimeTypes.includes(file.mimetype)) {
         cb(null, true); //อนุญาตให้ upload
     } else {
         cb(createError(400, 'Invalid file type. Only JPEG, PNG, and PDF are allowed.'));

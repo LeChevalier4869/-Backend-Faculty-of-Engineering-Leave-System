@@ -4,6 +4,10 @@ const createError = require("../utils/createError");
 class UserService {
   static async createUser(data) {
     try {
+      // อนุญาตให้สร้างผู้ใช้โดยไม่มี password ได้ (กรณีล็อกอินด้วย Google)
+      if (data.isGoogleAccount && !data.password) {
+        data.password = uuidv4(); // สร้างรหัสชั่วคราว (แต่ต้องไม่ให้ล็อกอินด้วยวิธีปกติ)
+      }
       if (data.hireDate) {
         data.hireDate = new Date(data.hireDate);
       }
@@ -168,7 +172,7 @@ class UserService {
     });
   }
 
-  static async createUserProfile(userId,imgUrl) {
+  static async createUserProfile(userId, imgUrl) {
     return await prisma.users.update({
       where: {
         id: userId,

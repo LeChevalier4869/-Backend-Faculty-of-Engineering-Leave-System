@@ -281,8 +281,8 @@ exports.updateUser = async (req, res, next) => {
       inActive, // *
       employmentType, // *
       personnelTypeId, // *
-      department, // *
-      organization, // *
+      departmentId, // *
+      organizationId, // *
     } = req.body;
 
     if (!userId || isNaN(userId)) {
@@ -323,8 +323,8 @@ exports.updateUser = async (req, res, next) => {
       return createError(403, "Permission denied");
     }
 
-    if (!departments || !organizations) {
-      return createError(400, "Required department or organization field");
+    if (!departmentId || !organizationId) {
+      return createError(400, "Required department or organization ID field");
     }
 
     if (
@@ -342,8 +342,8 @@ exports.updateUser = async (req, res, next) => {
     const updateUser = await UserService.updateUserById(
       userId,
       updateData,
-      department,
-      organization
+      departmentId,
+      organizationId
     );
 
     res.status(200).json({ message: "User updated", user: updateUser });
@@ -395,6 +395,53 @@ exports.checkUserRole = async (req, res, next) => {
     }
 
     res.status(200).json({ message: "User role checked", role: userRole.role });
+  } catch (err) {
+    next(err);
+  }
+};
+
+//googleLoing ยังไม่เสร็จ
+exports.googleLogin = async (req, res, next) => {
+  try {
+    const { email } = req.user; // from google OAuth
+    if (!email.endsWith('@rmuti.ac.th')) {
+      throw createError(403, 'อนุญาตเฉพาะบัญชี @rmuti.ac.th');
+    }
+
+    // check user exist
+    let user = await UserService.getUserByEmail(email);
+
+    // if not - create new account (create new password / user do this)
+    if (!user) {
+      user = await UserService.createUser({
+        email,
+        password: null, //wait for user
+        isGoogleAccount: true,
+      });
+      return res.status(201).json({
+        message: 'กรุณาตั้งรหัสผ่าน',
+        tempUserId: user.id
+      });
+    }
+
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
+    res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.setPassword = async (req, res, next) => {
+  try {
+    const { tempUserId, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await UserService.updateUserById(tempUserId, {
+      password: hashedPassword,
+      isGoogleAccount: false,
+    });
+
+    res.json({ message: 'ตั้งรหัสผ่านสำเร็จ' });
   } catch (err) {
     next(err);
   }

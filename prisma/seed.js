@@ -122,72 +122,72 @@ async function department() {
     const Civil = await prisma.departments.upsert({
         where: { id: 1 },
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมโยธา', organizationId: 1},
+        create: { name: 'สาขาวิชาวิศวกรรมโยธา', organizationId: 1, isHeadId: null},
     });
     const Electrical = await prisma.departments.upsert({
         where: { id: 2 },
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมไฟฟ้า', organizationId: 1},
+        create: { name: 'สาขาวิชาวิศวกรรมไฟฟ้า', organizationId: 1, isHeadId: null},
     });
     const Electronics = await prisma.departments.upsert({
         where: {id: 3},
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมอิเล็กทรอนิกส์ฯ', organizationId: 1},
+        create: { name: 'สาขาวิชาวิศวกรรมอิเล็กทรอนิกส์ฯ', organizationId: 1, isHeadId: null},
     });
     const Computer = await prisma.departments.upsert({
         where: {id: 4},
         update: {},
-        create: { name: 'สาขาวิชาวิศวกรรมคอมพิวเตอร์', organizationId: 1},
+        create: { name: 'สาขาวิชาวิศวกรรมคอมพิวเตอร์', organizationId: 1, isHeadId: null},
     });
     const Mechatronics = await prisma.departments.upsert({
         where: {id: 5},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมเมคคาทรอนิกส์', organizationId: 1},
+        create: {name: 'สาขาวิชาวิศวกรรมเมคคาทรอนิกส์', organizationId: 1, isHeadId: null},
     });
     const Mechanical = await prisma.departments.upsert({
         where: {id: 6},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมเครื่องกล', organizationId: 1},
+        create: {name: 'สาขาวิชาวิศวกรรมเครื่องกล', organizationId: 1, isHeadId: null},
     });
     const AgriculturalMachinery = await prisma.departments.upsert({
         where: {id: 7},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมเครื่องจักรกลเกษตร', organizationId: 1},
+        create: {name: 'สาขาวิชาวิศวกรรมเครื่องจักรกลเกษตร', organizationId: 1, isHeadId: null},
     });
     const FoodAndBioprocess = await prisma.departments.upsert({
         where: {id: 8},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมอาหารและชีวภาพ', organizationId: 1},
+        create: {name: 'สาขาวิชาวิศวกรรมอาหารและชีวภาพ', organizationId: 1, isHeadId: null}, 
     });
     const Industrial = await prisma.departments.upsert({
         where: {id: 9},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมอุตสาหการ', organizationId: 1},
+        create: {name: 'สาขาวิชาวิศวกรรมอุตสาหการ', organizationId: 1, isHeadId: null},
     });
     const Metallurgical = await prisma.departments.upsert({
         where: {id: 10},
         update: {},
-        create: {name: 'สาขาวิชาวิศวกรรมโลหการ', organizationId: 1},
+        create: {name: 'สาขาวิชาวิศวกรรมโลหการ', organizationId: 1, isHeadId: null},
     });
     const Chemistry = await prisma.departments.upsert({
         where: {id: 11},
         update: {},
-        create: {name: 'สาขาวิชาสาขาวิชาเคมี', organizationId: 1},
+        create: {name: 'สาขาวิชาสาขาวิชาเคมี', organizationId: 1, isHeadId: null},
     });
     const Mathematics = await prisma.departments.upsert({
         where: {id: 12},
         update: {},
-        create: {name: 'สาขาวิชาคณิตศาสตร์', organizationId: 1},
+        create: {name: 'สาขาวิชาคณิตศาสตร์', organizationId: 1, isHeadId: null},
     });
     const AppliedPhysics = await prisma.departments.upsert({
         where: {id: 13},
         update: {},
-        create: {name: 'สาขาวิชาฟิสิกส์ประยุกต์', organizationId: 1},
+        create: {name: 'สาขาวิชาฟิสิกส์ประยุกต์', organizationId: 1, isHeadId: null},
     });
     const AppliedStatistics = await prisma.departments.upsert({
         where: {id: 14},
         update: {},
-        create: {name: 'สาขาวิชาสถิติประยุกต์', organizationId: 1},
+        create: {name: 'สาขาวิชาสถิติประยุกต์', organizationId: 1, isHeadId: null},
     });
 
     console.log({ Civil, Electrical, Electronics, Computer, Mechatronics, Mechanical, AgriculturalMachinery, FoodAndBioprocess, Industrial, Metallurgical, Chemistry, Mathematics, AppliedPhysics, AppliedStatistics });
