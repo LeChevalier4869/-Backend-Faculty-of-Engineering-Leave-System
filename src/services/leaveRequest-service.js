@@ -34,7 +34,6 @@ class LeaveRequestService {
     reason,
     isEmergency
   ) {
-
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "Missing required fields.");
     }
@@ -65,15 +64,22 @@ class LeaveRequestService {
       leaveTypeId,
       requestDays
     );
+
+    // console.log("Debug eligibility id: ", eligibility.departmentId.departmentId);
+
     if (!eligibility.success) throw createError(400, eligibility.message);
 
     //Update pending leave balance
-    await LeaveBalanceService.updatePendingLeaveBalance(userId, leaveTypeId, requestDays);
+    await LeaveBalanceService.updatePendingLeaveBalance(
+      userId,
+      leaveTypeId,
+      requestDays
+    );
 
     //Get department head, verifier, and receiver
     const userDepartment = await prisma.departments.findUnique({
-      where: { id: eligibility.departmentId },
-      select: { isHeadId: true }
+      where: { id: eligibility.departmentId.departmentId },
+      select: { isHeadId: true },
     });
 
     if (!userDepartment || !userDepartment.isHeadId) {
@@ -102,11 +108,11 @@ class LeaveRequestService {
     const newRequest = await prisma.leaverequests.create({
       data: {
         userId,
-        leaveTypeId,
+        leaveTypeId: parseInt(leaveTypeId),
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         reason,
-        isEmergency,
+        isEmergency: Boolean(isEmergency),
         status: "PENDING",
         verifierId: verifier, // บันทึกผู้ตรวจสอบ
         receiverId: receiver, // บันทึกผู้รับหนังสือ
@@ -327,7 +333,7 @@ class LeaveRequestService {
     if (!requestId || isNaN(requestId)) {
       throw createError(400, "Invalid request ID.");
     }
-    return await prisma.leaverequests.findUnique({
+    return await prisma.leaverequests.findMany({
       where: { id: parseInt(requestId) },
       include: {
         verifier: {
@@ -370,6 +376,18 @@ class LeaveRequestService {
       },
     });
   }
+
+  //แนบไฟล์-------------------------------------------------------------------------------------------------
+  static async attachImages(attachImages) {
+    try {
+      return await prisma.attachments.createMany({
+        data: attachImages,
+      });
+    } catch (error) {
+      throw createError(500, `Failed to attach Images: ${error.message}`);
+    }
+  }
+
   static async updateRequest(requestId, updateData) {
     try {
       return await prisma.leaverequests.update({
@@ -496,31 +514,34 @@ class LeaveRequestService {
     }
   }
   static async getLanding() {
-    try {
-      return await prisma.leaverequests.findMany({
-        where: {
-          status: "PENDING",
-        },
-        include: {
-          leavetypes: true,
-          leavebalances: true,
-          users: {
-            select: {
-              id: true,
-              prefixName: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              hireDate: true,
-              inActive: true,
-              phone: true,
-            },
+    const leaveRequests = await prisma.leaverequests.findMany({
+      where: {
+        status: "PENDING",
+      },
+      include: {
+        leavetypes: true,
+        users: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            hireDate: true,
+            inActive: true,
+            phone: true,
+            leavebalances: true,
           },
         },
-      });
-    } catch (err) {
-      throw new Error("Leave requests not found");
+      },
+    });
+
+    if (!leaveRequests || leaveRequests.length === 0) {
+      console.log("Debug leave request: ", leaveRequests);
+      throw createError(404, "Leave request not found");
     }
+
+    return leaveRequests;
   }
   static async getApprovalSteps(requestId) {
     return await prisma.approvalsteps.findMany({
@@ -600,6 +621,57 @@ class LeaveRequestService {
         },
       },
     });
+  }
+  static async getRequestIsMine(userId) {
+    if (!userId) {
+      throw createError(400, `user id is ${userId}`);
+    }
+    if (isNaN(userId)) {
+      userId = parseInt(userId);
+    }
+    const leaveRequest = await prisma.leaverequests.findMany({
+      where: { userId: userId },
+      include: {
+        verifier: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        receiver: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        users: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        leavetypes: {
+          select: {
+            name: true,
+            conditions: true,
+          },
+        },
+        approvalsteps: {
+          select: {
+            stepOrder: true,
+            status: true,
+            approverId: true,
+          },
+        },
+      },
+    });
+    return leaveRequest;
   }
 }
 

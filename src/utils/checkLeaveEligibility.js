@@ -6,12 +6,14 @@ async function checkLeaveEligibility(userId, leaveTypeId, requestedDays) {
         include: { personneltypes: true, leavebalances: true },
     });
 
+    let leaveTypeIdInt = parseInt(leaveTypeId);
+
     if (!user) throw new Error("ไม่พบข้อมูลผู้ใช้งาน"); 
 
     const { name: personnelType } = user.personneltypes;
     
     const balance = await prisma.leavebalances.findFirst({
-        where: { userId, leaveTypeId },
+        where: { userId, leaveTypeId: leaveTypeIdInt},
     });
 
     if (!balance) throw new Error("ไม่พบข้อมูลสิทธิ์การลา");
@@ -19,7 +21,7 @@ async function checkLeaveEligibility(userId, leaveTypeId, requestedDays) {
     let maxDaysAllowed = 0;
     let hireMonths = Math.floor((new Date() - user.hireDate) / (30 * 24 * 60 * 60 * 1000));
 
-    switch (leaveTypeId) {
+    switch (leaveTypeIdInt) {
         case 1: //ลาป่วย
             if (["ข้าราชการพลเรือนในสถาบันอุดมศึกษา", "ลูกจ้างประจำ", "พนักงานในสถาบันอุดมศึกษา"].includes(personnelType)) {
                 maxDaysAllowed = 60;
@@ -58,7 +60,14 @@ async function checkLeaveEligibility(userId, leaveTypeId, requestedDays) {
         throw new Error(`สิทธิ์การลาเกินกว่ากำหนด (${maxDaysAllowed} วัน)`);
     }
 
-    return { success: true, message: `สามารถลาได้ ${requestedDays} วัน` };
+    const departmentId = await prisma.users.findUnique({
+        where: { id: userId },
+        select: {
+            departmentId: true,
+        }
+    });
+
+    return { success: true, message: `สามารถลาได้ ${requestedDays} วัน`, departmentId: departmentId  };
 }
 
 module.exports = { checkLeaveEligibility };

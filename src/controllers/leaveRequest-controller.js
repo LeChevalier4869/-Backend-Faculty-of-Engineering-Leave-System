@@ -3,8 +3,10 @@ const LeaveBalanceService = require("../services/leaveBalance-service");
 const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
 const multer = require("multer");
+const cloudUpload = require("../utils/cloudUpload");
 const UserService = require("../services/user-service");
 const upload = multer();
+const { sendEmail } = require('../utils/emailService');
 
 exports.createLeaveRequest = async (req, res, next) => {
   try {
@@ -55,6 +57,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       reason,
       isEmergency
     );
+
     await LeaveBalanceService.updateLeaveBalance(
       req.user.id,
       leaveTypeId,
@@ -68,7 +71,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       "LEAVE_REQUEST"
     );
 
-    //sent email ตัวเอง
+    //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
     const user = await UserService.getUserByIdWithRoles(req.user.id);
 
     if (user) {
@@ -86,6 +89,36 @@ exports.createLeaveRequest = async (req, res, next) => {
           `;
       await sendEmail(userEmail, subject, message);
     }
+
+    const file = req.files;
+    if (file) {
+      const imagesPromiseArray = file.map((file) => {
+        return cloudUpload(file.path);
+      });
+  
+      const imgUrlArray = await Promise.all(imagesPromiseArray);
+  
+      const attachImages = imgUrlArray.map((imgUrl) => {
+        return {
+          fileName: "test",
+          filePath: imgUrl,
+          leaveRequestId: leaveRequest.id,
+        };
+      });
+
+      LeaveRequestService.attachImages(attachImages)
+    }
+    //   const newLeaveRequest = await prisma.leaverequests.findFirst({
+    //     where: {
+    //       id: leaveRequest.id,
+    //     },
+    //     include: {
+    //       attachments: true,
+    //     },
+    //   });
+    //   res.json({ newLeaveRequest });
+    // }
+
 
     res
       .status(201)
@@ -150,21 +183,10 @@ exports.getLeaveRequest = async (req, res, next) => {
     }
 
     // ค้นหาหัวหน้าสาขาของคำขอลานี้
-    const userDepartment = await prisma.user_department.findFirst({
-      where: { userId: leaveRequests[0].userId },
-      select: { departmentId: true },
-    });
+    const headDepartment = await UserService.getHeadOfDepartment(user.departmentId, user.id);
 
-    if (!userDepartment.departmentId) {
-      throw createError(404, "User's department not found.");
-    }
-
-    const headOfDepartment = await UserService.getHeadOfDepartment(
-      userDepartment.departmentId
-    );
-
-    if (!headOfDepartment) {
-      throw createError(404, "No head of department found.");
+    if (!headDepartment.departmentId) {
+      throw createError(404, "Head's department not found.");
     }
 
     const approvalSteps = await LeaveRequestService.getApprovalSteps(requestId);
@@ -173,8 +195,8 @@ exports.getLeaveRequest = async (req, res, next) => {
       message: "Leave requests retrieved",
       data: {
         ...leaveRequests[0],
-        headOfDepartment: headOfDepartment
-          ? await UserService.getUserById(headOfDepartment)
+        headOfDepartment: headDepartment
+          ? await UserService.getUserByIdWithRoles(headDepartment)
           : null,
         verifier: await UserService.getUserByIdWithRoles(leaveRequests[0]),
         receiver: await UserService.getUserByIdWithRoles(leaveRequests[0]),
@@ -189,9 +211,7 @@ exports.getLeaveRequest = async (req, res, next) => {
 exports.getLeaveRequestIsMine = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const leaveRequests = await LeaveRequestService.getRequests({
-      userId: userId,
-    });
+    const leaveRequests = await LeaveRequestService.getRequestIsMine(userId);
 
     if (!leaveRequests) {
       throw createError(404, "Leave request not found");

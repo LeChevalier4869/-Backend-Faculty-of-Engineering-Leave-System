@@ -78,7 +78,6 @@ exports.register = async (req, res, next) => {
       await UserService.createUserProfile(newUser.id, imgUrl);
     }
 
-    
     const roles = await UserService.getRolesByNames(roleNames);
     if (!roles || roles.length !== roleNames.length) {
       throw createError(400, "Invalid roles provided");
@@ -131,8 +130,13 @@ exports.login = async (req, res, next) => {
       (userRole) => userRole.roles.name
     );
 
-    // const departments = await UserService.getDepartment(user.id);
-    // const organization = await UserService.getOrganization(user.id);
+    const departments = await UserService.getDepartment(user.id);
+    const organization = await UserService.getOrganization(user.id);
+    const personnelType = await UserService.getPersonnelType(user.id);
+
+    // console.log("Debug department: ", departments);
+    // console.log("Debug organization: ", organization);
+    // console.log("Debug personnelType: ", personnelType);
 
     const token = jwt.sign(
       {
@@ -144,14 +148,14 @@ exports.login = async (req, res, next) => {
         sex: user.sex,
         role: roles,
         phone: user.phone,
-        organization: user.organizationId.name,
-        department: user.departmentId.name,
+        organization: organization,
+        department: departments,
         // isHeadOfDepartment: ตรวจสอบว่า user เป็นหัวหน้าของสาขานี้หรือไม่,
-        position: user.position,
-        personnelType: user.personnelTypeId.name,
+        personnelType: personnelType,
         hireDate: user.hireDate,
         inActive: user.inActive,
         employmentType: user.employmentType,
+        profilePicturePath: user.profilePicturePath,
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRESIN }
@@ -290,7 +294,7 @@ exports.updateUser = async (req, res, next) => {
     }
 
     const user = req.user;
-    //console.log('role = ' + user.role);
+    console.log("Debug role: ", user.role);
 
     const userRole = String(user.role);
 
