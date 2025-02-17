@@ -31,7 +31,7 @@ app.use('/public', express.static('public'));
 
 
 app.use('/auth', authRoute);
-app.use('/leave-requests', authenticate, leaveRequestRoute);
+app.use('/leave-requests', leaveRequestRoute);
 app.use('/leave-types', leaveTypeRoute);
 app.use('/leave-balances', authenticate, leaveBalance);
 app.use('/test', authenticate, testRote);

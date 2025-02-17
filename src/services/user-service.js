@@ -40,6 +40,27 @@ class UserService {
       throw err;
     }
   }
+  static async getUserInfoById(userId) {
+    return await prisma.users.findUnique({
+      where: { id: userId },
+      include: {
+        user_role: {
+          include: {
+            roles: true,
+          },
+        },
+        personneltypes: true,
+        organizations: true,
+        departments: true,
+        leavebalances: true,
+        leaverequests: {
+          include: {
+            approvalsteps: true,
+          },
+        },
+      },
+    });
+  }
   static async getUserByIdWithRoles(id) {
     return await prisma.users.findUnique({
       where: { id },
@@ -49,11 +70,9 @@ class UserService {
             roles: true,
           },
         },
-        departments: {
-          select: {
-            isHeadId: true,
-          }
-        }
+        departments: true,
+        organizations: true,
+        personneltypes: true,
       },
     });
   }
@@ -86,6 +105,7 @@ class UserService {
       createError(400, "Failed to update");
     }
   }
+  //update
   static async updateUserById(userId, data) {
     try {
       const user = await prisma.users.findUnique({
@@ -173,7 +193,7 @@ class UserService {
     });
   }
 
-  static async createUserProfile(userId,imgUrl) {
+  static async createUserProfile(userId, imgUrl) {
     return await prisma.users.update({
       where: {
         id: userId,
@@ -194,34 +214,34 @@ class UserService {
     });
   }
   static async getDepartment(userId) {
-      const departments = await prisma.users.findUnique({
-          where: { id: userId },
+    const departments = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        departments: {
           select: {
-            departments: {
-              select: {
-                id: true,
-                name: true,
-                isHeadId: true,
-                organizationId: true,
-              }
-            }
-          }
-      });
-      return departments ? departments.departments : null;
+            id: true,
+            name: true,
+            isHeadId: true,
+            organizationId: true,
+          },
+        },
+      },
+    });
+    return departments ? departments.departments : null;
   }
   static async getOrganization(userId) {
-      const organizations = await prisma.users.findUnique({
-          where: { id: userId },
+    const organizations = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        organizations: {
           select: {
-            organizations: {
-              select: {
-                id: true,
-                name: true,
-              }
-            }
-          }
-      });
-      return organizations ? organizations.organizations : null;
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+    return organizations ? organizations.organizations : null;
   }
   static async getPersonnelType(userId) {
     const personnelType = await prisma.users.findUnique({
@@ -231,9 +251,9 @@ class UserService {
           select: {
             id: true,
             name: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
     return personnelType ? personnelType.personneltypes : null;
   }
@@ -242,7 +262,7 @@ class UserService {
       where: { roleId: 7 }, //role is verifier
       select: {
         userId: true,
-      }
+      },
     });
 
     if (!verifier || verifier === null) {
@@ -283,34 +303,44 @@ class UserService {
     }
     return receiver.userId;
   }
-  static async getHeadOfDepartment(departmentId, userId) {
-    if (isNaN(departmentId)) {
-      departmentId = parseInt(departmentId);
+  static async getHeadOfDepartment(departmentId) {
+    if (!departmentId || isNaN(departmentId)) {
+      console.error("Invalid departmentId:", departmentId);
+      throw createError(400, "Invalid department ID");
     }
-    if (isNaN(userId)) {
-      userId = parseInt(userId);
+    departmentId = Number(departmentId);
+    console.log("Debug department id: ", departmentId);
+
+    const department = await prisma.departments.findUnique({
+      where: { id: departmentId },
+      select: { isHeadId: true },
+    });
+
+    if (!department) {
+      throw createError(404, "Department not found");
     }
 
-    const headId = await prisma.users.findFirst({
-      where: {
-        id: userId, departmentId: departmentId, 
-      },
-      select: { 
-        departments: {
-          select: {
-            isHeadId: true,
-          }
-        }
-      },
-    });
+    // const headId = await prisma.users.findFirst({
+    //   where: {
+    //     id: userId,
+    //   },
+    //   select: {
+    //     departments: {
+    //       select: {
+    //         isHeadId: true,
+    //       }
+    //     }
+    //   },
+    // });
 
     //validation headId
 
-    const headPerson = await this.getUserByIdWithRoles(headId);
+    // const headPerson = await this.getUserByIdWithRoles(headId);
 
-    //validation headPerson
+    // //validation headPerson
 
-    return headPerson ? headPerson.departments.isHeadId : null;
+    // return headPerson ? headPerson.departments.isHeadId : null;
+    return department.isHeadId;
   }
 }
 

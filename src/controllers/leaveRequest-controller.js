@@ -6,7 +6,7 @@ const multer = require("multer");
 const cloudUpload = require("../utils/cloudUpload");
 const UserService = require("../services/user-service");
 const upload = multer();
-const { sendEmail } = require('../utils/emailService');
+const { sendEmail } = require("../utils/emailService");
 
 exports.createLeaveRequest = async (req, res, next) => {
   try {
@@ -22,7 +22,7 @@ exports.createLeaveRequest = async (req, res, next) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    // 🔥 Validation: startDate ต้องไม่มากกว่า endDate
+    // Validation: startDate ต้องไม่มากกว่า endDate
     if (start > end) {
       throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
     }
@@ -63,6 +63,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       leaveTypeId,
       requestedDays
     );
+    // create log
     await AuditLogService.createLog(
       req.user.id,
       "Create Request",
@@ -95,9 +96,9 @@ exports.createLeaveRequest = async (req, res, next) => {
       const imagesPromiseArray = file.map((file) => {
         return cloudUpload(file.path);
       });
-  
+
       const imgUrlArray = await Promise.all(imagesPromiseArray);
-  
+
       const attachImages = imgUrlArray.map((imgUrl) => {
         return {
           fileName: "test",
@@ -106,7 +107,7 @@ exports.createLeaveRequest = async (req, res, next) => {
         };
       });
 
-      LeaveRequestService.attachImages(attachImages)
+      LeaveRequestService.attachImages(attachImages);
     }
     //   const newLeaveRequest = await prisma.leaverequests.findFirst({
     //     where: {
@@ -119,7 +120,6 @@ exports.createLeaveRequest = async (req, res, next) => {
     //   res.json({ newLeaveRequest });
     // }
 
-
     res
       .status(201)
       .json({ message: "Leave request created", requestId: leaveRequest.id });
@@ -128,6 +128,7 @@ exports.createLeaveRequest = async (req, res, next) => {
   }
 };
 
+//use
 exports.updateLeaveStatus = async (req, res, next) => {
   try {
     const { requestId, status } = req.body;
@@ -151,7 +152,16 @@ exports.updateLeaveStatus = async (req, res, next) => {
 
 exports.getLeaveRequest = async (req, res, next) => {
   try {
-    const { requestId } = req.query;
+    const requestId = parseInt(req.params.id);
+    console.log("Debug requestId11:", requestId); 
+    const user = req.user;
+    // console.log(user)
+    // console.log("Debug user.departmentId",user.department.id);
+
+    // if (!requestId || isNaN(requestId)) {
+    //   console.log("Debug requestId: ", requestId);
+    //   throw createError(400, "Invalid request ID.");
+    // }
 
     //const role = req.user.role;
 
@@ -173,22 +183,19 @@ exports.getLeaveRequest = async (req, res, next) => {
     // }
 
     // const leaveRequests = await LeaveRequestService.getRequests(whereCondition);
-
-    const leaveRequests = await LeaveRequestService.getRequestsById({
-      id: parseInt(requestId),
-    });
-
+    const leaveRequests = await LeaveRequestService.getRequestsById(requestId);
+    // console.log("Debug leaveRequest: ", leaveRequests);
     if (!leaveRequests) {
       throw createError(404, "Leave request not found");
     }
 
-    // ค้นหาหัวหน้าสาขาของคำขอลานี้
-    const headDepartment = await UserService.getHeadOfDepartment(user.departmentId, user.id);
-
-    if (!headDepartment.departmentId) {
-      throw createError(404, "Head's department not found.");
+    if (!user.department.id) {
+      throw createError(400, "User has no department assigned.");
     }
 
+    // ค้นหาหัวหน้าสาขาของคำขอลานี้
+    const headDepartment = await UserService.getHeadOfDepartment(user.department.id);
+    // console.log('Debug headDepartment: ', headDepartment);
     const approvalSteps = await LeaveRequestService.getApprovalSteps(requestId);
 
     res.status(200).json({
@@ -198,8 +205,8 @@ exports.getLeaveRequest = async (req, res, next) => {
         headOfDepartment: headDepartment
           ? await UserService.getUserByIdWithRoles(headDepartment)
           : null,
-        verifier: await UserService.getUserByIdWithRoles(leaveRequests[0]),
-        receiver: await UserService.getUserByIdWithRoles(leaveRequests[0]),
+        verifier: await UserService.getUserByIdWithRoles(leaveRequests[0].verifierId),
+        receiver: await UserService.getUserByIdWithRoles(leaveRequests[0].receiverId),
         approvalSteps,
       },
     });
@@ -226,35 +233,32 @@ exports.getLeaveRequestIsMine = async (req, res, next) => {
   }
 };
 
-exports.updateLeaveRequest = [
-  upload.none(),
-  async (req, res, next) => {
-    const leaveRequestId = parseInt(req.params.id);
-    const updateData = req.body;
-    try {
-      const leaveRequest = await LeaveRequestService.getRequestsById(
-        leaveRequestId
-      );
-      if (!leaveRequest) {
-        throw createError(404, "Leave request not found");
-      }
-      if (leaveRequest.userId !== req.user.id) {
-        throw createError(403, "You are not allowed to update");
-      }
-
-      const updateRequest = await LeaveRequestService.updateRequest(
-        leaveRequestId,
-        updateData
-      );
-      res.status(200).json({
-        message: "Leave request updated",
-        data: updateRequest,
-      });
-    } catch (err) {
-      next(err);
+exports.updateLeaveRequest = async (req, res, next) => {
+  const leaveRequestId = req.params.id;
+  const updateData = req.body;
+  try {
+    const leaveRequest = await LeaveRequestService.getRequestsById(
+      leaveRequestId
+    );
+    if (!leaveRequest) {
+      throw createError(404, "Leave request not found");
     }
-  },
-];
+    if (leaveRequest.userId !== req.user.id) {
+      throw createError(403, "You are not allowed to update");
+    }
+
+    const updateRequest = await LeaveRequestService.updateRequest(
+      leaveRequestId,
+      updateData
+    );
+    res.status(200).json({
+      message: "Leave request updated",
+      data: updateRequest,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 exports.approveLeaveRequest = async (req, res, next) => {
   try {

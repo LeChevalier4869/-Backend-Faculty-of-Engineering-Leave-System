@@ -131,6 +131,7 @@ class LeaveRequestService {
 
     return newRequest;
   }
+  // add logic
   static async updateRequestStatus(requestId, status, approverId) {
     try {
       const leaveRequest = await prisma.leaverequests.findUnique({
@@ -300,7 +301,6 @@ class LeaveRequestService {
         leavetypes: {
           select: {
             name: true,
-            maxDays: true,
           },
         },
         approvalsteps: {
@@ -331,10 +331,11 @@ class LeaveRequestService {
   }
   static async getRequestsById(requestId) {
     if (!requestId || isNaN(requestId)) {
+      console.log("Debug requestId: ", requestId);
       throw createError(400, "Invalid request ID.");
     }
     return await prisma.leaverequests.findMany({
-      where: { id: parseInt(requestId) },
+      where: { id: Number(requestId) },
       include: {
         verifier: {
           select: {
@@ -363,7 +364,6 @@ class LeaveRequestService {
         leavetypes: {
           select: {
             name: true,
-            maxDays: true,
           },
         },
         approvalsteps: {

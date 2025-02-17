@@ -11,7 +11,7 @@ const authenticate = (req, res, next) => {
 
         // check token expiration
 
-        const now = Date.now().valueOf() / 1000;
+        const now = Date.now().valueOf() / 30000;
         if (decoded.exp < now) {
             throw createError(401, 'Token expired');
         }

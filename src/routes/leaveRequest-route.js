@@ -5,20 +5,20 @@ const router = express.Router();
 const upload = require("../middlewares/upload");
 
 router.get(
-  "/",
+  "/get/:id",
   authenticate,
-  authorize(["ADMIN", "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4"]),
+  authorize(["ADMIN", "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4", "VERIFIER", "RECEIVER"]),
   leaveRequestController.getLeaveRequest
 );
 
 // router.post('/register', upload.single('images'), authController.register);
-router.get("/me", leaveRequestController.getLeaveRequestIsMine);
-router.post("/", upload.array("images", 5), leaveRequestController.createLeaveRequest);
-router.patch("/:id", leaveRequestController.updateLeaveRequest);
-router.patch("/status", leaveRequestController.updateLeaveStatus);
-router.post("/:id/approve", leaveRequestController.approveLeaveRequest);
-router.post("/:id/reject", leaveRequestController.rejectLeaveRequest);
-router.delete("/:id", leaveRequestController.deleteLeaveRequest);
-router.get("/landing", leaveRequestController.getLeaveRequestLanding);
+router.get("/me", authenticate, leaveRequestController.getLeaveRequestIsMine);
+router.post("/", upload.array("images", 5), authenticate, leaveRequestController.createLeaveRequest);
+router.patch("/:id", authenticate, leaveRequestController.updateLeaveRequest);
+router.patch("/status", authenticate, leaveRequestController.updateLeaveStatus);
+router.post("/:id/approve", authenticate, leaveRequestController.approveLeaveRequest);
+router.post("/:id/reject", authenticate, leaveRequestController.rejectLeaveRequest);
+router.delete("/:id", authenticate, leaveRequestController.deleteLeaveRequest);
+router.get("/landing", authenticate, leaveRequestController.getLeaveRequestLanding);
 
 module.exports = router;

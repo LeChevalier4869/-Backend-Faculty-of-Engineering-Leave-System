@@ -72,6 +72,7 @@ exports.register = async (req, res, next) => {
       organizationId: parseInt(organizationId),
     });
 
+    // upload profile picture
     const file = req.file;
     if (file) {
       const imgUrl = await cloudUpload(file.path);
@@ -220,7 +221,7 @@ exports.updateUserRole = async (req, res, next) => {
 
   try {
     if (!userId || isNaN(userId)) {
-      return createError(400, "Invalid user ID");
+      return next(createError(400, "Invalid user ID"));
     }
     if (!roleNames) {
       return createError(400, "Role names are required");
@@ -280,18 +281,19 @@ exports.updateUser = async (req, res, next) => {
       sex,
       email,
       phone,
-      position, // *
       hireDate, // *
       inActive, // *
       employmentType, // *
       personnelTypeId, // *
-      department, // *
-      organization, // *
+      departmentId, // *
+      organizationId, // *
     } = req.body;
 
     if (!userId || isNaN(userId)) {
       return createError(400, "Invalid user ID");
     }
+
+    //const file = req.file;
 
     const user = req.user;
     console.log("Debug role: ", user.role);
@@ -308,11 +310,12 @@ exports.updateUser = async (req, res, next) => {
         sex,
         email,
         phone,
-        position,
         hireDate: new Date(hireDate),
         inActive,
         employmentType,
-        personnelTypeId,
+        personnelTypeId: parseInt(personnelTypeId),
+        departmentId: parseInt(departmentId),
+        organizationId: parseInt(organizationId),
       };
     } else if (userRole === "USER") {
       updateData = {
@@ -327,8 +330,8 @@ exports.updateUser = async (req, res, next) => {
       return createError(403, "Permission denied");
     }
 
-    if (!departments || !organizations) {
-      return createError(400, "Required department or organization field");
+    if (!departmentId || !organizationId) {
+      return createError(400, "Required department or organization ID field");
     }
 
     if (
@@ -346,8 +349,6 @@ exports.updateUser = async (req, res, next) => {
     const updateUser = await UserService.updateUserById(
       userId,
       updateData,
-      department,
-      organization
     );
 
     res.status(200).json({ message: "User updated", user: updateUser });
@@ -399,6 +400,25 @@ exports.checkUserRole = async (req, res, next) => {
     }
 
     res.status(200).json({ message: "User role checked", role: userRole.role });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getUserInfoById = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (!userId || isNaN(userId)) {
+      throw createError(400, "Invalid user id");
+    }
+
+    const userInfo = await UserService.getUserInfoById(userId);
+
+    if (!userInfo) {
+      throw createError(400, "user info not found");
+    }
+
+    res.status(200).json({user: userInfo});
   } catch (err) {
     next(err);
   }

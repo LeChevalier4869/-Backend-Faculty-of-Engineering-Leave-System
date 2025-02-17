@@ -36,6 +36,21 @@ class AdminService {
             }
         });
     }
+    static async addHoliday(name, date, description) {
+        return await prisma.holidays.create({
+            data: {
+                name,
+                date: new Date(date),
+                description,
+            }
+        });
+    }
+    static async updateHolidayById(holidayId, updateData) {
+        return await prisma.holidays.update({
+            where: { id: holidayId },
+            data: updateData,
+        });
+    }
 }
 
 module.exports = AdminService;

@@ -17,6 +17,8 @@ router.post('/:id/role', authenticate, authorize(['ADMIN']), authController.upda
 router.put('/users/:id', authenticate, authController.updateUser);
 router.put('/user-status/:id', authenticate, authController.updateUserStatus);
 
+router.get('/user-info/:id', authenticate, authController.getUserInfoById);
+
 // error
 router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('profilePicturePath'), authController.updateProfile);
 
