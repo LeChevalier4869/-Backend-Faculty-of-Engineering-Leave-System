@@ -23,7 +23,7 @@ router.put('/user-status/:id', authenticate, authController.updateUserStatus);
 router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('profilePicturePath'), authController.updateProfile);
 
 //google
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account', /* ให้เลือกบัญชีทุกครั้ง*/ }));
 router.get('/google/callback',
     passport.authenticate('google', { failureRedirect: '/login' }),
     authController.googleLogin
