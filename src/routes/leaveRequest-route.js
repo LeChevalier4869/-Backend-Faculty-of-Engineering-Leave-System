@@ -3,10 +3,12 @@ const leaveRequestController = require("../controllers/leaveRequest-controller")
 const { authorize } = require("../middlewares/auth");
 const router = express.Router();
 const { leaveRequestLimiter } = require('../middlewares/rateLimit');
+const upload = require("../middlewares/upload");
 
 router.get(
-  "/",
-  authorize(["ADMIN", "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4"]),
+  "/get/:id",
+  authenticate,
+  authorize(["ADMIN", "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4", "VERIFIER", "RECEIVER"]),
   leaveRequestController.getLeaveRequest
 );
 router.get("/me", leaveRequestController.getLeaveRequestIsMine);

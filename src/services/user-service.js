@@ -44,6 +44,27 @@ class UserService {
       throw err;
     }
   }
+  static async getUserInfoById(userId) {
+    return await prisma.users.findUnique({
+      where: { id: userId },
+      include: {
+        user_role: {
+          include: {
+            roles: true,
+          },
+        },
+        personneltypes: true,
+        organizations: true,
+        departments: true,
+        leavebalances: true,
+        leaverequests: {
+          include: {
+            approvalsteps: true,
+          },
+        },
+      },
+    });
+  }
   static async getUserByIdWithRoles(id) {
     return await prisma.users.findUnique({
       where: { id },
@@ -53,6 +74,9 @@ class UserService {
             roles: true,
           },
         },
+        departments: true,
+        organizations: true,
+        personneltypes: true,
       },
     });
   }
@@ -85,6 +109,7 @@ class UserService {
       createError(400, "Failed to update");
     }
   }
+  //update
   static async updateUserById(userId, data) {
     try {
       const user = await prisma.users.findUnique({
@@ -192,72 +217,134 @@ class UserService {
       data: userRoles,
     });
   }
-  // static async getDepartment(userId) {
-  //     const departments = await prisma.user_deparment.findMany({
-  //         where: { userId: userId },
-  //         select: {
-  //             departments: {
-  //                 select: {
-  //                     id: true,
-  //                     name: true,
-  //                 }
-  //             }
-  //         }
-  //     });
-  //     return departments;
-  // }
-  // static async getOrganization(userId) {
-  //     const organizations = await prisma.organization_department.findMany({
-  //         where: {
-  //             departments: {
-  //                 user_deparment: {
-  //                     some: { userId: userId },
-  //                 }
-  //             }
-  //         },
-  //         select: {
-  //             organizations: {
-  //                 select: {
-  //                     id: true,
-  //                     name: true,
-  //                 }
-  //             }
-  //         }
-  //     });
-  //     return organizations;
-  // }
-  static async getVerifier() {
-    const verifier = await prisma.users.findFirst({
-      where: { role: "VERIFIER" },
-      select: { id: true },
+  static async getDepartment(userId) {
+    const departments = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        departments: {
+          select: {
+            id: true,
+            name: true,
+            isHeadId: true,
+            organizationId: true,
+          },
+        },
+      },
     });
+    return departments ? departments.departments : null;
+  }
+  static async getOrganization(userId) {
+    const organizations = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        organizations: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+    return organizations ? organizations.organizations : null;
+  }
+  static async getPersonnelType(userId) {
+    const personnelType = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        personneltypes: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+    return personnelType ? personnelType.personneltypes : null;
+  }
+  static async getVerifier() {
+    const verifier = await prisma.user_role.findFirst({
+      where: { roleId: 7 }, //role is verifier
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!verifier || verifier === null) {
+      throw createError(400, `verifier is ${verifier}`);
+    }
+
+    // console.log('Debug verifier ID: ', verifier.userId);
+
+    // const verifier = await prisma.users.findFirst({
+    //   where: { id: userRole },
+    //   select: { id: true },
+    // });
 
     if (!verifier) {
       throw createError(500, "No verifier found in the system.");
     }
-    return verifier.id;
+    return verifier.userId;
   }
   static async getReceiver() {
-    const receiver = await prisma.users.findFirst({
-      where: { role: "RECEIVER" },
-      select: { id: true },
+    const receiver = await prisma.user_role.findFirst({
+      where: { roleId: 8 },
+      select: { userId: true },
     });
+
+    if (!receiver || receiver === null) {
+      throw createError(400, `receiver is ${receiver}`);
+    }
+
+    // console.log('Debug verifier ID: ', verifier.userId);
+
+    // const receiver = await prisma.users.findFirst({
+    //   where: { role: "RECEIVER" },
+    //   select: { id: true },
+    // });
 
     if (!receiver) {
       throw createError(500, "No receiver found in the system.");
     }
-    return receiver.id;
+    return receiver.userId;
   }
   static async getHeadOfDepartment(departmentId) {
-    const head = await prisma.user_department.findFirst({
-      where: {
-        departmentId: departmentId,
-        isHead: true,
-      },
-      select: { userId: true },
+    if (!departmentId || isNaN(departmentId)) {
+      console.error("Invalid departmentId:", departmentId);
+      throw createError(400, "Invalid department ID");
+    }
+    departmentId = Number(departmentId);
+    console.log("Debug department id: ", departmentId);
+
+    const department = await prisma.departments.findUnique({
+      where: { id: departmentId },
+      select: { isHeadId: true },
     });
 
-    return head ? head.userId : null;
+    if (!department) {
+      throw createError(404, "Department not found");
+    }
+
+    // const headId = await prisma.users.findFirst({
+    //   where: {
+    //     id: userId,
+    //   },
+    //   select: {
+    //     departments: {
+    //       select: {
+    //         isHeadId: true,
+    //       }
+    //     }
+    //   },
+    // });
+
+    //validation headId
+
+    // const headPerson = await this.getUserByIdWithRoles(headId);
+
+    // //validation headPerson
+
+    // return headPerson ? headPerson.departments.isHeadId : null;
+    return department.isHeadId;
   }
 }
 

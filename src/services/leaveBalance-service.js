@@ -20,14 +20,14 @@ class LeaveBalanceService {
     }
     static async updateLeaveBalance(userId, leaveTypeId, usedDays) {
         const balance = await this.getUserBalance(userId, leaveTypeId);
-        if (!balance || balance.totalDays <  usedDays || balance.remainingDays <= 0) {
+        if (!balance || balance.maxDays <  usedDays || balance.remainingDays <= 0) {
             throw createError(400, 'Leave balance is not enough.');
         }
         return await prisma.leavebalances.update({
             where: { id: balance.id },
             data: { 
-                usedDays: balance.usedDays + usedDays,
-                remainingDays: balance.totalDays - (balance.usedDays + usedDays) + 1,
+                pendingDays: balance.pendingDays + usedDays,
+                remainingDays: balance.maxDays - (balance.usedDays + usedDays) + 1,
             },
         });
     }
@@ -46,7 +46,7 @@ class LeaveBalanceService {
     static async updatePendingLeaveBalance(userId, leaveTypeId, requestedDays) {
         const balance = await this.getUserBalance(userId, leaveTypeId);
 
-        if (!balance || balance.totalDays < requestedDays || balance.remainingDays < requestedDays) {
+        if (!balance || balance.maxDays < requestedDays || balance.remainingDays < requestedDays) {
             throw createError(400, 'Leave balance is not enough.');
         }
 
