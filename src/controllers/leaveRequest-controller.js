@@ -1,12 +1,14 @@
 const LeaveRequestService = require("../services/leaveRequest-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const AuditLogService = require("../services/auditLog-service");
+const RoleAssignmentService = require("../services/roleAssignment-service");
 const createError = require("../utils/createError");
 const multer = require("multer");
 const cloudUpload = require("../utils/cloudUpload");
 const UserService = require("../services/user-service");
 const upload = multer();
-const { sendEmail } = require("../utils/emailService");
+const { sendEmail, sendNotification } = require("../utils/emailService");
+const { checkLeaveEligibility } = require("../utils/checkLeaveEligibility");
 
 exports.createLeaveRequest = async (req, res, next) => {
   try {
@@ -15,8 +17,11 @@ exports.createLeaveRequest = async (req, res, next) => {
     // console.log("Debug leaveTypeId con: ", leaveTypeId);
     // console.log("Debug req.user.id con: ", req.user.id);
 
-    if (!startDate || !endDate) {
-      throw createError(400, "กรุณาเลือกวันที่เริ่มและวันที่สิ้นสุด");
+    if (!leaveTypeId || !startDate || !endDate) {
+      throw createError(
+        400,
+        "กรุณาเลือกวันที่เริ่มและวันที่สิ้นสุดและ leave type"
+      );
     }
 
     const start = new Date(startDate);
@@ -33,8 +38,10 @@ exports.createLeaveRequest = async (req, res, next) => {
     );
 
     // console.log("Debug leaveBalance: ", leaveBalance);
-    const requestedDays =
-      (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24) + 1;
+    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    if (requestedDays <= 0) {
+      throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
+    }
     if (requestedDays > leaveBalance.maxDays - leaveBalance.usedDays) {
       return createError(400, "Leave balance is not enough");
     }
@@ -43,10 +50,17 @@ exports.createLeaveRequest = async (req, res, next) => {
       throw createError(404, `Leave balance not found`);
     }
 
-    console.log(req.body);
+    //console.log(req.body);
 
-    if (!leaveTypeId) {
-      throw createError(400, "Leave type ID is required");
+    // ตรวจสอบสิทธิ์ลา
+    const eligibility = await LeaveRequestService.checkEligibility(
+      req.user.id,
+      leaveTypeId,
+      requestedDays
+    );
+
+    if (!eligibility.success) {
+      throw createError(400, eligibility.message);
     }
 
     const leaveRequest = await LeaveRequestService.createRequest(
@@ -58,7 +72,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       isEmergency
     );
 
-    await LeaveBalanceService.updateLeaveBalance(
+    await LeaveBalanceService.updatePendingLeaveBalance(
       req.user.id,
       leaveTypeId,
       requestedDays
@@ -68,7 +82,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       req.user.id,
       "Create Request",
       leaveRequest.id,
-      `Leave created: ${reason} , isEemergency: ${req.body.isEmergency}`,
+      `คำขอถูกสร้าง: ${reason} , ฉุกเฉิน: ${req.body.isEmergency}`,
       "LEAVE_REQUEST"
     );
 
@@ -79,20 +93,31 @@ exports.createLeaveRequest = async (req, res, next) => {
       const userEmail = user.email;
       const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
 
-      const subject = "บทบาทของคุณได้รับการอัพเดตแล้ว!";
+      const subject = "ยืนยันการยื่นคำขอลา";
       const message = `
               <h3>สวัสดี ${userName}</h3>
-              <p>บทบาทของคุณได้รับการอัพเดตแล้ว</p>
-
+              <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
+              <p>จำนวนวันลา: ${requestedDays}</p>
               <br/>
-              <p>ขอแสดงความนับถือ</p>
               <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
           `;
       await sendEmail(userEmail, subject, message);
     }
 
+    // ดึง assignment สำหรับ APPROVER_1 ในวันนั้น
+    const assignmentApprover1 = await RoleAssignmentService.getAssignment(
+      "APPROVER_1"
+    );
+    if (assignmentApprover1 && assignmentApprover1.user) {
+      await sendNotification("SUBMISSION", {
+        to: assignmentApprover1.user.email,
+        approverName: `${assignmentApprover1.user.prefixName} ${assignmentApprover1.user.firstName} ${assignmentApprover1.user.lastName}`,
+        userName: `${req.user.prefixName} ${req.user.firstName} ${req.user.lastName}`,
+      });
+    }
+
     const file = req.files;
-    if (file) {
+    if (file && file.length > 0) {
       const imagesPromiseArray = file.map((file) => {
         return cloudUpload(file.path);
       });
@@ -101,7 +126,7 @@ exports.createLeaveRequest = async (req, res, next) => {
 
       const attachImages = imgUrlArray.map((imgUrl) => {
         return {
-          fileName: "test",
+          fileName: "attachment",
           filePath: imgUrl,
           leaveRequestId: leaveRequest.id,
         };
@@ -122,29 +147,42 @@ exports.createLeaveRequest = async (req, res, next) => {
 
     res
       .status(201)
-      .json({ message: "Leave request created", requestId: leaveRequest.id });
+      .json({ message: "คำขอลาได้ถูกสร้าง", requestId: leaveRequest.id });
   } catch (err) {
     next(err);
   }
 };
 
-//use
+//use (not mail)
 exports.updateLeaveStatus = async (req, res, next) => {
   try {
-    const { requestId, status } = req.body;
+    const requestId = parseInt(req.params.id);
+    const { status, remarks, documentNumber } = req.body;
     const approverId = req.user.id;
-    await LeaveRequestService.updateRequestStatus(
+
+    if (!["APPROVED", "REJECTED"].includes(status)) {
+      throw createError(400, "สถานะไม่ถูกต้อง");
+    }
+
+    const updatedStatus = await LeaveRequestService.updateRequestStatus(
       requestId,
       status,
-      approverId
+      approverId,
+      remarks,
+      documentNumber
     );
     await AuditLogService.createLog(
       req.user.id,
       "Update Status",
       requestId,
-      `Status updated to: ${status}`
+      `สถานะเปลี่ยนเป็น: ${status}${
+        remarks ? " เหตุผล: " + remarks : ""
+      }`,
+      status === "REJECTED" ? "REJECTION" : "APPROVAL"
     );
-    res.status(200).json({ message: "Leave status updated" });
+    res
+      .status(200)
+      .json({ message: "สถานะคำขอลาถูกอัปเดต", data: updatedStatus });
   } catch (err) {
     next(err);
   }
@@ -153,7 +191,7 @@ exports.updateLeaveStatus = async (req, res, next) => {
 exports.getLeaveRequest = async (req, res, next) => {
   try {
     const requestId = parseInt(req.params.id);
-    console.log("Debug requestId11:", requestId); 
+    console.log("Debug requestId11:", requestId);
     const user = req.user;
     // console.log(user)
     // console.log("Debug user.departmentId",user.department.id);
@@ -194,7 +232,9 @@ exports.getLeaveRequest = async (req, res, next) => {
     }
 
     // ค้นหาหัวหน้าสาขาของคำขอลานี้
-    const headDepartment = await UserService.getHeadOfDepartment(user.department.id);
+    const headDepartment = await UserService.getHeadOfDepartment(
+      user.department.id
+    );
     // console.log('Debug headDepartment: ', headDepartment);
     const approvalSteps = await LeaveRequestService.getApprovalSteps(requestId);
 
@@ -205,8 +245,12 @@ exports.getLeaveRequest = async (req, res, next) => {
         headOfDepartment: headDepartment
           ? await UserService.getUserByIdWithRoles(headDepartment)
           : null,
-        verifier: await UserService.getUserByIdWithRoles(leaveRequests[0].verifierId),
-        receiver: await UserService.getUserByIdWithRoles(leaveRequests[0].receiverId),
+        verifier: await UserService.getUserByIdWithRoles(
+          leaveRequests[0].verifierId
+        ),
+        receiver: await UserService.getUserByIdWithRoles(
+          leaveRequests[0].receiverId
+        ),
         approvalSteps,
       },
     });

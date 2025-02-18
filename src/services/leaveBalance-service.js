@@ -18,6 +18,7 @@ class LeaveBalanceService {
 
         return leaveBalance;
     }
+    //not use
     static async updateLeaveBalance(userId, leaveTypeId, usedDays) {
         const balance = await this.getUserBalance(userId, leaveTypeId);
         if (!balance || balance.maxDays <  usedDays || balance.remainingDays <= 0) {
@@ -43,10 +44,11 @@ class LeaveBalanceService {
             throw createError(404, 'Leave balance not found');
         }
     }
+    //use
     static async updatePendingLeaveBalance(userId, leaveTypeId, requestedDays) {
         const balance = await this.getUserBalance(userId, leaveTypeId);
 
-        if (!balance || balance.maxDays < requestedDays || balance.remainingDays < requestedDays) {
+        if (!balance || balance.maxDays < requestedDays || balance.remainingDays < requestedDays || balance.remainingDays <= 0) {
             throw createError(400, 'Leave balance is not enough.');
         }
 

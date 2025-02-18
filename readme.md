@@ -189,3 +189,19 @@ leaveType
 - getLeaveBalance
     - method: get
     - route: /
+
+## Role Assignment (/role-assignment)
+- setting role in daily
+    - method: post
+    - route: /
+    - body: { userId, role, date }
+
+- get role in daily
+    - method: get
+    - route: /
+    - query: date=
+
+- delete role in daily
+    - method: delete
+    - route: /
+    - body: { role, date }

@@ -26,6 +26,7 @@ model approvalsteps {
 
 model attachments {
   id             Int           @id @default(autoincrement())
+  fileName       String
   filePath       String
   uploadedAt     DateTime      @default(now())
   leaveRequestId Int
@@ -221,6 +222,7 @@ model users {
 
   @@index([personnelTypeId], map: "Users_personnelTypeId_fkey")
   @@map("users")
+  DailyRoleAssignment daily_role_assignments[]
 }
 
 model signatures {
@@ -232,6 +234,17 @@ model signatures {
 
   @@index([userId], map: "Signatures_userId_fkey")
   @@map("signatures")
+}
+
+model daily_role_assignments {
+  id Int @id @default(autoincrement())
+  date DateTime
+  role String
+  userId Int
+  user users @relation(fields: [userId], references: [id])
+
+  @@unique([date, role], name: "date_role_unique")
+  @@map("daily_role_assignments")
 }
 
 enum approvalsteps_status {
