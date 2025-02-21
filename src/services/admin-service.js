@@ -61,6 +61,11 @@ class AdminService {
             data: updateData,
         });
     }
+    static async deleteHoliday(holidayId) {
+        return await prisma.holidays.delete({
+            where: { id: holidayId }
+        });
+    }
     static async createRequestByAdmin(
         userId,
         leaveTypeId,

@@ -2,7 +2,7 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 
 class LeaveTypeService {
-  static async createLeaveType(name, maxDays, conditions) {
+  static async createLeaveType(name, conditions) {
     const existingLeaveType = await prisma.leavetypes.findUnique({
       where: { name },
     });
@@ -10,7 +10,7 @@ class LeaveTypeService {
       throw createError(400, `Leave type ${name} already exists`);
     }
     return await prisma.leavetypes.create({
-      data: { name, maxDays, conditions },
+      data: { name, conditions },
     });
   }
 

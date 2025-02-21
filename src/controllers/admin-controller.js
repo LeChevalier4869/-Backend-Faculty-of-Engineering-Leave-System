@@ -3,6 +3,7 @@ const LeaveRequestService = require("../services/leaveRequest-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const createError = require("../utils/createError");
 const { sendEmail } = require("../utils/emailService");
+const { calculateWorkingDays } = require("../utils/dateCalculate");
 
 exports.adminList = async (req, res, next) => {
   try {
@@ -47,13 +48,15 @@ exports.createRequestByAdmin = async (req, res, next) => {
     if (start > end) {
       throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
     }
+
+    const requestedDays = await calculateWorkingDays(start, end);
     
     const leaveBalance = await LeaveBalanceService.getUserBalance(
         req.user.id,
         leaveTypeId
       );
 
-    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    // const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
     if (requestedDays <= 0) {
       throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
     }

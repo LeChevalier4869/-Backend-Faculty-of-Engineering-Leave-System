@@ -40,12 +40,11 @@
 //   createPDF,
 // };
 
-
 //----------------------------------------------------------------------------------------------------------------
-const { PDFDocument } = require('pdf-lib');
-const fontkit = require('fontkit');
-const fs = require('fs');
-const path = require('path');
+const { PDFDocument } = require("pdf-lib");
+const fontkit = require("fontkit");
+const fs = require("fs");
+const path = require("path");
 
 async function fillPDFTemplate(data, templatePath, outputPath) {
   try {
@@ -59,7 +58,7 @@ async function fillPDFTemplate(data, templatePath, outputPath) {
     pdfDoc.registerFontkit(fontkit);
 
     // โหลดฟอนต์ที่รองรับภาษาไทย
-    const fontPath = path.join(__dirname, '../fonts/THSarabunNew.ttf');
+    const fontPath = path.join(__dirname, "../fonts/THSarabunNew.ttf");
     const fontBytes = fs.readFileSync(fontPath);
     const customFont = await pdfDoc.embedFont(fontBytes);
 
@@ -69,7 +68,40 @@ async function fillPDFTemplate(data, templatePath, outputPath) {
 
     // เติมข้อมูลลงใน PDF
     const { width, height } = firstPage.getSize();
-    const { name, description, date } = data;
+    const data = {
+      title: "ขออนุญาติลางาน",
+      fullName: "นายสมชาย ใจดี",
+      date: "2025-01-01",
+      position: "พนักงานทำความสะอาด",
+      organizations: "คณะวิศวกรรมศาสตร์",
+      personnelType: "ลูกจ้างเงินรายได้",
+      employmentType: "สายสนับสนุน",
+      leaveType: "ลาป่วย",
+      reason: "ป่วย",
+      startDate: "2025-01-02",
+      endDate: "2025-01-03",
+      requestDays: "1",
+      lastStartDate: "N/A",
+      lastEndDate: "N/A",
+      lastRequestDays: "N/A",
+      email: "somchai.ja@rmuti.ac.th",
+      phone: "0829054912",
+      mySignature: "somchai",
+      sickUsedDays: "0",
+      sickThisTimeDays: "1",
+      sickSumDays: "1",
+      personUsedDays: "0",
+      personThisTimeDays: "0",
+      personSumDays: "0",
+      babyUsedDays: "N/A",
+      babyThisTimeDays: "N/A",
+      babySumDays: "N/A", 
+      commonBossOpinion: "อนุญาตแล้ว",
+      commonBossSignature: "Abe",
+      commonBossPosition: "หัวหน้าแผนกทำความสะอาด",
+      commonBossUpdatedAt: "2025-01-01",
+      
+    };
 
     firstPage.drawText(`ชื่อ: ${name}`, {
       x: 50,
@@ -79,8 +111,8 @@ async function fillPDFTemplate(data, templatePath, outputPath) {
     });
 
     firstPage.drawText(`รายละเอียด: ${description}`, {
-      x: 50,
-      y: height - 130,
+      x: 500,
+      y: height - 120,
       size: 14,
       font: customFont, // ใช้ฟอนต์ที่ embed
     });
@@ -98,7 +130,7 @@ async function fillPDFTemplate(data, templatePath, outputPath) {
 
     console.log(`ไฟล์ PDF ถูกสร้างที่: ${outputPath}`);
   } catch (err) {
-    console.error('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF:', err);
+    console.error("เกิดข้อผิดพลาดในการสร้างไฟล์ PDF:", err);
     throw err; // ส่งข้อผิดพลาดไปยัง caller
   }
 }
