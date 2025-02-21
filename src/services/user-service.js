@@ -122,7 +122,10 @@ class UserService {
 
       const updatedUser = await prisma.users.update({
         where: { id: userId },
-        data: data,
+        data: {
+          ...data,
+          profilePicturePath: data.profilePicturePath,
+        },
       });
 
       return updatedUser;
@@ -345,6 +348,47 @@ class UserService {
 
     // return headPerson ? headPerson.departments.isHeadId : null;
     return department.isHeadId;
+  }
+  static async addUserRoles(userId, roleIds) {
+    const existingRoles = await prisma.user_role.findMany({
+      where: { userId },
+      select: { roleId: true },
+    });
+
+    const existingRoleIds = existingRoles.map((role) => role.roleId);
+    const newRoles = roleIds.filter((roleId) => !existingRoleIds.includes(roleId));
+
+    if (newRoles.length === 0) return existingRoles;
+
+    await prisma.user_role.createMany({
+      data: newRoles.map((roleId) => ({ userId, roleId })),
+    });
+
+    return await prisma.user_role.findMany({
+      where: { userId },
+      include: { roles: true },
+    });
+  }
+  static async removeUserRoles(userId, roleIds) {
+    await prisma.user_role.deleteMany({
+      where: {
+        userId,
+        roleId: { in: roleIds },
+      },
+    });
+
+    return await prisma.user_role.findMany({
+      where: { userId },
+      include: { roles: true },
+    });
+  }
+  static async getUserRoles(userId) {
+    const roles = await prisma.user_role.findMany({
+      where: { userId },
+      include: { roles: true },
+    });
+
+    return roles.map((role) => role.roles.name);
   }
 }
 

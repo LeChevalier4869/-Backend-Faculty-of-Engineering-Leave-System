@@ -49,7 +49,7 @@ app.use('/test', authenticate, testRote);
 app.use('/role-assignment', authenticate, authorize(['ADMIN']), roleAssignmentRoute);
 
 //new feature admin
-// app.use('/admin', authenticate, authorize(['ADMIN']), adminRoute);
+app.use('/admin', authenticate, adminRoute);
 
 app.use(errorHandler);
 app.use('*', notFoundHandler);

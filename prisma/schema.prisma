@@ -16,11 +16,11 @@ model approvalsteps {
   remarks                               String?
   approverId                            Int
   leaveRequestId                        Int
-  users_approvalsteps_approverIdTousers users                @relation("approvalsteps_approverIdTousers", fields: [approverId], references: [id], map: "ApprovalSteps_approverId_fkey")
-  leaverequests                         leaverequests        @relation(fields: [leaveRequestId], references: [id], map: "ApprovalSteps_leaveRequestId_fkey")
+  users_approvalsteps_approverIdTousers users                @relation("approvalsteps_approverIdTousers", fields: [approverId], references: [id], onDelete: Cascade)
+  leaverequests                         leaverequests        @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
 
-  @@index([approverId], map: "ApprovalSteps_approverId_fkey")
-  @@index([leaveRequestId], map: "ApprovalSteps_leaveRequestId_fkey")
+  @@index([approverId])
+  @@index([leaveRequestId])
   @@map("approvalsteps")
 }
 
@@ -30,9 +30,9 @@ model attachments {
   filePath       String
   uploadedAt     DateTime      @default(now())
   leaveRequestId Int
-  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], map: "Attachments_leaveRequestId_fkey")
+  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
 
-  @@index([leaveRequestId], map: "Attachments_leaveRequestId_fkey")
+  @@index([leaveRequestId])
   @@map("attachments")
 }
 
@@ -44,11 +44,11 @@ model auditlogs {
   userId         Int
   leaveRequestId Int
   type           String
-  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], map: "AuditLogs_leaveRequestId_fkey")
-  users          users         @relation(fields: [userId], references: [id], map: "AuditLogs_userId_fkey")
+  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  users          users         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([leaveRequestId], map: "AuditLogs_leaveRequestId_fkey")
-  @@index([userId], map: "AuditLogs_userId_fkey")
+  @@index([leaveRequestId])
+  @@index([userId])
   @@map("auditlogs")
 }
 
@@ -70,11 +70,11 @@ model leavebalances {
   leaveTypeId   Int
   pendingDays   Int        @default(0)
   remainingDays Int        @default(0)
-  leavetypes    leavetypes @relation(fields: [leaveTypeId], references: [id], map: "LeaveBalances_leaveTypeId_fkey")
-  users         users      @relation(fields: [userId], references: [id], map: "LeaveBalances_userId_fkey")
+  leavetypes    leavetypes @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  users         users      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([leaveTypeId], map: "LeaveBalances_leaveTypeId_fkey")
-  @@index([userId], map: "LeaveBalances_userId_fkey")
+  @@index([leaveTypeId])
+  @@index([userId])
   @@map("leavebalances")
 }
 
@@ -97,15 +97,15 @@ model leaverequests {
   approvalsteps      approvalsteps[]
   attachments        attachments[]
   auditlogs          auditlogs[]
-  leavetypes         leavetypes           @relation(fields: [leaveTypeId], references: [id], map: "LeaveRequests_leaveTypeId_fkey")
-  users              users                @relation(fields: [userId], references: [id], map: "LeaveRequests_userId_fkey")
-  verifier           users?               @relation("leaveRequests_verifierId", fields: [verifierId], references: [id], map: "LeaveRequests_verifierId_fkey")
-  receiver           users?               @relation("leaveRequests_receiverId", fields: [receiverId], references: [id], map: "LeaveRequests_receiverId_fkey")
+  leavetypes         leavetypes           @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  users              users                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verifier           users?               @relation("leaveRequests_verifierId", fields: [verifierId], references: [id], onDelete: Cascade)
+  receiver           users?               @relation("leaveRequests_receiverId", fields: [receiverId], references: [id], onDelete: Cascade)
 
-  @@index([leaveTypeId], map: "LeaveRequests_leaveTypeId_fkey")
-  @@index([userId], map: "LeaveRequests_userId_fkey")
-  @@index([verifierId], map: "LeaveRequests_verifierId_fkey")
-  @@index([receiverId], map: "LeaveRequests_receiverId_fkey")
+  @@index([leaveTypeId])
+  @@index([userId])
+  @@index([verifierId])
+  @@index([receiverId])
   @@map("leaverequests")
 }
 
@@ -126,9 +126,9 @@ model notifications {
   createdAt DateTime @default(now())
   userId    Int
   type      String
-  users     users    @relation(fields: [userId], references: [id], map: "Notifications_userId_fkey")
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "Notifications_userId_fkey")
+  @@index([userId])
   @@map("notifications")
 }
 
@@ -139,8 +139,8 @@ model departments {
   isHeadId       Int? @unique
   organizationId Int
 
-  userIshead    users?        @relation("department_IsHead", fields: [isHeadId], references: [id])
-  organizations organizations @relation(fields: [organizationId], references: [id])
+  userIshead    users?        @relation("department_IsHead", fields: [isHeadId], references: [id], onDelete: Cascade)
+  organizations organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   users         users[]       @relation("departmentId")
 
   @@map("departments")
@@ -175,11 +175,11 @@ model roles {
 model user_role {
   userId Int
   roleId Int
-  roles  roles @relation(fields: [roleId], references: [id], map: "User_Role_roleId_fkey")
-  users  users @relation(fields: [userId], references: [id], map: "User_Role_userId_fkey")
+  roles  roles @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  users  users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
-  @@index([roleId], map: "User_Role_roleId_fkey")
+  @@index([roleId])
   @@map("user_role")
 }
 
@@ -195,8 +195,8 @@ model users {
   organizationId     Int
   departmentId       Int
 
-  organizations organizations @relation(fields: [organizationId], references: [id])
-  departments   departments   @relation("departmentId", fields: [departmentId], references: [id])
+  organizations organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departments   departments   @relation("departmentId", fields: [departmentId], references: [id], onDelete: Cascade)
 
   personnelTypeId Int
   hireDate        DateTime
@@ -204,23 +204,20 @@ model users {
   employmentType  employment_type
   phone           String
 
-  isGoogleAccount Boolean @default(false)
-  googleId        String? @unique
-
   approvalsteps_approvalsteps_approverIdTousers approvalsteps[] @relation("approvalsteps_approverIdTousers")
   auditlogs                                     auditlogs[]
   leavebalances                                 leavebalances[]
   leaverequests                                 leaverequests[]
   notifications                                 notifications[]
   user_role                                     user_role[]
-  personneltypes                                personneltypes  @relation(fields: [personnelTypeId], references: [id], map: "Users_personnelTypeId_fkey")
+  personneltypes                                personneltypes  @relation(fields: [personnelTypeId], references: [id])
   signatures                                    signatures[]
   leaverequests_verifierId                      leaverequests[] @relation("leaveRequests_verifierId")
   leaverequests_receiverId                      leaverequests[] @relation("leaveRequests_receiverId")
 
   departmentIsHead departments[] @relation("department_IsHead")
 
-  @@index([personnelTypeId], map: "Users_personnelTypeId_fkey")
+  @@index([personnelTypeId])
   @@map("users")
   DailyRoleAssignment daily_role_assignments[]
 }
@@ -230,9 +227,9 @@ model signatures {
   userId Int
   file   String
 
-  users users @relation(fields: [userId], references: [id])
+  users users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "Signatures_userId_fkey")
+  @@index([userId])
   @@map("signatures")
 }
 
@@ -241,7 +238,7 @@ model daily_role_assignments {
   date DateTime
   role String
   userId Int
-  user users @relation(fields: [userId], references: [id])
+  user users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([date, role], name: "date_role_unique")
   @@map("daily_role_assignments")

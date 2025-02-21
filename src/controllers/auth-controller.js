@@ -1,4 +1,5 @@
 const UserService = require("../services/user-service");
+const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const createError = require("../utils/createError");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -6,6 +7,7 @@ const cloudUpload = require("../utils/cloudUpload");
 const multer = require("multer");
 const upload = multer();
 const { sendEmail } = require("../utils/emailService");
+const { isCorporateEmail } = require("../utils/checkEmailDomain");
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
@@ -30,6 +32,8 @@ exports.register = async (req, res, next) => {
     if (!email || !password) {
       throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
     }
+
+    validatePhone(phone);
 
     const letterCount = (password.match(/[a-zA-Z]/g) || []).length;
     if (String(password).length < 8 || letterCount < 5) {
@@ -109,6 +113,10 @@ exports.login = async (req, res, next) => {
 
     if (!password) {
       return createError(400, "กรุณากรอกรหัสผ่าน");
+    }
+
+    if (!isCorporateEmail(email)) {
+      return createError(403, "อนุญาตให้ล็อกอินด้วยอีเมลมหาวิทยาลัยเท่านั้น");
     }
 
     const user = await UserService.getUserByEmail(email);
@@ -217,11 +225,11 @@ exports.updateProfile = async (req, res, next) => {
 
 exports.updateUserRole = async (req, res, next) => {
   const userId = parseInt(req.params.id);
-  const { roleNames } = req.body;
+  const { roleNames, action } = req.body;
 
   try {
     if (!userId || isNaN(userId)) {
-      return next(createError(400, "Invalid user ID"));
+      return createError(400, "Invalid user ID");
     }
     if (!roleNames) {
       return createError(400, "Role names are required");
@@ -239,10 +247,14 @@ exports.updateUserRole = async (req, res, next) => {
       throw createError(400, "Invalid roles provided");
     }
 
-    const updatedRole = await UserService.updateUserRole(
-      userId,
-      roles.map((role) => role.id)
-    );
+    let updatedRole;
+    if (action === "ADD") {
+      updatedRole = await UserService.addUserRoles(userId, roles.map((role) => role.id))
+    } else if (action === "REMOVE") {
+      updatedRole = await UserService.removeUserRoles(userId, roles.map((role) => role.id))
+    } else {
+      throw createError(400, "Invalid action. Use 'ADD' or 'REMOVE'");
+    }
 
     //email
     const user = await UserService.getUserByIdWithRoles(userId);
@@ -272,7 +284,7 @@ exports.updateUserRole = async (req, res, next) => {
 
 exports.updateUser = async (req, res, next) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = req.user.id;
     // * admin can update only
     const {
       prefixName,
@@ -298,11 +310,13 @@ exports.updateUser = async (req, res, next) => {
     const user = req.user;
     console.log("Debug role: ", user.role);
 
-    const userRole = String(user.role);
+    const userRole = Array.isArray(user.role) ? user.role : [user.role];
 
     let updateData = {};
 
-    if (userRole === "ADMIN") {
+    validatePhone(phone);
+
+    if (userRole.includes("ADMIN")) {
       updateData = {
         prefixName,
         firstName,
@@ -311,13 +325,13 @@ exports.updateUser = async (req, res, next) => {
         email,
         phone,
         hireDate: new Date(hireDate),
-        inActive,
+        inActive: Boolean(inActive),
         employmentType,
         personnelTypeId: parseInt(personnelTypeId),
         departmentId: parseInt(departmentId),
         organizationId: parseInt(organizationId),
       };
-    } else if (userRole === "USER") {
+    } else if (userRole.includes("USER")) {
       updateData = {
         prefixName,
         firstName,
@@ -330,14 +344,19 @@ exports.updateUser = async (req, res, next) => {
       return createError(403, "Permission denied");
     }
 
+    if (req.file) {
+      const fileUrl = await cloudUpload(req.file.path);
+      updateData.profilePicturePath = fileUrl;
+    }
+
     if (!departmentId || !organizationId) {
+      console.log("Debug dep, org id: ", departmentId, organizationId);
       return createError(400, "Required department or organization ID field");
     }
 
     if (
       !sex ||
       !email ||
-      !position ||
       !hireDate ||
       !inActive ||
       !personnelTypeId ||
@@ -420,54 +439,112 @@ exports.getUserInfoById = async (req, res, next) => {
       throw createError(400, "user info not found");
     }
 
-    res.status(200).json({user: userInfo});
+    res.status(200).json({ user: userInfo });
   } catch (err) {
     next(err);
   }
 };
 
 //googleLoing ยังไม่เสร็จ
-exports.googleLogin = async (req, res, next) => {
+// exports.googleLogin = async (req, res, next) => {
+//   try {
+//     const { email } = req.user; // from google OAuth
+//     if (!email.endsWith("@rmuti.ac.th")) {
+//       throw createError(403, "อนุญาตเฉพาะบัญชี @rmuti.ac.th");
+//     }
+
+//     // check user exist
+//     let user = await UserService.getUserByEmail(email);
+
+//     // if not - create new account (create new password / user do this)
+//     if (!user) {
+//       user = await UserService.createUser({
+//         email,
+//         password: null, //wait for user
+//         isGoogleAccount: true,
+//       });
+//       return res.status(201).json({
+//         message: "กรุณาตั้งรหัสผ่าน",
+//         tempUserId: user.id,
+//       });
+//     }
+
+//     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
+//     res.json({ token });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.setPassword = async (req, res, next) => {
+//   try {
+//     const { tempUserId, password } = req.body;
+//     const hashedPassword = await bcrypt.hash(password, 10);
+
+//     await UserService.updateUserById(tempUserId, {
+//       password: hashedPassword,
+//       isGoogleAccount: false,
+//     });
+
+//     res.json({ message: "ตั้งรหัสผ่านสำเร็จ" });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+exports.getOrganization = async (req, res, next) => {
   try {
-    const { email } = req.user; // from google OAuth
-    if (!email.endsWith('@rmuti.ac.th')) {
-      throw createError(403, 'อนุญาตเฉพาะบัญชี @rmuti.ac.th');
+    const organization = await OrgAndDeptService.getAllOrganization();
+
+    if (!organization) {
+      console.log("Debug organization: ", organization);
+      throw createError(404, "not found");
     }
 
-    // check user exist
-    let user = await UserService.getUserByEmail(email);
-
-    // if not - create new account (create new password / user do this)
-    if (!user) {
-      user = await UserService.createUser({
-        email,
-        password: null, //wait for user
-        isGoogleAccount: true,
-      });
-      return res.status(201).json({
-        message: 'กรุณาตั้งรหัสผ่าน',
-        tempUserId: user.id
-      });
-    }
-
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
-    res.json({ token });
+    res.status(200).json({ message: "ok", data: organization });
   } catch (err) {
     next(err);
   }
 };
 
-exports.setPassword = async (req, res, next) => {
+exports.getDepartment = async (req, res, next) => {
   try {
-    const { tempUserId, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const organizationId = parseInt(req.params.id);
+    const department = await OrgAndDeptService.getDepartmentById(organizationId);
 
-    await UserService.updateUserById(tempUserId, {
-      password: hashedPassword,
-      isGoogleAccount: false,
-    });
+    if (!organizationId) {
+      throw createError(404, "org not found");
+    }
 
-    res.json({ message: 'ตั้งรหัสผ่านสำเร็จ' });
+    if (!department) {
+      console.log("Debug organization: ", department);
+      throw createError(404, "not found");
+    }
+
+    res.status(200).json({ message: "ok", data: department });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ฟังก์ชันสำหรับ validate phone
+const validatePhone = (phone) => {
+  const phoneRegex = /^[0-9]{1,10}$/; // รับเฉพาะตัวเลข ไม่เกิน 10 หลัก
+  if (!phone || !phoneRegex.test(phone)) {
+    throw createError(400, "หมายเลขโทรศัพท์ต้องเป็นตัวเลขและไม่เกิน 10 หลัก");
+  }
+  return true;
+};
+
+exports.getPersonnelType = async (req, res, next) => {
+  try {
+    const personnelType = await OrgAndDeptService.getPersonnelType();
+
+    if (!personnelType) {
+      throw createError(404, "personnel type not found");
+    }
+
+    res.status(200).json({ message: "response ok", data: personnelType });
   } catch (err) {
     next(err);
   }

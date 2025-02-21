@@ -55,8 +55,8 @@ class LeaveBalanceService {
         return await prisma.leavebalances.update({
             where: { id: balance.id },
             data: { 
-                pendingDays: balance.pendingDays + requestedDays,  // 🔥 เพิ่ม pendingDays
-                remainingDays: balance.remainingDays - requestedDays,  // 🔥 หักจาก remainingDays ชั่วคราว
+                pendingDays: balance.pendingDays + requestedDays,  // เพิ่ม pendingDays
+                remainingDays: balance.remainingDays - requestedDays,  // หักจาก remainingDays ชั่วคราว
             },
         });
     }
