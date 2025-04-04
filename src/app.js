@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const helmet = require('helmet');
+const { swaggerUi, specs } = require('./config/swagger');
 
 app.use(helmet());
 app.use(helmet.contentSecurityPolicy({
@@ -48,8 +49,11 @@ app.use('/leave-balances', authenticate, leaveBalance);
 app.use('/test', authenticate, testRote);
 app.use('/role-assignment', authenticate, authorize(['ADMIN']), roleAssignmentRoute);
 
+//swagger UI
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
+
 //new feature admin
-// app.use('/admin', authenticate, authorize(['ADMIN']), adminRoute);
+app.use('/admin', authenticate, authorize(['ADMIN']), adminRoute);
 
 app.use(errorHandler);
 app.use('*', notFoundHandler);

@@ -27,6 +27,8 @@
     "passport-google-oauth20": "^2.0.0",
     "pdf-lib": "^1.17.1",
     "puppeteer": "^24.2.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^11.0.5"
   },
   "devDependencies": {
