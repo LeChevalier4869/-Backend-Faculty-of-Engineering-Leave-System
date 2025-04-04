@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model approvalsteps {
+  id                                    Int                  @id @default(autoincrement())
+  stepOrder                             Int
+  status                                approvalsteps_status @default(PENDING)
+  reviewedAt                            DateTime?            @default(now())
+  previousApproved                      Boolean              @default(false)
+  remarks                               String?
+  approverId                            Int
+  leaveRequestId                        Int
+  users_approvalsteps_approverIdTousers users                @relation("approvalsteps_approverIdTousers", fields: [approverId], references: [id], onDelete: Cascade)
+  leaverequests                         leaverequests        @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@index([approverId])
+  @@index([leaveRequestId])
+  @@map("approvalsteps")
+}
+
+model attachments {
+  id             Int           @id @default(autoincrement())
+  fileName       String
+  filePath       String
+  uploadedAt     DateTime      @default(now())
+  leaveRequestId Int
+  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@index([leaveRequestId])
+  @@map("attachments")
+}
+
+model auditlogs {
+  id             Int           @id @default(autoincrement())
+  action         String
+  details        Json
+  createdAt      DateTime      @default(now())
+  userId         Int
+  leaveRequestId Int
+  type           String
+  leaverequests  leaverequests @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  users          users         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([leaveRequestId])
+  @@index([userId])
+  @@map("auditlogs")
+}
+
+model holidays {
+  id          Int      @id @default(autoincrement())
+  name        String
+  date        DateTime
+  description String?
+
+  @@map("holidays")
+}
+
+model leavebalances {
+  id            Int        @id @default(autoincrement())
+  year          Int
+  maxDays       Int
+  usedDays      Int        @default(0)
+  userId        Int
+  leaveTypeId   Int
+  pendingDays   Int        @default(0)
+  remainingDays Int        @default(0)
+  leavetypes    leavetypes @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  users         users      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([leaveTypeId])
+  @@index([userId])
+  @@map("leavebalances")
+}
+
+model leaverequests {
+  id                 Int                  @id @default(autoincrement())
+  startDate          DateTime
+  endDate            DateTime
+  reason             String?
+  status             leaverequests_status @default(PENDING)
+  isEmergency        Boolean              @default(false)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now())
+  userId             Int
+  leaveTypeId        Int
+  comment            String?
+  documentNumber     String?              @unique
+  documentIssuedDate DateTime?
+  verifierId         Int?
+  receiverId         Int?
+  approvalsteps      approvalsteps[]
+  attachments        attachments[]
+  auditlogs          auditlogs[]
+  leavetypes         leavetypes           @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  users              users                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verifier           users?               @relation("leaveRequests_verifierId", fields: [verifierId], references: [id], onDelete: Cascade)
+  receiver           users?               @relation("leaveRequests_receiverId", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([leaveTypeId])
+  @@index([userId])
+  @@index([verifierId])
+  @@index([receiverId])
+  @@map("leaverequests")
+}
+
+model leavetypes {
+  id            Int             @id @default(autoincrement())
+  name          String          @unique(map: "LeaveTypes_name_key")
+  conditions    Json
+  leavebalances leavebalances[]
+  leaverequests leaverequests[]
+
+  @@map("leavetypes")
+}
+
+model notifications {
+  id        Int      @id @default(autoincrement())
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    Int
+  type      String
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model departments {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  isHeadId       Int? @unique
+  organizationId Int
+
+  userIshead    users?        @relation("department_IsHead", fields: [isHeadId], references: [id], onDelete: Cascade)
+  organizations organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users         users[]       @relation("departmentId")
+
+  @@map("departments")
+}
+
+model organizations {
+  id          Int           @id @default(autoincrement())
+  name        String
+  departments departments[]
+  users       users[]
+
+  @@map("organizations")
+}
+
+model personneltypes {
+  id    Int     @id @default(autoincrement())
+  name  String
+  users users[]
+
+  @@map("personneltypes")
+}
+
+model roles {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique(map: "Roles_name_key")
+  description String?
+  user_role   user_role[]
+
+  @@map("roles")
+}
+
+model user_role {
+  userId Int
+  roleId Int
+  roles  roles @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  users  users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_role")
+}
+
+model users {
+  id                 Int     @id @default(autoincrement())
+  prefixName         String
+  firstName          String
+  lastName           String
+  sex                String  @default("ไม่ระบุ")
+  email              String  @unique(map: "Users_email_key")
+  password           String
+  profilePicturePath String?
+  organizationId     Int
+  departmentId       Int
+
+  organizations organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departments   departments   @relation("departmentId", fields: [departmentId], references: [id], onDelete: Cascade)
+
+  personnelTypeId Int
+  hireDate        DateTime
+  inActive        Boolean         @default(true)
+  employmentType  employment_type
+  phone           String
+
+  approvalsteps_approvalsteps_approverIdTousers approvalsteps[] @relation("approvalsteps_approverIdTousers")
+  auditlogs                                     auditlogs[]
+  leavebalances                                 leavebalances[]
+  leaverequests                                 leaverequests[]
+  notifications                                 notifications[]
+  user_role                                     user_role[]
+  personneltypes                                personneltypes  @relation(fields: [personnelTypeId], references: [id])
+  signatures                                    signatures[]
+  leaverequests_verifierId                      leaverequests[] @relation("leaveRequests_verifierId")
+  leaverequests_receiverId                      leaverequests[] @relation("leaveRequests_receiverId")
+
+  departmentIsHead departments[] @relation("department_IsHead")
+
+  @@index([personnelTypeId])
+  @@map("users")
+  DailyRoleAssignment daily_role_assignments[]
+}
+
+model signatures {
+  id     Int    @id @default(autoincrement())
+  userId Int
+  file   String
+
+  users users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("signatures")
+}
+
+model daily_role_assignments {
+  id Int @id @default(autoincrement())
+  date DateTime
+  role String
+  userId Int
+  user users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([date, role], name: "date_role_unique")
+  @@map("daily_role_assignments")
+}
+
+enum approvalsteps_status {
+  PENDING
+  APPROVED
+  REJECTED
+  WAITING_FOR_VERIFICATION
+  WAITING_FOR_RECEIVER
+}
+
+enum leaverequests_status {
+  PENDING
+  APPROVED
+  REJECTED
+  WAITING_FOR_VERIFICATION
+  WAITING_FOR_RECEIVER
+}
+
+enum employment_type {
+  ACADEMIC //สายวิชาการ
+  SUPPORT //สายสนับสนุน
+}
