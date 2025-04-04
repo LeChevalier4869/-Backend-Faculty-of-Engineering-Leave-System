@@ -43,15 +43,17 @@ model User {
   personnelType       PersonnelType        @relation(fields: [personnelTypeId], references: [id])
   auditLogs           AuditLog[]
   notifications       Notification[]
-  userRoles           UserRole[]
+  userRoles           User_Role[]
   signatures          Signature[]
   leaveBalances       LeaveBalance[]
   leaveRequests       LeaveRequest[]
   leaveRequestDetails LeaveRequestDetail[]
-  userRanks           UserRank[]
+  userRanks           User_Rank[]
   approveSteps        ApproveStep[] // สำหรับนโยบายอนุมัติ (ถ้าใช้ผู้อนุมัติที่เป็นผู้ใช้งาน)
 
   Department Department[] @relation("DepartmentHead")
+
+  @@map("user")
 }
 
 model PersonnelType {
@@ -61,6 +63,8 @@ model PersonnelType {
   // Relations
   users User[]
   Rank  Rank[]
+
+  @@map("personneltype")
 }
 
 model Department {
@@ -74,6 +78,8 @@ model Department {
   head         User?        @relation("DepartmentHead", fields: [headId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
   users        User[]
+
+  @@map("department")
 }
 
 model Organization {
@@ -83,6 +89,8 @@ model Organization {
   // Relations
   departments  Department[]
   approveSteps ApproveStep[]
+
+  @@map("organization")
 }
 
 model AuditLog {
@@ -96,6 +104,8 @@ model AuditLog {
   // Relations
   user         User         @relation(fields: [userId], references: [id])
   leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+
+  @@map("auditlog")
 }
 
 model Notification {
@@ -106,6 +116,8 @@ model Notification {
 
   // Relations
   user User @relation(fields: [userId], references: [id])
+
+  @@map("notification")
 }
 
 model Role {
@@ -113,10 +125,12 @@ model Role {
   name String
 
   // Relations
-  userRoles UserRole[]
+  userRoles User_Role[]
+
+  @@map("role")
 }
 
-model UserRole {
+model User_Role {
   id     Int @id @default(autoincrement())
   userId Int
   roleId Int
@@ -125,6 +139,8 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [id])
 
   @@unique([userId, roleId])
+
+  @@map("user_role")
 }
 
 model Signature {
@@ -133,6 +149,8 @@ model Signature {
   file   String
 
   user User @relation(fields: [userId], references: [id])
+
+  @@map("signature")
 }
 
 model ApproveStep {
@@ -146,12 +164,16 @@ model ApproveStep {
   // Relations
   user         User         @relation(fields: [userId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("approvestep")
 }
 
 model Approver {
   id   Int    @id @default(autoincrement())
   name String
   // อาจมี relation เพิ่มเติมในอนาคต หากต้องการแยกข้อมูลผู้อนุมัติออกจาก User
+
+  @@map("approver")
 }
 
 model Rank {
@@ -165,11 +187,13 @@ model Rank {
   isBalance       Boolean?
   personnelTypeId Int
   // Relations
-  userRanks       UserRank[]
+  userRanks       User_Rank[]
   personnelType   PersonnelType @relation(fields: [personnelTypeId], references: [id])
+
+  @@map("rank")
 }
 
-model UserRank {
+model User_Rank {
   id     Int @id @default(autoincrement())
   userId Int
   rankId Int
@@ -178,6 +202,7 @@ model UserRank {
   rank Rank @relation(fields: [rankId], references: [id])
 
   @@unique([userId, rankId])
+  @@map("user_rank")
 }
 
 model LeaveBalance {
@@ -192,6 +217,8 @@ model LeaveBalance {
   // Relations
   user      User      @relation(fields: [userId], references: [id])
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@map("leavebalance")
 }
 
 model LeaveType {
@@ -202,6 +229,8 @@ model LeaveType {
   // Relations
   leaveBalances LeaveBalance[]
   leaveRequests LeaveRequest[]
+
+  @@map("leavetype")
 }
 
 model LeaveRequest {
@@ -230,6 +259,8 @@ model LeaveRequest {
   auditLogs           AuditLog[]
   files               File[]
   leaveRequestDetails LeaveRequestDetail[]
+
+  @@map("leaverequest")
 }
 
 model File {
@@ -241,6 +272,8 @@ model File {
 
   // Relations
   leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+
+  @@map("file")
 }
 
 model LeaveRequestDetail {
@@ -259,6 +292,7 @@ model LeaveRequestDetail {
 
   @@index([approverId])
   @@index([leaveRequestId])
+  @@map("leaverequestdetail")
 }
 
 model Holiday {
@@ -268,6 +302,8 @@ model Holiday {
   fiscalYear  Int
   isRecurring Boolean  @default(false)
   holidayType String?
+
+  @@map("holiday")
 }
 
 model Setting {
@@ -278,4 +314,6 @@ model Setting {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@map("setting")
 }
