@@ -40,7 +40,7 @@ exports.downloadReport = async (req, res) => {
     date: req.body.date || new Date().toLocaleDateString(),
   };
 
-  const templatePath = './templates/template.pdf';
+  const templatePath = './templates/template1.pdf';
   const outputPath = './public/reports/output.pdf';
 
   try {

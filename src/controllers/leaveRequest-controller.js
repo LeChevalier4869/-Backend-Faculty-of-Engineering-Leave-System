@@ -8,7 +8,7 @@ const cloudUpload = require("../utils/cloudUpload");
 const UserService = require("../services/user-service");
 const upload = multer();
 const { sendEmail, sendNotification } = require("../utils/emailService");
-const { checkLeaveEligibility } = require("../utils/checkLeaveEligibility");
+const { calculateWorkingDays } = require("../utils/dateCalculate");
 
 exports.createLeaveRequest = async (req, res, next) => {
   try {
@@ -18,6 +18,12 @@ exports.createLeaveRequest = async (req, res, next) => {
     // console.log("Debug req.user.id con: ", req.user.id);
 
     if (!leaveTypeId || !startDate || !endDate) {
+      console.log(
+        "Debug createRequest leaveType, start, end",
+        leaveTypeId,
+        startDate,
+        endDate
+      );
       throw createError(
         400,
         "กรุณาเลือกวันที่เริ่มและวันที่สิ้นสุดและ leave type"
@@ -32,27 +38,15 @@ exports.createLeaveRequest = async (req, res, next) => {
       throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
     }
 
-    const leaveBalance = await LeaveBalanceService.getUserBalance(
-      req.user.id,
-      leaveTypeId
-    );
+    // const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    const requestedDays = await calculateWorkingDays(start, end);
 
-    // console.log("Debug leaveBalance: ", leaveBalance);
-    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
     if (requestedDays <= 0) {
       throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
     }
-    if (requestedDays > leaveBalance.maxDays - leaveBalance.usedDays) {
-      return createError(400, "Leave balance is not enough");
-    }
 
-    if (!leaveBalance) {
-      throw createError(404, `Leave balance not found`);
-    }
+    // console.log("Debug leaveBalance: ", leaveBalance);
 
-    //console.log(req.body);
-
-    // ตรวจสอบสิทธิ์ลา
     const eligibility = await LeaveRequestService.checkEligibility(
       req.user.id,
       leaveTypeId,
@@ -63,13 +57,29 @@ exports.createLeaveRequest = async (req, res, next) => {
       throw createError(400, eligibility.message);
     }
 
+    const leaveBalance = await LeaveBalanceService.getUserBalance(
+      req.user.id,
+      leaveTypeId
+    );
+
+    if (requestedDays > leaveBalance.remainingDays || requestedDays > leaveBalance.maxDays) {
+      return createError(400, "วันลาคงเหลือไม่พอ");
+    }
+
+    if (!leaveBalance) {
+      throw createError(404, `Leave balance not found`);
+    }
+
+    //console.log(req.body);
+
     const leaveRequest = await LeaveRequestService.createRequest(
       req.user.id,
       leaveTypeId,
       startDate,
       endDate,
       reason,
-      isEmergency
+      isEmergency,
+      requestedDays
     );
 
     await LeaveBalanceService.updatePendingLeaveBalance(
@@ -105,7 +115,7 @@ exports.createLeaveRequest = async (req, res, next) => {
     }
 
     // ดึง assignment สำหรับ APPROVER_1 ในวันนั้น
-    const assignmentApprover1 = await RoleAssignmentService.getAssignment(
+    const assignmentApprover1 = await RoleAssignmentService.getAssignments(
       "APPROVER_1"
     );
     if (assignmentApprover1 && assignmentApprover1.user) {
@@ -160,8 +170,19 @@ exports.updateLeaveStatus = async (req, res, next) => {
     const { status, remarks, documentNumber } = req.body;
     const approverId = req.user.id;
 
-    if (!["APPROVED", "REJECTED"].includes(status)) {
+    if (!status) throw createError(400, "ต้องระบุสถานะ");
+
+    if (!["APPROVED", "REJECTED"].includes(status.trim().toUpperCase())) {
+      console.log("Debug status: ", status);
       throw createError(400, "สถานะไม่ถูกต้อง");
+    }
+
+    let docNumber = null;
+    const user = req.user;
+    const userRole = Array.isArray(user.role) ? user.role : [user.role];
+
+    if (userRole.includes("RECEIVER")) {
+      docNumber = documentNumber;
     }
 
     const updatedStatus = await LeaveRequestService.updateRequestStatus(
@@ -169,15 +190,13 @@ exports.updateLeaveStatus = async (req, res, next) => {
       status,
       approverId,
       remarks,
-      documentNumber
+      docNumber
     );
     await AuditLogService.createLog(
       req.user.id,
       "Update Status",
       requestId,
-      `สถานะเปลี่ยนเป็น: ${status}${
-        remarks ? " เหตุผล: " + remarks : ""
-      }`,
+      `สถานะเปลี่ยนเป็น: ${status}${remarks ? " เหตุผล: " + remarks : ""}`,
       status === "REJECTED" ? "REJECTION" : "APPROVAL"
     );
     res
@@ -227,7 +246,7 @@ exports.getLeaveRequest = async (req, res, next) => {
       throw createError(404, "Leave request not found");
     }
 
-    if (!user.department.id) {
+    if (!user.department || !user.department.id) {
       throw createError(400, "User has no department assigned.");
     }
 
@@ -351,7 +370,7 @@ exports.deleteLeaveRequest = async (req, res, next) => {
     const result = await LeaveRequestService.deleteRequest(leaveRequestId);
 
     if (!result) {
-      return createError(404, "Leave request not found");
+      return createError(400, "Leave request can't delete");
     }
 
     res.status(200).json({ message: "Leave request deleted" });

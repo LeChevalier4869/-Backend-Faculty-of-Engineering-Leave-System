@@ -5,6 +5,7 @@ const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("./leaveBalance-service");
 const RoleAssignmentService = require("./roleAssignment-service");
 const { checkLeaveEligibility } = require("../utils/checkLeaveEligibility");
+const { sendNotification } = require("../utils/emailService");
 
 // ในการ update leave request สามารถใช้ updateRequestStatus ได้แบบ Dynamics
 // หรือ แยกแบบ approved or rejected ได้ที่ approved or rejected method
@@ -41,14 +42,15 @@ class LeaveRequestService {
     startDate,
     endDate,
     reason,
-    isEmergency
+    isEmergency,
+    requestDays
   ) {
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "Missing required fields.");
     }
 
-    //ตรวจสอบสิทธิ์ก่อน
-    const eligibility = await checkLeaveEligibility(
+    //ตรวจสอบสิทธิ์ก่อน ทำเพื่อเอา department id เฉยๆ
+    const eligibility = await this.checkEligibility(
       userId,
       leaveTypeId,
       requestDays
@@ -234,6 +236,26 @@ class LeaveRequestService {
     //         1
     //     );
     //   }
+
+    const approver = await prisma.users.findFirst({
+      where: { id: approverId },
+      select: {
+        user_role: {
+          select: {
+            roles: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!approver) {
+      console.log("Debug approverRole: ", approver);
+    }
+
     // ออกเลขที่เอกสารและวันที่ออกหนังสือ หากเป็น Receiver
     if (status === "APPROVED" && documentNumber) {
       await prisma.leaverequests.update({
@@ -310,17 +332,17 @@ class LeaveRequestService {
       // ถ้า Reject ให้คำขอลากลับเป็น "PENDING"
       await prisma.leaverequests.update({
         where: { id: requestId },
-        data: { status: "PENDING" },
+        data: { status: "REJECTED" },
       });
 
       // รีเซ็ต Approval Steps
       await prisma.approvalsteps.updateMany({
         where: { leaveRequestId: requestId },
-        data: { status: "PENDING" },
+        data: { status: "REJECTED" },
       });
 
       // ส่ง email แจ้งเตือนให้กับผู้ยื่นคำขอว่า ถูกปฏิเสธ
-      const user = await UserService.getUserByIdw(leaveRequest.userId);
+      const user = await UserService.getUserByIdWithRoles(leaveRequest.userId);
       const fullName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
       if (user && user.email) {
         await sendNotification("REJECTION", {
@@ -421,6 +443,11 @@ class LeaveRequestService {
             stepOrder: true,
             status: true,
             approverId: true,
+          },
+        },
+        attachments: {
+          select: {
+            filePath: true,
           },
         },
       },
@@ -554,13 +581,23 @@ class LeaveRequestService {
         return null;
       }
 
-      await prisma.leaverequests.delete({
-        where: { id: requestId },
-      });
+      let res = false;
 
-      return true;
+      if (leaveRequest.status === "PENDING") {
+        await prisma.leaverequests.delete({
+          where: { id: requestId },
+        });
+        res = true;
+      } else if (
+        leaveRequest.status === "APPROVED" ||
+        leaveRequest.status === "REJECTED"
+      ) {
+        throw createError(400, "สถานะปัจจุบันไม่สามารถยกเลิกได้");
+      }
+
+      return res;
     } catch (err) {
-      throw new Error("Error to delete leave request");
+      throw new Error(`Error to delete leave request: ${err.message}`);
     }
   }
   static async getLanding() {

@@ -3,10 +3,9 @@ const createError = require("../utils/createError");
 
 exports.createLeaveType = async (req, res, next) => {
   try {
-    const { name, maxDays, conditions } = req.body;
+    const { name, conditions } = req.body;
     const leaveType = await LeaveTypeService.createLeaveType(
       name,
-      maxDays,
       conditions
     );
     res.status(201).json({ message: "Leave type created", leaveType });

@@ -257,6 +257,17 @@ async function leaveType() {
         { name: "ลาป่วย", conditions: {} },
         { name: "ลากิจส่วนตัว", conditions: {} },
         { name: "ลาพักผ่อน", conditions: {} },
+
+        //admin ต้องคีย์ข้อมูล
+        { name: "ลาคลอดบุตร", conditions: {} },
+        { name: "ลาไปช่วยภริยาที่คลอดบุตร", conditions: {} },
+        { name: "การลาอุปสมบทหรือการลาไปประกอบพิธีฮัจย์", conditions: {} },
+        { name: "ลาไปถือศีล ปฏิบัติธรรม (สตรี)", conditions: {} },
+        { name: "การลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล", conditions: {} },
+        { name: "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน", conditions: {} },
+        { name: "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ", conditions: {} },
+        { name: "ลาติดตามคู่สมรส", conditions: {} },
+        { name: "การลาไปฟื้นฟูสมรรถภาพด้านอาชีพ", conditions: {} },
     ];
 
     for (const leave of leaveTypes) {

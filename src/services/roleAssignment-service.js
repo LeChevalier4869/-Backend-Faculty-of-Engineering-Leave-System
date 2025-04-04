@@ -7,6 +7,7 @@ class RoleAssignmentService {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
 
+    // ใช้ composite
     const assignment = await prisma.daily_role_assignments.upsert({
       where: {
         date_role_unique: { date: startOfDay, role },
@@ -14,6 +15,18 @@ class RoleAssignmentService {
       update: { userId },
       create: { role, userId, date: startOfDay },
     });
+
+    if (role === "APPROVER_1") {
+      const user = await prisma.users.findUnique({
+        where: { id: userId }
+      });
+      if (user) {
+        await prisma.departments.update({
+          where: { id: user.departmentId },
+          data: { isHeadId: userId },
+        });
+      }
+    }
 
     return assignment;
   }
