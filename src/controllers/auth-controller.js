@@ -21,12 +21,12 @@ exports.register = async (req, res, next) => {
       password,
       phone,
       roleNames = ["USER"],
+      position,
       hireDate,
       inActive,
       employmentType,
       personnelTypeId,
       departmentId,
-      organizationId,
     } = req.body;
 
     if (!email || !password) {
@@ -68,12 +68,12 @@ exports.register = async (req, res, next) => {
       email,
       password: passwordHash,
       phone,
+      position,
       hireDate,
       inActive,
       employmentType: mapEmploymentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
-      organizationId: parseInt(organizationId),
     });
 
     // upload profile picture
@@ -85,6 +85,7 @@ exports.register = async (req, res, next) => {
 
     const roles = await UserService.getRolesByNames(roleNames);
     if (!roles || roles.length !== roleNames.length) {
+      console.log("Debug roles: ", roleNames);
       throw createError(400, "Invalid roles provided");
     }
 
@@ -135,8 +136,8 @@ exports.login = async (req, res, next) => {
     // console.log('user pass = ' + user.password);
 
     const userWithRoles = await UserService.getUserByIdWithRoles(user.id);
-    const roles = userWithRoles.user_role.map(
-      (userRole) => userRole.roles.name
+    const roles = userWithRoles.userRoles.map(
+      (userRole) => userRole.role.name
     );
 
     const departments = await UserService.getDepartment(user.id);
