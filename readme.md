@@ -14,6 +14,10 @@ JWT_EXPIRESIN=
 
 CLOUDINARY_SECRET=
 
+# progress 4/9/2025
+fixed: 
+- register
+- login
 
 # Error
 

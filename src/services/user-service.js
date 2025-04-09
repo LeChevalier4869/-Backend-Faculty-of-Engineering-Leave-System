@@ -32,11 +32,6 @@ class UserService {
         throw createError(400, "Email or username already exists");
       }
       throw err;
-    } finally {
-      process.on('SIGINT', async () => {
-        await prisma.$disconnect();
-        process.exit(0);
-      });
     }
   }
   static async getUserInfoById(userId) {

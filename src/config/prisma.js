@@ -1,30 +1,22 @@
-// const { PrismaClient } = require('@prisma/client');
-// const prisma = new PrismaClient();
-
-// //mini prisma middleware
-
-// // prisma.$use(async (URLSearchParams, next) => {
-// //     const result = await next(params);
-// //     if (params.model === 'users' && result) {
-// //         delete result.password;
-// //     }
-// //     return result;
-// // });
-
-// module.exports = prisma;
-
-// ./config/prisma.js
 const { PrismaClient } = require('@prisma/client');
 
 let prisma;
 
 if (process.env.NODE_ENV === 'production') {
-    prisma = new PrismaClient();
+  prisma = new PrismaClient();
 } else {
-    if (!global.prisma) {
-        global.prisma = new PrismaClient();
-    }
-    prisma = global.prisma;
+  if (!global.prisma) {
+    global.prisma = new PrismaClient();
+  }
+  prisma = global.prisma;
 }
+
+// ✅ เพิ่ม graceful shutdown handler
+process.once('SIGINT', async () => {
+  console.log('\n🛑 SIGINT received. Disconnecting Prisma...');
+  await prisma.$disconnect();
+  console.log('✅ Prisma disconnected. Exiting process.');
+  process.exit(0);
+});
 
 module.exports = prisma;
