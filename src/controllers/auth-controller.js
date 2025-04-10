@@ -60,6 +60,10 @@ exports.register = async (req, res, next) => {
       throw createError(400, "ประเภทพนักงานไม่ถูกต้อง");
     }
 
+    const {
+      inActiveRaw = "false", // default เป็น "false"
+    } = req.body;
+
     const newUser = await UserService.createUser({
       prefixName,
       firstName,
@@ -69,11 +73,11 @@ exports.register = async (req, res, next) => {
       password: passwordHash,
       phone,
       hireDate,
-      inActive,
+      inActive: inActiveRaw === "true",
       employmentType: mapEmploymentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
-      organizationId: parseInt(organizationId),
+      //organizationId: parseInt(organizationId),
     });
 
     // upload profile picture
@@ -120,6 +124,7 @@ exports.login = async (req, res, next) => {
     }
 
     const user = await UserService.getUserByEmail(email);
+    //console.log(user)
 
     if (!user) {
       return createError(404, "User not found");
@@ -135,8 +140,8 @@ exports.login = async (req, res, next) => {
     // console.log('user pass = ' + user.password);
 
     const userWithRoles = await UserService.getUserByIdWithRoles(user.id);
-    const roles = userWithRoles.user_role.map(
-      (userRole) => userRole.roles.name
+    const roles = userWithRoles.userRoles.map(
+      (userRole) => userRole.role.name
     );
 
     const departments = await UserService.getDepartment(user.id);

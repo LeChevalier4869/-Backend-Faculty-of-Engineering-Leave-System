@@ -187,6 +187,11 @@ class LeaveRequestService {
       }
     }
 
+    await prisma.leaverequests.update({
+      where: { id: requestId },
+      data: { status: "APPROVED" },
+    });
+
     //   const approvalSteps = await prisma.approvalsteps.count({
     //     where: { leaveRequestId: requestId },
     //   });
@@ -237,121 +242,121 @@ class LeaveRequestService {
     //     );
     //   }
 
-    const approver = await prisma.users.findFirst({
-      where: { id: approverId },
-      select: {
-        user_role: {
-          select: {
-            roles: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    // const approver = await prisma.users.findFirst({
+    //   where: { id: approverId },
+    //   select: {
+    //     user_role: {
+    //       select: {
+    //         roles: {
+    //           select: {
+    //             name: true,
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    // });
 
-    if (!approver) {
-      console.log("Debug approverRole: ", approver);
-    }
+    // if (!approver) {
+    //   console.log("Debug approverRole: ", approver);
+    // }
 
     // ออกเลขที่เอกสารและวันที่ออกหนังสือ หากเป็น Receiver
-    if (status === "APPROVED" && documentNumber) {
-      await prisma.leaverequests.update({
-        where: { id: requestId },
-        data: {
-          documentNumber,
-          documentIssuedDate: new Date(),
-        },
-      });
-    }
+    // if (status === "APPROVED" && documentNumber) {
+    //   await prisma.leaverequests.update({
+    //     where: { id: requestId },
+    //     data: {
+    //       documentNumber,
+    //       documentIssuedDate: new Date(),
+    //     },
+    //   });
+    // }
 
-    if (status === "APPROVED") {
-      const nextStep = await prisma.approvalsteps.findFirst({
-        where: {
-          leaveRequestId: requestId,
-          stepOrder: currentStep.stepOrder + 1,
-        },
-      });
-      if (nextStep) {
-        // อัปเดตผู้อนุมัติถัดไปให้เป็น "PENDING"
-        await prisma.approvalsteps.update({
-          where: { id: nextStep.id },
-          data: { status: "PENDING" },
-        });
-        // ส่ง email แจ้งเตือนให้กับ role ถัดไป ตาม dynamic assignment
-        const nextRole = roleMapping[currentStep.stepOrder];
-        if (nextRole) {
-          const assignment = await RoleAssignmentService.getAssignment(
-            nextRole
-          );
-          const user = await UserService.getUserByIdWithRoles(
-            leaveRequest.userId
-          );
-          const fullName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
-          if (assignment && assignment.user) {
-            await sendNotification(getNotificationKey(nextRole), {
-              to: assignment.user.email,
-              // สมมุติว่าฟังก์ชัน getUserById ดึงชื่อผู้ยื่นลาได้
-              userName: fullName,
-            });
-          }
-        }
-      } else {
-        // อนุมัติครบ 4 ระดับ → อัปเดตคำขอลาเป็น "APPROVED"
-        await prisma.leaverequests.update({
-          where: { id: requestId },
-          data: { status: "APPROVED" },
-        });
+    // if (status === "APPROVED") {
+    //   const nextStep = await prisma.approvalsteps.findFirst({
+    //     where: {
+    //       leaveRequestId: requestId,
+    //       stepOrder: currentStep.stepOrder + 1,
+    //     },
+    //   });
+    //   if (nextStep) {
+    //     // อัปเดตผู้อนุมัติถัดไปให้เป็น "PENDING"
+    //     await prisma.approvalsteps.update({
+    //       where: { id: nextStep.id },
+    //       data: { status: "PENDING" },
+    //     });
+    //     // ส่ง email แจ้งเตือนให้กับ role ถัดไป ตาม dynamic assignment
+    //     const nextRole = roleMapping[currentStep.stepOrder];
+    //     if (nextRole) {
+    //       const assignment = await RoleAssignmentService.getAssignment(
+    //         nextRole
+    //       );
+    //       const user = await UserService.getUserByIdWithRoles(
+    //         leaveRequest.userId
+    //       );
+    //       const fullName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+    //       if (assignment && assignment.user) {
+    //         await sendNotification(getNotificationKey(nextRole), {
+    //           to: assignment.user.email,
+    //           // สมมุติว่าฟังก์ชัน getUserById ดึงชื่อผู้ยื่นลาได้
+    //           userName: fullName,
+    //         });
+    //       }
+    //     }
+    //   } else {
+    //     // อนุมัติครบ 4 ระดับ → อัปเดตคำขอลาเป็น "APPROVED"
+    //     await prisma.leaverequests.update({
+    //       where: { id: requestId },
+    //       data: { status: "APPROVED" },
+    //     });
 
-        const reqDays =
-          Math.ceil(
-            (new Date(leaveRequest.endDate) -
-              new Date(leaveRequest.startDate)) /
-              (1000 * 60 * 60 * 24)
-          ) + 1;
-        await LeaveBalanceService.finalizeLeaveBalance(
-          leaveRequest.userId,
-          leaveRequest.leaveTypeId,
-          reqDays
-        );
-        // ส่ง email แจ้งเตือนให้กับผู้ยื่นคำขอ
-        const user = await UserService.getUserByIdWithRoles(
-          leaveRequest.userId
-        );
-        const fullName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
-        if (user && user.email) {
-          await sendNotification("FULLY_APPROVED", {
-            to: user.email,
-            userName: fullName,
-          });
-        }
-      }
-    } else if (status === "REJECTED") {
-      // ถ้า Reject ให้คำขอลากลับเป็น "PENDING"
-      await prisma.leaverequests.update({
-        where: { id: requestId },
-        data: { status: "REJECTED" },
-      });
+    //     const reqDays =
+    //       Math.ceil(
+    //         (new Date(leaveRequest.endDate) -
+    //           new Date(leaveRequest.startDate)) /
+    //           (1000 * 60 * 60 * 24)
+    //       ) + 1;
+    //     await LeaveBalanceService.finalizeLeaveBalance(
+    //       leaveRequest.userId,
+    //       leaveRequest.leaveTypeId,
+    //       reqDays
+    //     );
+    //     // ส่ง email แจ้งเตือนให้กับผู้ยื่นคำขอ
+    //     const user = await UserService.getUserByIdWithRoles(
+    //       leaveRequest.userId
+    //     );
+    //     const fullName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+    //     if (user && user.email) {
+    //       await sendNotification("FULLY_APPROVED", {
+    //         to: user.email,
+    //         userName: fullName,
+    //       });
+    //     }
+    //   }
+    // } else if (status === "REJECTED") {
+    //   // ถ้า Reject ให้คำขอลากลับเป็น "PENDING"
+    //   await prisma.leaverequests.update({
+    //     where: { id: requestId },
+    //     data: { status: "REJECTED" },
+    //   });
 
-      // รีเซ็ต Approval Steps
-      await prisma.approvalsteps.updateMany({
-        where: { leaveRequestId: requestId },
-        data: { status: "REJECTED" },
-      });
+    //   // รีเซ็ต Approval Steps
+    //   await prisma.approvalsteps.updateMany({
+    //     where: { leaveRequestId: requestId },
+    //     data: { status: "REJECTED" },
+    //   });
 
-      // ส่ง email แจ้งเตือนให้กับผู้ยื่นคำขอว่า ถูกปฏิเสธ
-      const user = await UserService.getUserByIdWithRoles(leaveRequest.userId);
-      const fullName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
-      if (user && user.email) {
-        await sendNotification("REJECTION", {
-          to: user.email,
-          userName: fullName,
-          remarks,
-        });
-      }
-    }
+    //   // ส่ง email แจ้งเตือนให้กับผู้ยื่นคำขอว่า ถูกปฏิเสธ
+    //   const user = await UserService.getUserByIdWithRoles(leaveRequest.userId);
+    //   const fullName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+    //   if (user && user.email) {
+    //     await sendNotification("REJECTION", {
+    //       to: user.email,
+    //       userName: fullName,
+    //       remarks,
+    //     });
+    //   }
+    // }
 
     return { message: "สถานะคำขอลาได้รับการอัปเดตแล้ว" };
   }
