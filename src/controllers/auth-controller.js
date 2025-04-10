@@ -60,6 +60,10 @@ exports.register = async (req, res, next) => {
       throw createError(400, "ประเภทพนักงานไม่ถูกต้อง");
     }
 
+    const {
+      inActiveRaw = "false", // default เป็น "false"
+    } = req.body;
+
     const newUser = await UserService.createUser({
       prefixName,
       firstName,
@@ -70,7 +74,7 @@ exports.register = async (req, res, next) => {
       phone,
       position,
       hireDate,
-      inActive,
+      inActive: inActiveRaw === "true",
       employmentType: mapEmploymentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
@@ -121,6 +125,7 @@ exports.login = async (req, res, next) => {
     }
 
     const user = await UserService.getUserByEmail(email);
+    //console.log(user)
 
     if (!user) {
       return createError(404, "User not found");

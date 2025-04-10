@@ -34,6 +34,7 @@ class UserService {
       throw err;
     }
   }
+
   static async getUserInfoById(userId) {
     return await prisma.user.findUnique({
       where: { id: userId },
@@ -228,21 +229,41 @@ class UserService {
         },
       },
     });
-    return departments ? departments.departmentId : null;
+    return departments ? departments.department : null;
   }
+  // static async getOrganization(userId) {
+  //   const organizations = await prisma.user.findUnique({
+  //     where: { id: userId },
+  //     select: {
+  //       organization: {
+  //         select: {
+  //           id: true,
+  //           name: true,
+  //         },
+  //       },
+  //     },
+  //   });
+  //   return organizations ? organizations.organization : null;
+  // }
   static async getOrganization(userId) {
     const organizations = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        department: {
+        department: {  // เรียก `department` ก่อน
           select: {
-            organization: true,
+            organization: {  // จากนั้นเลือก `organization` ของแผนกนั้น
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
     });
-    return organizations ? organizations.organizations : null;
+    return organizations ? organizations.department?.organization : null;
   }
+
   static async getPersonnelType(userId) {
     const personnelType = await prisma.user.findUnique({
       where: { id: userId },
@@ -255,7 +276,7 @@ class UserService {
         },
       },
     });
-    return personnelType ? personnelType.personnelTypeId : null;
+    return personnelType ? personnelType.personnelType : null;
   }
   static async getVerifier() {
     const verifier = await prisma.user_Role.findFirst({

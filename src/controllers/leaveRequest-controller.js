@@ -38,8 +38,8 @@ exports.createLeaveRequest = async (req, res, next) => {
       throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
     }
 
-    // const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    const requestedDays = await calculateWorkingDays(start, end);
+    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    // const requestedDays = await calculateWorkingDays(start, end);
 
     if (requestedDays <= 0) {
       throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
@@ -115,16 +115,16 @@ exports.createLeaveRequest = async (req, res, next) => {
     }
 
     // ดึง assignment สำหรับ APPROVER_1 ในวันนั้น
-    const assignmentApprover1 = await RoleAssignmentService.getAssignments(
-      "APPROVER_1"
-    );
-    if (assignmentApprover1 && assignmentApprover1.user) {
-      await sendNotification("SUBMISSION", {
-        to: assignmentApprover1.user.email,
-        approverName: `${assignmentApprover1.user.prefixName} ${assignmentApprover1.user.firstName} ${assignmentApprover1.user.lastName}`,
-        userName: `${req.user.prefixName} ${req.user.firstName} ${req.user.lastName}`,
-      });
-    }
+    // const assignmentApprover1 = await RoleAssignmentService.getAssignments(
+    //   "APPROVER_1"
+    // );
+    // if (assignmentApprover1 && assignmentApprover1.user) {
+    //   await sendNotification("SUBMISSION", {
+    //     to: assignmentApprover1.user.email,
+    //     approverName: `${assignmentApprover1.user.prefixName} ${assignmentApprover1.user.firstName} ${assignmentApprover1.user.lastName}`,
+    //     userName: `${req.user.prefixName} ${req.user.firstName} ${req.user.lastName}`,
+    //   });
+    // }
 
     const file = req.files;
     if (file && file.length > 0) {
