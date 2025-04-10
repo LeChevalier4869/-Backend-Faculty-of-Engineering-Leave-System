@@ -119,6 +119,46 @@ class AdminService {
             where: { id }
         });
     }
+
+    //------------------------ Department -------------
+    static async departmentList() {
+        return await prisma.department.findMany();
+    }
+    static async createDepartment(data) {
+        return await prisma.department.create({data});
+    }
+    static async updateDepartment(data) {
+
+    }
+    static async deleteDepartment(id) {
+
+    }
+
+    //------------------------ Organization -----------
+    static async organizationList() {
+        return await prisma.organization.findMany();
+    }
+    static async createOrganization(name) {
+        return await prisma.organization.create({data: {name}});
+    }
+    static async updateOrganization(id, name) {
+        return await prisma.organization.update({
+            where: { id },
+            data: {
+                name,
+            }
+        });
+    }
+    static async deleteOrganization(id) {
+        return await prisma.organization.delete({
+            where: { id },
+        })
+    }
+    static async getOrganizationById(id) {
+        return await prisma.organization.findUniqe({
+            where: { id },
+        });
+    }
 }
 
 module.exports = AdminService;
