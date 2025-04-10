@@ -8,7 +8,7 @@ const { calculateWorkingDays } = require("../utils/dateCalculate");
 exports.adminList = async (req, res, next) => {
     try {
         const list = await AdminService.adminList();
-        console.log("Debug list: ", list);
+        //console.log("Debug list: ", list);
 
         if (!list) {
             throw createError(404, `ไม่พบ admin`);
@@ -18,8 +18,6 @@ exports.adminList = async (req, res, next) => {
     } catch (err) {
         next(err);
     }
-
-    res.status(200).json({ message: "response ok", adminList: list });
 };
 
 exports.createRequestByAdmin = async (req, res, next) => {
@@ -146,3 +144,67 @@ exports.addHoliday = async (req, res, next) => {
 };
 
 exports.updateHoliday = async (req, res, next) => {};
+
+
+//--------------------- Approver --------------------
+
+exports.approverList = async (req, res, next) => {
+  try {
+    const approverList = await AdminService.approverList();
+
+    if (!approverList) {
+      console.log("Debug approverList: ", approverList);
+      return createError(404, "approverList not found");
+    }
+    
+    res.status(200).json({ message: "respones ok", approverList });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createApprover = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+
+    // console.log('Debug name: ', name);
+    if (!name) throw createError(400, "กรุณาใส่ชื่อ");
+
+    const approver = await AdminService.createApprover(name);
+
+    res.status(201).json({ message: "เพิ่ม approver เรียบร้อย", Approver: approver });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateApprover = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!id || !name) throw createError(400, "ไม่สามารถอัพเดตได้"); 
+    if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
+
+    const approver = await AdminService.updateApprover(parseInt(id), name);
+
+    res.status(200).json({ message: "อัพเดตเรียบร้อย", Approver: approver });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteApprover = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) throw createError(400, "ไม่พบไอดี");
+    if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
+
+    const approver = await AdminService.deleteApprover(parseInt(id));
+
+    res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
+  } catch (err) {
+    next(err);
+  }
+};

@@ -97,7 +97,28 @@ class AdminService {
         });
 
         return newRequest;
-      }
+    }
+
+    //---------------------- Approver -------------
+    static async approverList() {
+        return await prisma.approver.findMany();
+    }
+    static async createApprover(name) {
+        return await prisma.approver.create({data: {name}});
+    }
+    static async updateApprover(id, name) {
+        return await prisma.approver.update({
+            where: { id },
+            data: {
+                name: name
+            }
+        });
+    }
+    static async deleteApprover(id) {
+        return await prisma.approver.delete({
+            where: { id }
+        });
+    }
 }
 
 module.exports = AdminService;

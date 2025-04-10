@@ -1,5 +1,6 @@
 const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
+const path = require('path');
 
 // กำหนดค่าเริ่มต้นของ Swagger
 const options = {
@@ -12,11 +13,21 @@ const options = {
         },
         servers: [
             {
-                url: "http://localhost:8000/swagger-ui/api",
+                url: "http://localhost:8000",
             },
         ],
+        components: {
+            securitySchemes: {
+              bearerAuth: {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+              },
+            },
+          },
+          security: [{ bearerAuth: [] }],
     },
-    apis: ["./src/routes/*.js"],
+    apis: [path.resolve(__dirname, '../routes/*.js')],
 };
 
 const specs = swaggerJsdoc(options);
