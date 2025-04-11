@@ -333,9 +333,15 @@ exports.updateUser = async (req, res, next) => {
         hireDate: new Date(hireDate),
         inActive: Boolean(inActive),
         employmentType,
-        personnelTypeId: parseInt(personnelTypeId),
-        departmentId: parseInt(departmentId),
-        organizationId: parseInt(organizationId),
+        personnelType: {
+          connect: { id: parseInt(personnelTypeId) },  // เชื่อมโยง personnelType
+        },
+        department: {
+          connect: { id: parseInt(departmentId) },  // เชื่อมโยง personnelType
+        },
+        // organization: {  // เชื่อมโยง organization แทน organizationId
+        //   connect: { id: parseInt(organizationId) },
+        // },
       };
     } else if (userRole.includes("USER")) {
       updateData = {
@@ -355,11 +361,16 @@ exports.updateUser = async (req, res, next) => {
       updateData.profilePicturePath = fileUrl;
     }
 
-    if (!departmentId || !organizationId) {
-      console.log("Debug dep, org id: ", departmentId, organizationId);
-      return createError(400, "Required department or organization ID field");
+    if (!departmentId) {
+      console.log("Debug dep, org id: ", departmentId);
+      return createError(400, "Required department field");
     }
+    // if (!departmentId || !organizationId) {
+    //   console.log("Debug dep, org id: ", departmentId, organizationId);
+    //   return createError(400, "Required department or organization ID field");
+    // }
 
+    //console.log(sex,email)
     if (
       !sex ||
       !email ||
@@ -425,6 +436,7 @@ exports.checkUserRole = async (req, res, next) => {
       console.log("Debug userRole", userRole.role);
       throw createError(404, "User role not found");
     }
+    console.log(userRole)
 
     res.status(200).json({ message: "User role checked", role: userRole.role });
   } catch (err) {
@@ -512,6 +524,22 @@ exports.getOrganization = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getOrganizationAndDepartment = async (req, res, next) => {
+  try {
+    const organizationAndDepartment = await OrgAndDeptService.getOrganizationAndDepartment();
+
+    if (!organizationAndDepartment) {
+      console.log("Debug organizationAndDepartment: ", organizationAndDepartment);
+      throw createError(404, "not found");
+    }
+
+    res.status(200).json({ message: "ok", data: organizationAndDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
 
 exports.getDepartment = async (req, res, next) => {
   try {

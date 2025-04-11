@@ -7,7 +7,7 @@ const { calculateWorkingDays } = require("../utils/dateCalculate");
 
 exports.adminList = async (req, res, next) => {
     try {
-        const list = await AdminService.adminList();
+        const list = await AdminService.getAdminList();
         //console.log("Debug list: ", list);
 
         if (!list) {

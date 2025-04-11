@@ -39,17 +39,17 @@ class UserService {
     return await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        user_role: {
+        userRoles: {
           include: {
             role: true,
           },
         },
         personnelType: true,
         department: true,
-        leavebalance: true,
-        leaverequest: {
+        leaveBalances: true,
+        leaveRequests: {
           include: {
-            leaverequestdetail: true,
+            leaveRequestDetails: true,
           },
         },
       },
@@ -69,6 +69,7 @@ class UserService {
       },
     });
   }
+  
   static async getUserByEmail(email) {
     return await prisma.user.findUnique({
       where: { email },
