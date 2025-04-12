@@ -29,7 +29,7 @@ const leaveTypeRoute = require('./routes/leaveType-route');
 const leaveBalance = require('./routes/leaveBalance-route');
 const testRote = require('./routes/test-route');
 const adminRoute = require('./routes/admin-route');
-const roleAssignmentRoute = require('./routes/roleAssignment-route');
+//const roleAssignmentRoute = require('./routes/roleAssignment-route');
 
 // ทดสอบ pdf------------------------------------------------------------------------------------------------------------------------
 app.use(express.json());
@@ -47,7 +47,7 @@ app.use('/leave-requests', leaveRequestRoute);
 app.use('/leave-types', leaveTypeRoute);
 app.use('/leave-balances', authenticate, leaveBalance);
 app.use('/test', authenticate, testRote);
-app.use('/role-assignment', authenticate, authorize(['ADMIN']), roleAssignmentRoute);
+//app.use('/role-assignment', authenticate, authorize(['ADMIN']), roleAssignmentRoute);
 
 //swagger UI
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));

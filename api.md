@@ -4,4 +4,5 @@
 ###  Ready
 - create
 - list
-- update 
+- update
+- delete 

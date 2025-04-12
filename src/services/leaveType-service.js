@@ -2,61 +2,52 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 
 class LeaveTypeService {
-  static async createLeaveType(name, conditions) {
-    const existingLeaveType = await prisma.leavetypes.findUnique({
+  // สร้างประเภทการลา
+  static async createLeaveType({ name, isAvailable = true }) {
+    if (!name) {
+      throw createError(400, "ต้องระบุชื่อประเภทการลา");
+    }
+
+    const existing = await prisma.leaveType.findFirst({
       where: { name },
     });
-    if (existingLeaveType) {
-      throw createError(400, `Leave type ${name} already exists`);
+
+    if (existing) {
+      throw createError(409, "ประเภทนี้มีอยู่ในระบบแล้ว");
     }
-    return await prisma.leavetypes.create({
-      data: { name, conditions },
+
+    return await prisma.leaveType.create({
+      data: { name, isAvailable },
     });
   }
 
-  static async updateLeaveType(id, updates) {
-    const leaveType = await prisma.leavetypes.findUnique({
-      where: { id: Number(id) },
-    });
-
-    if (!leaveType) {
-      throw createError(404, `Leave type with ID ${id} not found`);
-    }
-
-    return await prisma.leavetypes.update({
-      where: { id: Number(id) },
-      data: updates,
+  //แก้ไขประเภทการลา
+  static async updateLeaveType(id, updateData) {
+    return await prisma.leaveType.update({
+      where: { id },
+      data: updateData,
     });
   }
 
+  //ลบประเภทการลา
   static async deleteLeaveType(id) {
-    const leaveType = await prisma.leavetypes.findUnique({
-      where: { id: Number(id) },
-    });
-    if (!leaveType) {
-      throw createError(404, `Leave type with ID ${id} not found`);
-    }
-
-    return await prisma.leavetypes.delete({
-      where: { id: Number(id) },
+    return await prisma.leaveType.delete({
+      where: { id },
     });
   }
 
-  static async getAllLeaveTypes() {
-    return await prisma.leavetypes.findMany();
+  //ดึงข้อมูลทั้งหมด
+  static async getAllLeaveType() {
+    return await prisma.leaveType.findMany({
+      orderBy: { name: "asc" },
+    });
   }
 
-  static async getLeaveTypeByID(id) {
-    if (isNaN(id)) {
-      throw createError(400, `Invalid leave type ID: ${id}`);
-    }
-    const leaveType = await prisma.leavetypes.findUnique({
-      where: { id: Number(id) },
+  //ดึงประเภทการลาตาม ID
+  static async getLeaveTypeById(id) {
+    return await prisma.leaveType.findUnique({
+      where: { id },
     });
-    if (!leaveType) {
-      throw createError(404, `Leave type with ID ${id} not found`);
-    }
-    return leaveType;
   }
 }
 

@@ -15,7 +15,7 @@ router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 //router.post('/:id/role', authMiddleware.authenticate, uploadFile.uploadProfile.none(), authController.updateUserRole);
 
-router.post('/:id/role', authenticate, authorize(['ADMIN']), authController.updateUserRole);
+router.post('/update-role/:id', authenticate, authorize(['ADMIN']), authController.updateUserRole);
 router.put('/users', authenticate, upload.single('images'), authController.updateUser);
 router.put('/user-status/:id', authenticate, authController.updateUserStatus);
 
@@ -32,6 +32,7 @@ router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('p
 // );
 
 router.get('/organization-list', authenticate, authController.getOrganization);
+router.get('/OrgAndDep-list', authenticate, authController.getOrganizationAndDepartment);
 router.get('/department-list/:id', authenticate, authController.getDepartment);
 router.get('/personneltype-list', authenticate, authController.getPersonnelType);
 

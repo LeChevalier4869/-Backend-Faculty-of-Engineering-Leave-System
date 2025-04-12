@@ -34,21 +34,22 @@ class UserService {
       throw err;
     }
   }
+
   static async getUserInfoById(userId) {
     return await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        user_role: {
+        userRoles: {
           include: {
             role: true,
           },
         },
         personnelType: true,
         department: true,
-        leavebalance: true,
-        leaverequest: {
+        leaveBalances: true,
+        leaveRequests: {
           include: {
-            leaverequestdetail: true,
+            leaveRequestDetails: true,
           },
         },
       },
@@ -59,15 +60,20 @@ class UserService {
       where: { id },
       include: {
         userRoles: {
-          include: {
-            role: true,
+          some: {
+            role: { name: true }
           },
         },
-        department: true,
-        personnelType: true,
-      },
+        department: {
+          include: {
+            organization: true,
+          },
+          personnelType: true,
+        },
+      }
     });
   }
+
   static async getUserByEmail(email) {
     return await prisma.user.findUnique({
       where: { email },
@@ -79,6 +85,24 @@ class UserService {
           }
         }
       },
+    });
+  }
+  static async getUserByRole(roleName) {
+    return await prisma.user.findMany({
+      where: {
+        userRoles: {
+          sonme: {
+            role: {
+              name: roleName
+            }
+          }
+        }
+      }
+    });
+  }
+  static async deleteUserById(id) {
+    return await prisma.user.delete({
+      where: { id },
     });
   }
   static async updateUser(userEmail, data) {
@@ -228,21 +252,41 @@ class UserService {
         },
       },
     });
-    return departments ? departments.departmentId : null;
+    return departments ? departments.department : null;
   }
+  // static async getOrganization(userId) {
+  //   const organizations = await prisma.user.findUnique({
+  //     where: { id: userId },
+  //     select: {
+  //       organization: {
+  //         select: {
+  //           id: true,
+  //           name: true,
+  //         },
+  //       },
+  //     },
+  //   });
+  //   return organizations ? organizations.organization : null;
+  // }
   static async getOrganization(userId) {
     const organizations = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        department: {
+        department: {  // เรียก `department` ก่อน
           select: {
-            organization: true,
+            organization: {  // จากนั้นเลือก `organization` ของแผนกนั้น
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
     });
-    return organizations ? organizations.organizations : null;
+    return organizations ? organizations.department?.organization : null;
   }
+
   static async getPersonnelType(userId) {
     const personnelType = await prisma.user.findUnique({
       where: { id: userId },
@@ -255,14 +299,18 @@ class UserService {
         },
       },
     });
-    return personnelType ? personnelType.personnelTypeId : null;
+    return personnelType ? personnelType.personnelType : null;
   }
   static async getVerifier() {
-    const verifier = await prisma.user_Role.findFirst({
-      where: { roleId: 7 }, //role is verifier
-      select: {
-        userId: true,
-      },
+    const verifier = await prisma.role.findFirst({
+      where: { name: "VERIFIER" }, //role is verifier
+      some: {
+        userRoles: {
+          some: {
+            user: true,
+          }
+        }
+      }
     });
 
     if (!verifier || verifier === null) {
