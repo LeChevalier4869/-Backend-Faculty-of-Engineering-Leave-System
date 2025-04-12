@@ -1,11 +1,9 @@
 const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 const UserService = require("../services/user-service");
-const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("./leaveBalance-service");
-//const RoleAssignmentService = require("./roleAssignment-service");
 const { checkLeaveEligibility } = require("../utils/checkLeaveEligibility");
-const { sendNotification } = require("../utils/emailService");
+
 
 // ในการ update leave request สามารถใช้ updateRequestStatus ได้แบบ Dynamics
 // หรือ แยกแบบ approved or rejected ได้ที่ approved or rejected method
@@ -28,14 +26,12 @@ const { sendNotification } = require("../utils/emailService");
  */
 
 class LeaveRequestService {
+  // ตรวจสอบสิทธิ์ลา
   static async checkEligibility(userId, leaveTypeId, requestDays) {
-    const result = await checkLeaveEligibility(
-      userId,
-      leaveTypeId,
-      requestDays
-    );
-    return result;
+    return await checkLeaveEligibility(userId, leaveTypeId, requestDays);
   }
+
+  // สร้างคำขอลา
   static async createRequest(
     userId,
     leaveTypeId,
@@ -114,7 +110,7 @@ class LeaveRequestService {
 
     return newRequest;
   }
-  // add logic
+  // add logic (waiting for refactor)
   static async updateRequestStatus(
     requestId,
     status,
@@ -360,6 +356,7 @@ class LeaveRequestService {
 
     return { message: "สถานะคำขอลาได้รับการอัปเดตแล้ว" };
   }
+
   static async getRequestsByCondition(whereCondition) {
     if (typeof whereCondition !== "object") {
       throw createError(400, "Invalid filter conditions.");
