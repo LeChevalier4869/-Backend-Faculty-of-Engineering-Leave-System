@@ -3,7 +3,7 @@ const fontkit = require("fontkit");
 const fs = require("fs");
 const path = require("path");
 
-async function fillPDFTemplate(data, templatePath, outputPath) {
+async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
   try {
     const templateBytes = fs.readFileSync(templatePath);
     const pdfDoc = await PDFDocument.load(templateBytes);
@@ -26,7 +26,7 @@ async function fillPDFTemplate(data, templatePath, outputPath) {
     });
 
     firstPage.drawText(`รายละเอียด: ${data.description}`, {
-      x: 500,
+      x: 50,
       y: height - 120,
       size: 14,
       font: customFont,
@@ -38,6 +38,32 @@ async function fillPDFTemplate(data, templatePath, outputPath) {
       size: 14,
       font: customFont,
     });
+
+    if (leaveTypeId === 1) {
+      // ลาป่วย
+      firstPage.drawText(`แพทย์: ${data.doctorName}`, {
+        x: 50,
+        y: height - 200,
+        size: 14,
+        font: customFont,
+      });
+    } else if (leaveTypeId === 2) {
+      // ลากิจ
+      firstPage.drawText(`เหตุผล: ${data.reason}`, {
+        x: 50,
+        y: height - 200,
+        size: 14,
+        font: customFont,
+      });
+    } else if (leaveTypeId === 3) {
+      // ลาพักผ่อน
+      firstPage.drawText(`ช่วงเวลา: ${data.startDate} - ${data.endDate}`, {
+        x: 50,
+        y: height - 200,
+        size: 14,
+        font: customFont,
+      });
+    }
 
     const pdfBytes = await pdfDoc.save();
     fs.writeFileSync(outputPath, pdfBytes);
@@ -52,8 +78,6 @@ async function fillPDFTemplate(data, templatePath, outputPath) {
 module.exports = {
   fillPDFTemplate,
 };
-
-
 
 //----------------------------------------------------------------------------------------------------------------
 // const { PDFDocument } = require("pdf-lib");
@@ -110,12 +134,12 @@ module.exports = {
 //       personSumDays: "0",
 //       babyUsedDays: "N/A",
 //       babyThisTimeDays: "N/A",
-//       babySumDays: "N/A", 
+//       babySumDays: "N/A",
 //       commonBossOpinion: "อนุญาตแล้ว",
 //       commonBossSignature: "Abe",
 //       commonBossPosition: "หัวหน้าแผนกทำความสะอาด",
 //       commonBossUpdatedAt: "2025-01-01",
-      
+
 //     };
 
 //     firstPage.drawText(`ชื่อ: ${name}`, {
