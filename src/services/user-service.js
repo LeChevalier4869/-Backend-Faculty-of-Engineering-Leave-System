@@ -60,16 +60,20 @@ class UserService {
       where: { id },
       include: {
         userRoles: {
-          some: {
-            role: { name: true }
+          include: {
+            role: { 
+              select: {
+                name: true,
+              }
+             }
           },
         },
         department: {
           include: {
             organization: true,
           },
-          personnelType: true,
         },
+        personnelType: true,
       }
     });
   }
@@ -91,7 +95,7 @@ class UserService {
     return await prisma.user.findMany({
       where: {
         userRoles: {
-          sonme: {
+          some: {
             role: {
               name: roleName
             }
