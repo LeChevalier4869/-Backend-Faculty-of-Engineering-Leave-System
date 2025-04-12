@@ -1,29 +1,33 @@
 const prisma = require("../config/prisma");
 
 class AuditLogService {
-  static async createLog(userId, action, requestId, details, type) {
-    return await prisma.auditlogs.create({
+  //สร้าง Log เพื่อเก็บการกระทำของผู้ใช้งาน
+  static async createLog(userId, action, leaveRequestId, details) {
+    return await prisma.auditlog.create({
       data: {
+        userId,
+        leaveRequestId,
         action,
         details,
-        users: {
-          connect: {
-            id: userId,
-          },
-        },
-        leaverequests: {
-            connect: {
-                id: requestId
-            }
-        },
-        createdAt: new Date(),
-        type,
       },
     });
   }
-  static async getLogsByRequestId(requestId) {
-    return await prisma.auditlogs.findMany({
-      where: { requestId },
+  //ดึง Log ทั้งหมดของคำขอลานี้
+  static async getLogsByLeaveRequestId(leaveRequestId) {
+    return await prisma.auditlog.findMany({
+      where: { leaveRequestId },
+      orderBy: { createdAt: "asc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
   }
 }
