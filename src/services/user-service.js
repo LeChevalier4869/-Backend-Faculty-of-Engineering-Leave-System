@@ -60,16 +60,20 @@ class UserService {
       where: { id },
       include: {
         userRoles: {
-          include: {
-            role: true,
+          some: {
+            role: { name: true }
           },
         },
-        department: true,
-        personnelType: true,
-      },
+        department: {
+          include: {
+            organization: true,
+          },
+          personnelType: true,
+        },
+      }
     });
   }
-  
+
   static async getUserByEmail(email) {
     return await prisma.user.findUnique({
       where: { email },
@@ -81,6 +85,24 @@ class UserService {
           }
         }
       },
+    });
+  }
+  static async getUserByRole(roleName) {
+    return await prisma.user.findMany({
+      where: {
+        userRoles: {
+          sonme: {
+            role: {
+              name: roleName
+            }
+          }
+        }
+      }
+    });
+  }
+  static async deleteUserById(id) {
+    return await prisma.user.delete({
+      where: { id },
     });
   }
   static async updateUser(userEmail, data) {
@@ -280,11 +302,15 @@ class UserService {
     return personnelType ? personnelType.personnelType : null;
   }
   static async getVerifier() {
-    const verifier = await prisma.user_Role.findFirst({
-      where: { roleId: 7 }, //role is verifier
-      select: {
-        userId: true,
-      },
+    const verifier = await prisma.role.findFirst({
+      where: { name: "VERIFIER" }, //role is verifier
+      some: {
+        userRoles: {
+          some: {
+            user: true,
+          }
+        }
+      }
     });
 
     if (!verifier || verifier === null) {
