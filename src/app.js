@@ -29,6 +29,7 @@ const leaveTypeRoute = require('./routes/leaveType-route');
 const leaveBalance = require('./routes/leaveBalance-route');
 const testRote = require('./routes/test-route');
 const adminRoute = require('./routes/admin-route');
+const settingRoute = require('./routes/setting-route');
 //const roleAssignmentRoute = require('./routes/roleAssignment-route');
 
 // ทดสอบ pdf------------------------------------------------------------------------------------------------------------------------
@@ -47,6 +48,7 @@ app.use('/leave-requests', leaveRequestRoute);
 app.use('/leave-types', leaveTypeRoute);
 app.use('/leave-balances', authenticate, leaveBalance);
 app.use('/test', authenticate, testRote);
+app.use('/setting', settingRoute);
 //app.use('/role-assignment', authenticate, authorize(['ADMIN']), roleAssignmentRoute);
 
 //swagger UI
