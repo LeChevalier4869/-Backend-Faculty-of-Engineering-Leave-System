@@ -179,7 +179,6 @@ model Approver {
 model Rank {
   id              Int           @id @default(autoincrement())
   rank            String
-  condition       Json?         @db.Json
   minHireMonths   Int?
   maxHireMonths   Int?
   receiveDays     Int?

@@ -2,14 +2,14 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 const UserService = require("../services/user-service");
 const LeaveBalanceService = require("./leaveBalance-service");
-const { checkLeaveEligibility } = require("../utils/checkLeaveEligibility");
-
+const RankService = require("./rank-service");
 
 // ในการ update leave request สามารถใช้ updateRequestStatus ได้แบบ Dynamics
 // หรือ แยกแบบ approved or rejected ได้ที่ approved or rejected method
 
 /** Descriptions
  * LeaveRequestService - บริการจัดการคำขอลา
+ * - checkEligibility: ตรวจสอบสอทธิ์การลาพักผ่อน /
  * - createRequest: สร้างคำขอลา
  * - updateRequestStatus: อัปเดตสถานะคำขอลา
  * - getRequests: ดึงข้อมูลคำขอลาทั้งหมด
@@ -27,8 +27,57 @@ const { checkLeaveEligibility } = require("../utils/checkLeaveEligibility");
 
 class LeaveRequestService {
   // ตรวจสอบสิทธิ์ลา
-  static async checkEligibility(userId, leaveTypeId, requestDays) {
-    return await checkLeaveEligibility(userId, leaveTypeId, requestDays);
+  static async checkEligibility(userId, leaveTypeId, requestedDays) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        personnelType: true,
+      },
+    });
+    if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
+    
+    const leaveType = await prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
+    if (!leaveType) throw createError(404, "ไม่พบประเภทการลา");
+
+    // for ลาพักผ่อน
+    if (leaveType.name !== "ลาพักผ่อน") {
+      return { success: true, message: "ไม่ใช่การลาพักผ่อน จึงไม่มีการตรวจสอบ Rank" };
+    }
+
+    const rank = await RankService.getRankForUser(user);
+    if (!rank) {
+      return { success: false, message: "ยังไม่มีสิทธิ์ลาพักผ่อนในช่วงอายุงานปัจจุบัน" };
+    }
+
+    if (requestedDays > rank.receiveDays) {
+      return { success: false, message: `จำนวนวันที่ลาขอเกินสิทธิ์ที่กำหนด (${rank.receiveDays} วัน)` };
+    }
+
+    const balance = await prisma.leaveBalance.findFirst({
+      where: {
+        userId,
+        leaveTypeId,
+      },
+    });
+
+    if (!balance) {
+      return { success: false, message: "ไม่พบข้อมูล Leave Balance ของคุณ" };
+    }
+
+    if (requestedDays > balance.remainingDays) {
+      return { success: false, message: "วันลาคงเหลือไม่เพียงพอ" };
+    }
+
+    return {
+      success: true,
+      message: "ผ่านการตรวจสอบสิทธิ์ลาพักผ่อน",
+      rankInfo: {
+        rank: rank.rank,
+        receiveDays: rank.receiveDays,
+        maxDays: rank.maxDays,
+        isBalance: rank.isBalance,
+      },
+    };
   }
 
   // สร้างคำขอลา
