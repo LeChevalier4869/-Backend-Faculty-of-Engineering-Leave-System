@@ -3,6 +3,7 @@ const createError = require("../utils/createError");
 const UserService = require("../services/user-service");
 const LeaveBalanceService = require("./leaveBalance-service");
 const RankService = require("./rank-service");
+const { calculateWorkingDays } = require("../utils/dateCalculate");
 
 // ในการ update leave request สามารถใช้ updateRequestStatus ได้แบบ Dynamics
 // หรือ แยกแบบ approved or rejected ได้ที่ approved or rejected method
@@ -77,6 +78,7 @@ class LeaveRequestService {
         maxDays: rank.maxDays,
         isBalance: rank.isBalance,
       },
+      balance,
     };
   }
 
@@ -88,76 +90,69 @@ class LeaveRequestService {
     endDate,
     reason,
     isEmergency,
-    requestDays
   ) {
     if (!userId || !leaveTypeId || !startDate || !endDate) {
-      throw createError(400, "Missing required fields.");
+      throw createError(400, "ข้อมูลไม่ครบถ้วน");
     }
 
-    //ตรวจสอบสิทธิ์ก่อน ทำเพื่อเอา department id เฉยๆ
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const requestedDays = await calculateWorkingDays(start, end);
+    if (requestedDays <= 0) {
+      throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
+    }
+
     const eligibility = await this.checkEligibility(
       userId,
       leaveTypeId,
-      requestDays
+      requestedDays
     );
 
     // console.log("Debug eligibility id: ", eligibility.departmentId.departmentId);
 
     if (!eligibility.success) throw createError(400, eligibility.message);
 
-    //Get department head, verifier, and receiver
-    const userDepartment = await prisma.departments.findUnique({
-      where: { id: eligibility.departmentId.departmentId },
-      select: { isHeadId: true },
-    });
-
-    if (!userDepartment || !userDepartment.isHeadId) {
-      throw createError(500, "Department head not found.");
-    }
-
+    const { balance } = eligibility;
     const verifier = await UserService.getVerifier();
     const receiver = await UserService.getReceiver();
+    if (!verifier || !receiver) throw createError(500, "ไม่พบผู้ตรวจสอบหรือผู้รับหนังสือ");
 
-    if (!verifier || !receiver) {
-      throw createError(500, "ไม่พบผู้ตรวจสอบหรือผู้รับหนังสือ");
-    }
-    //เช็คว่า verifierId และ receiverId มีอยู่จริง
-    const verifierExists = await prisma.users.findUnique({
-      where: { id: verifier },
-    });
-    if (!verifierExists) throw createError(500, "ไม่มีผู้ตรวจสอบ");
-
-    const receiverExists = await prisma.users.findUnique({
-      where: { id: receiver },
-    });
-    if (!receiverExists) throw createError(500, "ไม่มีผู้รับหนังสือ");
-
-    //create request
-    const newRequest = await prisma.leaverequests.create({
+    const leaveRequest = await prisma.leaveRequest.create({
       data: {
         userId,
-        leaveTypeId: parseInt(leaveTypeId),
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        leaveTypeId,
+        startDate: start,
+        endDate: end,
+        leavedDays: requestedDays,
+        thisTimeDays: requestedDays,
+        totalDays: balance.usedDays + requestedDays,
+        balanceDays: balance.remainingDays,
         reason,
         isEmergency: Boolean(isEmergency),
+        contact,
+        verifierId: verifier.id,
+        receiverId: receiver.id,
         status: "PENDING",
-        verifierId: verifier, // บันทึกผู้ตรวจสอบ
-        receiverId: receiver, // บันทึกผู้รับหนังสือ
       },
     });
 
-    //สร้าง Approval Step 1 (ให้หัวหน้าสาขาอนุมัติเป็นคนแรก)
-    await prisma.approvalsteps.create({
+    // เพิ่ม approval step แรก
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { department: true },
+    });
+    if (!user?.department?.headId) throw createError(500, "ไม่พบหัวหน้าสาขา");
+
+    await prisma.leaveRequestDetail.create({
       data: {
-        leaveRequestId: newRequest.id,
-        approverId: userDepartment.isHeadId,
+        leaveRequestId: leaveRequest.id,
+        approverId: user.department.headId,
         stepOrder: 1,
         status: "PENDING",
       },
     });
 
-    return newRequest;
+    return leaveRequest;
   }
   // add logic (waiting for refactor)
   static async updateRequestStatus(
