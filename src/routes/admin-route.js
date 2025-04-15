@@ -35,8 +35,13 @@ const { authorize } = require('../middlewares/auth');
 
 router.get('/list', adminController.adminList);
 router.post('/leave-request', upload.array("images", 5), adminController.createRequestByAdmin);
-router.post('/holiday', upload.none(), adminController.addHoliday);
+
+//-------------------------------------- holiday -------------------- 
 router.get('/holiday', adminController.getHoliday);
+router.post('/holiday', upload.none(), adminController.addHoliday);
+router.put('/holiday/:id',adminController.updateHoliday);
+router.delete('/holiday/:id',adminController.deleteHoliday);
+
 
 //-------------------------------------- approver -------------------- 
 router.get('/approver', adminController.approverList);
