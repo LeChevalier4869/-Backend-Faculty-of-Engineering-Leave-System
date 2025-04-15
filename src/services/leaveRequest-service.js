@@ -7,82 +7,10 @@ const AuditLogService = require("./auditLog-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const { sendNotification } = require("../utils/emailService");
 
-// ในการ update leave request สามารถใช้ updateRequestStatus ได้แบบ Dynamics
-// หรือ แยกแบบ approved or rejected ได้ที่ approved or rejected method
-
-/** Descriptions
- * LeaveRequestService - บริการจัดการคำขอลา
- * - checkEligibility: ตรวจสอบสอทธิ์การลาพักผ่อน /
- * - createRequest: สร้างคำขอลา
- * - updateRequestStatus: อัปเดตสถานะคำขอลา
- * - getRequests: ดึงข้อมูลคำขอลาทั้งหมด
- * - getRequestsById: ดึงข้อมูลคำขอลาตาม ID
- * - updateRequest: อัปเดตคำขอลา
- * - approveRequest: อนุมัติคำขอลา
- * - rejectRequest: ปฏิเสธคำขอลา
- * - deleteRequest: ลบคำขอลา
- * - getLanding: ดึงคำขอลาที่ยังค้างอยู่
- * - getApprovalSteps: ดึงขั้นตอนการอนุมัติ
- * - updateDocumentInfo: อัปเดตข้อมูลเอกสาร
- * - getRequestForVerifier: ดึงคำขอลาสำหรับผู้ตรวจสอบ
- * - getRequestForReceiver: ดึงคำขอลาสำหรับผู้รับเอกสาร
- */
-
 class LeaveRequestService {
-  // ตรวจสอบสิทธิ์ลา
-  static async checkEligibility(userId, leaveTypeId, requestedDays) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        personnelType: true,
-      },
-    });
-    if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
-
-    const leaveType = await prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
-    if (!leaveType) throw createError(404, "ไม่พบประเภทการลา");
-
-    // for ลาพักผ่อน
-    if (leaveType.name !== "ลาพักผ่อน") {
-      return { success: true, message: "ไม่ใช่การลาพักผ่อน จึงไม่มีการตรวจสอบ Rank" };
-    }
-
-    const rank = await RankService.getRankForUser(user);
-    if (!rank) {
-      return { success: false, message: "ยังไม่มีสิทธิ์ลาพักผ่อนในช่วงอายุงานปัจจุบัน" };
-    }
-
-    if (requestedDays > rank.receiveDays) {
-      return { success: false, message: `จำนวนวันที่ลาขอเกินสิทธิ์ที่กำหนด (${rank.receiveDays} วัน)` };
-    }
-
-    const balance = await prisma.leaveBalance.findFirst({
-      where: {
-        userId,
-        leaveTypeId,
-      },
-    });
-
-    if (!balance) {
-      return { success: false, message: "ไม่พบข้อมูล Leave Balance ของคุณ" };
-    }
-
-    if (requestedDays > balance.remainingDays) {
-      return { success: false, message: "วันลาคงเหลือไม่เพียงพอ" };
-    }
-
-    return {
-      success: true,
-      message: "ผ่านการตรวจสอบสิทธิ์ลาพักผ่อน",
-      rankInfo: {
-        rank: rank.rank,
-        receiveDays: rank.receiveDays,
-        maxDays: rank.maxDays,
-        isBalance: rank.isBalance,
-      },
-      balance,
-    };
-  }
+  // ────────────────────────────────
+  // 🟢 CREATE
+  // ────────────────────────────────
 
   // สร้างคำขอลา
   static async createRequest(
@@ -92,6 +20,7 @@ class LeaveRequestService {
     endDate,
     reason,
     isEmergency,
+    contact
   ) {
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
@@ -155,6 +84,104 @@ class LeaveRequestService {
     });
 
     return leaveRequest;
+  }
+
+  // ────────────────────────────────
+  // 🔎 READ
+  // ────────────────────────────────
+
+  static async getRequestsById(requestId) {
+    return await prisma.leaveRequest.findMany({
+      where: { id: Number(requestId) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        leaveType: true,
+        leaveRequestDetails: true,
+        files: true,
+      },
+    });
+  }
+
+  static async getRequestIsMine(userId) {
+    return await prisma.leaveRequest.findMany({
+      where: { userId },
+      include: {
+        user: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        leaveType: true,
+        leaveRequestDetails: true,
+        files: true,
+      },
+    });
+  }
+
+  static async getLanding() {
+    return await prisma.leaveRequest.findMany({
+      where: { status: "PENDING" },
+      include: {
+        leaveType: true,
+        user: {
+          include: {
+            department: true,
+            leaveBalances: true,
+          }
+        }
+      }
+    });
+  }
+
+  static async getApprovalSteps(requestId) {
+    return await prisma.leaveRequestDetail.findMany({
+      where: { leaveRequestId: requestId },
+      orderBy: { stepOrder: "asc" },
+      include: {
+        approver: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
+        }
+      },
+    });
+  }
+
+  // ────────────────────────────────
+  // 🔁 UPDATE
+  // ────────────────────────────────
+
+  //แนบไฟล์-------------------------------------------------------------------------------------------------
+  static async attachImages(imageDataArray) {
+    return await prisma.file.createMany({ data: imageDataArray });
+  }
+
+  static async updateRequest(requestId, updateData) {
+    return await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: updateData,
+    });
+  }
+
+  // ใช้ logic กลาง updateRequestStatus
+  static async approveRequest(requestId, approverId, documentNumber = null) {
+    return await this.updateRequestStatus(requestId, "APPROVED", approverId, null, documentNumber);
+  }
+
+  static async rejectRequest(requestId, approverId, remarks = null) {
+    return await this.updateRequestStatus(requestId, "REJECTED", approverId, remarks);
   }
 
   // อัพเดตสถานะตาม step
@@ -291,286 +318,75 @@ class LeaveRequestService {
     return { message: "สถานะคำขอได้รับการอัปเดตแล้ว" };
   }
 
-  static async getRequestsById(requestId) {
-    if (!requestId || isNaN(requestId)) {
-      console.log("Debug requestId: ", requestId);
-      throw createError(400, "Invalid request ID.");
-    }
-    return await prisma.leaveRequest.findMany({
-      where: { id: Number(requestId) },
-      include: {
-        verifier: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        receiver: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        users: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        leavetypes: {
-          select: {
-            name: true,
-          },
-        },
-        leaveRequestDetails: {
-          select: {
-            stepOrder: true,
-            status: true,
-            approverId: true,
-          },
-        },
-        files: {
-          select: {
-            filePath: true,
-          },
-        },
-      },
-    });
-  }
-
-  //แนบไฟล์-------------------------------------------------------------------------------------------------
-  static async attachImages(attachImages) {
-    try {
-      return await prisma.file.createMany({
-        data: attachImages,
-      });
-    } catch (error) {
-      throw createError(500, `Failed to attach Images: ${error.message}`);
-    }
-  }
-
-  static async updateRequest(requestId, updateData) {
-    try {
-      return await prisma.leaverequests.update({
-        where: { id: requestId },
-        data: updateData,
-      });
-    } catch (error) {
-      throw createError(
-        500,
-        `Failed to update leave request: ${error.message}`
-      );
-    }
-  }
-
-  // ใช้ logic กลาง updateRequestStatus
-  static async approveRequest(requestId, approverId, documentNumber = null) {
-    return await this.updateRequestStatus(requestId, "APPROVED", approverId, null, documentNumber);
-  }
-
-  static async rejectRequest(requestId, approverId, remarks = null) {
-    return await this.updateRequestStatus(requestId, "REJECTED", approverId, remarks);
-  }
+  // ────────────────────────────────
+  // ❌ DELETE
+  // ────────────────────────────────
 
   static async deleteRequest(requestId) {
-    try {
-      if (!requestId || isNaN(requestId)) {
-        throw createError(400, "Invalid request ID.");
-      }
-      const leaveRequest = await prisma.leaverequests.findUnique({
-        where: {
-          id: requestId,
-        },
-      });
-
-      if (!leaveRequest) {
-        return null;
-      }
-
-      let res = false;
-
-      if (leaveRequest.status === "PENDING") {
-        await prisma.leaverequests.delete({
-          where: { id: requestId },
-        });
-        res = true;
-      } else if (
-        leaveRequest.status === "APPROVED" ||
-        leaveRequest.status === "REJECTED"
-      ) {
-        throw createError(400, "สถานะปัจจุบันไม่สามารถยกเลิกได้");
-      }
-
-      return res;
-    } catch (err) {
-      throw new Error(`Error to delete leave request: ${err.message}`);
-    }
+    const request = await prisma.leaveRequest.findUnique({ where: { id: requestId } });
+    if (!request) return null;
+    if (request.status !== "PENDING") throw createError(400, "ไม่สามารถลบคำขอที่อนุมัติหรือปฏิเสธแล้วได้"); 
+    await prisma.leaveRequest.delete({ where: { id: requestId } });
+    return true;
   }
-  static async getLanding() {
-    const leaveRequests = await prisma.leaverequests.findMany({
+
+  // ────────────────────────────────
+  // 🔒 UTIL
+  // ────────────────────────────────
+
+  // ตรวจสอบสิทธิ์ลา
+  static async checkEligibility(userId, leaveTypeId, requestedDays) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        personnelType: true,
+      },
+    });
+    if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
+
+    const leaveType = await prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
+    if (!leaveType) throw createError(404, "ไม่พบประเภทการลา");
+
+    // for ลาพักผ่อน
+    if (leaveType.name !== "ลาพักผ่อน") {
+      return { success: true, message: "ไม่ใช่การลาพักผ่อน จึงไม่มีการตรวจสอบ Rank" };
+    }
+
+    const rank = await RankService.getRankForUser(user);
+    if (!rank) {
+      return { success: false, message: "ยังไม่มีสิทธิ์ลาพักผ่อนในช่วงอายุงานปัจจุบัน" };
+    }
+
+    if (requestedDays > rank.receiveDays) {
+      return { success: false, message: `จำนวนวันที่ลาขอเกินสิทธิ์ที่กำหนด (${rank.receiveDays} วัน)` };
+    }
+
+    const balance = await prisma.leaveBalance.findFirst({
       where: {
-        status: "PENDING",
-      },
-      include: {
-        leavetypes: true,
-        users: {
-          select: {
-            id: true,
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            hireDate: true,
-            inActive: true,
-            phone: true,
-            leavebalances: true,
-          },
-        },
+        userId,
+        leaveTypeId,
       },
     });
 
-    if (!leaveRequests || leaveRequests.length === 0) {
-      console.log("Debug leave request: ", leaveRequests);
-      throw createError(404, "Leave request not found");
+    if (!balance) {
+      return { success: false, message: "ไม่พบข้อมูล Leave Balance ของคุณ" };
     }
 
-    return leaveRequests;
-  }
-  static async getApprovalSteps(requestId) {
-    return await prisma.approvalsteps.findMany({
-      where: { leaveRequestId: requestId },
-      orderBy: { stepOrder: "asc" },
-      select: {
-        stepOrder: true,
-        status: true,
-        reviewedAt: true,
-        approverId: true,
-        previousApproved: true,
-        users_approvalsteps_approverIdTousers: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
-  }
-  static async updateDocumentInfo(requestId, verifierId, documentNumber) {
-    try {
-      const leaveRequest = await prisma.leaverequests.findUnique({
-        where: { id: requestId },
-      });
-
-      if (!leaveRequest) {
-        throw createError(404, "Leave request not found");
-      }
-
-      if (leaveRequest.verifierId !== verifierId) {
-        throw createError(
-          403,
-          "You are not authorized to verify this request."
-        );
-      }
-
-      await prisma.leaverequests.update({
-        where: { id: requestId },
-        data: {
-          documentNumber: documentNumber,
-          documentIssuedDate: new Date(),
-        },
-      });
-
-      return { message: "Document info updated successfully" };
-    } catch (err) {
-      throw new Error(`Failed to update document info ${err.message}`);
+    if (requestedDays > balance.remainingDays) {
+      return { success: false, message: "วันลาคงเหลือไม่เพียงพอ" };
     }
-  }
-  static async getRequestForVerifier(verifierId) {
-    return await prisma.leaverequests.findMany({
-      where: { verifierId: verifierId, status: "WAITING_FOR_VERIFICATION" },
-      include: {
-        users: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
+
+    return {
+      success: true,
+      message: "ผ่านการตรวจสอบสิทธิ์ลาพักผ่อน",
+      rankInfo: {
+        rank: rank.rank,
+        receiveDays: rank.receiveDays,
+        maxDays: rank.maxDays,
+        isBalance: rank.isBalance,
       },
-    });
-  }
-  static async getRequestForReceiver(receiverId) {
-    return await prisma.leaverequests.findMany({
-      where: { receiverId: receiverId, status: "WAITING_FOR_RECEIVER" },
-      include: {
-        users: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    });
-  }
-  static async getRequestIsMine(userId) {
-    if (!userId) {
-      throw createError(400, `user id is ${userId}`);
-    }
-    if (isNaN(userId)) {
-      userId = parseInt(userId);
-    }
-    const leaveRequest = await prisma.leaverequests.findMany({
-      where: { userId: userId },
-      include: {
-        verifier: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        receiver: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        users: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        leavetypes: {
-          select: {
-            name: true,
-            conditions: true,
-          },
-        },
-        approvalsteps: {
-          select: {
-            stepOrder: true,
-            status: true,
-            approverId: true,
-          },
-        },
-      },
-    });
-    return leaveRequest;
+      balance,
+    };
   }
 }
 
