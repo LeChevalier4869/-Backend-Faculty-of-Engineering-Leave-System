@@ -510,6 +510,8 @@ exports.getUserInfoById = async (req, res, next) => {
 //   }
 // };
 
+
+//Organizations---------------------------------------------------------------------------------------------------
 exports.getAllOrganizations = async (req, res, next) => {
   try {
     const organizations = await OrgAndDeptService.getAllOrganizations();
@@ -607,22 +609,94 @@ exports.getOrganizationAndDepartment = async (req, res, next) => {
   }
 };
 
-
-exports.getDepartment = async (req, res, next) => {
+//Departments---------------------------------------------------------------------------------------------------
+exports.getAllDepartments = async (req, res, next) => {
   try {
-    const organizationId = parseInt(req.params.id);
-    const department = await OrgAndDeptService.getDepartmentById(organizationId);
+    const departments = await OrgAndDeptService.getAllDepartments();
 
-    if (!organizationId) {
-      throw createError(404, "org not found");
+    if (!departments || departments.length === 0) {
+      console.log("ข้อมูลองค์กร: ", departments);
+      throw createError(404, "ไม่พบข้อมูลแผนก");
     }
+
+    res.status(200).json({ message: "สำเร็จ", data: departments });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getDepartmentById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const department = await OrgAndDeptService.getDepartmentById(id);
 
     if (!department) {
-      console.log("Debug organization: ", department);
-      throw createError(404, "not found");
+      console.log("ข้อมูลองค์กร: ", department);
+      throw createError(404, "ไม่พบข้อมูลแผนก");
     }
 
-    res.status(200).json({ message: "ok", data: department });
+    res.status(200).json({ message: "สำเร็จ", data: department });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createDepartment = async (req, res, next) => {
+  try {
+    const { name, headId, organizationId, appointDate } = req.body;
+    if (!name || !organizationId) {
+      throw createError(400, "กรุณากรอกชื่อแผนกและ ID ขององค์กร");
+    }
+
+    const newDepartment = await OrgAndDeptService.createDepartment({
+      name,
+      headId,
+      organizationId,
+      appointDate,
+    });
+
+    res.status(201).json({ message: "สร้างแผนกสำเร็จ", data: newDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, headId, organizationId, appointDate } = req.body;
+
+    if (!name || !organizationId) {
+      throw createError(400, "กรุณากรอกชื่อแผนกและ ID ขององค์กร");
+    }
+
+    const updatedDepartment = await OrgAndDeptService.updateDepartment(id, {
+      name,
+      headId,
+      organizationId,
+      appointDate,
+    });
+
+    if (!updatedDepartment) {
+      throw createError(404, "ไม่พบแผนกที่ต้องการอัปเดต");
+    }
+
+    res.status(200).json({ message: "อัปเดตแผนกสำเร็จ", data: updatedDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deletedDepartment = await OrgAndDeptService.deleteDepartment(id);
+
+    if (!deletedDepartment) {
+      throw createError(404, "ไม่พบแผนกที่ต้องการลบ");
+    }
+
+    res.status(200).json({ message: "ลบแผนกสำเร็จ", data: deletedDepartment });
   } catch (err) {
     next(err);
   }
