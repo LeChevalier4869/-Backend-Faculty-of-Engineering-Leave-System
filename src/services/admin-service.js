@@ -1,5 +1,8 @@
 const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
+const LeaveRequestService = require("./leaveRequest-service");
+const { calculateWorkingDays } = require('../utils/dateCalculate');
+const LeaveBalanceService = require("./leaveBalance-service");
 
 class AdminService {
   // ✅ ดึงรายชื่อผู้ใช้งานที่มี role ADMIN
@@ -25,7 +28,7 @@ class AdminService {
     });
   }
   // ✅ สร้างคำขอลาแทนผู้ใช้งาน (ใช้โดย ADMIN เท่านั้น)
-  static async createLeaveRequestForUser(data) {
+  static async createLeaveRequestForUser(data, adminId = null) {
     const {
       userId,
       leaveTypeId,
@@ -35,25 +38,64 @@ class AdminService {
       isEmergency,
       verifierId,
       receiverId,
+      contact,
     } = data;
 
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
     }
 
-    return await prisma.leaveRequest.create({
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const requestedDays = await calculateWorkingDays(start, end);
+    if (requestedDays <= 0) throw createError(400, "จำนวนวันลาต้องมากกว่า 0"); 
+
+    const eligibility = await LeaveRequestService.checkEligibility(userId, leaveTypeId, requestedDays);
+    if (!eligibility.success) throw createError(400, eligibility.message);
+
+    const leaveRequest = await prisma.leaveRequest.create({
       data: {
         userId,
         leaveTypeId,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: start,
+        endDate: end,
         reason,
         isEmergency: Boolean(isEmergency),
         verifierId,
         receiverId,
-        status: "PENDING",
+        contact,
+        status: "APPROVED",
+        leavedDays: requestedDays,
+        thisTimeDays: requestedDays,
+        totalDays: eligibility.balance.usedDays + requestedDays,
+        balanceDays: eligibility.balance.remainingDays,
+        documentNumber: `ADM-${Date.now()}`,
+        documentIssuedDate: new Date(),
       },
     });
+
+    await LeaveBalanceService.finalizeLeaveBalance(userId, leaveTypeId, requestedDays);
+
+    await prisma.leaveRequestDetail.create({
+      data: {
+        leaveRequestId: leaveRequest.id,
+        approverId: adminId || 0,
+        stepOrder: 0,
+        status: "APPROVED",
+        reviewedAt: new Date(),
+        remarks: "บันทึกโดยผู้ดูแลระบบ",
+      },
+    });
+
+    if (adminId) {
+      await AuditLogService.createLog(
+        adminId,
+        "AdminCreateLeave",
+        leaveRequest.id,
+        `Admin created leave for userId=${userId}`
+      );
+    }
+    return leaveRequest;
   }
   // ✅ จัดการวันหยุด
   static async createHoliday({

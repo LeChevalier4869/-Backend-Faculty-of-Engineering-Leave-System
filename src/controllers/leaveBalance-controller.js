@@ -5,14 +5,49 @@ exports.getLeaveBalanceByUserId = async (req, res, next) => {
     const userId = req.user.id;
     //console.log('user id = ' + req.user.id);
     try {
-        const leaveBalance = await LeaveBalanceService.getByUserId(userId);
+        if (!user || isNaN(userId)) throw createError(400, "รหัสผู้ใช้งานไม่ถูกต้อง");
+
+        const leaveBalance = await LeaveBalanceService.getLeaveBalanceByUserId(userId);
 
         if (!leaveBalance) {
-            throw createError(404, 'Leave balance not found');
+            throw createError(404, 'ไม่พบข้อมูล leave balance');
         }
 
-        res.status(200).json({ leaveBalance });
+        res.status(200).json({ message: "ดึงข้อมูล leave balance สำเร็จ", data: leaveBalance });
     } catch (err) {
         next(err);
     }
 };
+
+exports.getLeaveBalanceMe = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const balances = await LeaveBalanceService.getLeaveBalanceByUserId(userId);
+        res.status(200).json({ message: "ดึงข้อมูล leave balance ของคุณสำเร็จ", data: balances });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.getAllLeaveBalances = async (req, res, next) => {
+    try {
+        const balances = await LeaveBalanceService.getAllLeaveBalances();
+        res.status(200).json({ message: "ดึงข้อมูล leave balance ทั้งหมดสำเร็จ", data: balances });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.updateLeaveBalance = async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (!id || isNaN(id)) throw createError(400, "รหัส leave balance ไม่ถูกต้อง");
+
+        const updateData = req.body;
+        const updated = await LeaveBalanceService.updateLeaveBalance(id, updateData);
+        res.status(200).json({ message: "อัปเดต leave balance สำเร็จ", data: updated });
+    } catch (err) {
+        next(err);
+    }
+};
+

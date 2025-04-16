@@ -7,7 +7,7 @@ const cloudUpload = require("../utils/cloudUpload");
 const multer = require("multer");
 const upload = multer();
 const { sendEmail } = require("../utils/emailService");
-const { isCorporateEmail } = require("../utils/checkEmailDomain");
+const { isCorporateEmail } = require("../utils/checkEmailDomain").default;
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
@@ -112,13 +112,8 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email) {
-      return createError(400, "กรุณากรอกอีเมล");
-    }
-
-    if (!password) {
-      return createError(400, "กรุณากรอกรหัสผ่าน");
-    }
+    if (!email || !password) throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
+    
 
     if (!isCorporateEmail(email)) {
       return createError(403, "อนุญาตให้ล็อกอินด้วยอีเมลมหาวิทยาลัยเท่านั้น");

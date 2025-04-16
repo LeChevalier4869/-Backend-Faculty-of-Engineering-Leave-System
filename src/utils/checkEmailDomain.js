@@ -3,6 +3,6 @@ function isCorporateEmail(email) {
     return allowedDomains.some((domain) => email.endsWith(domain));
   }
   
-  module.exports = {
+  export default {
     isCorporateEmail,
   };

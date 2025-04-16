@@ -76,7 +76,7 @@ exports.createRequestByAdmin = async (req, res, next) => {
       requestedDays
     );
 
-    const leaveRequest = await AdminService.createRequestByAdmin(
+    const leaveRequest = await AdminService.createLeaveRequestForUser(
       userId,
       leaveTypeId,
       startDate,
