@@ -510,16 +510,83 @@ exports.getUserInfoById = async (req, res, next) => {
 //   }
 // };
 
-exports.getOrganization = async (req, res, next) => {
+exports.getAllOrganizations = async (req, res, next) => {
   try {
-    const organization = await OrgAndDeptService.getAllOrganization();
+    const organizations = await OrgAndDeptService.getAllOrganizations();
 
-    if (!organization) {
-      console.log("Debug organization: ", organization);
-      throw createError(404, "not found");
+    if (!organizations || organizations.length === 0) {
+      console.log("ข้อมูลองค์กร: ", organizations);
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
     }
 
-    res.status(200).json({ message: "ok", data: organization });
+    res.status(200).json({ message: "สำเร็จ", data: organizations });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getOrganizationById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const organization = await OrgAndDeptService.getOrganizationById(id);
+
+    if (!organization) {
+      console.log("ข้อมูลองค์กร: ", organization);
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "สำเร็จ", data: organization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createOrganization = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      throw createError(400, "กรุณากรอกชื่อองค์กร");
+    }
+
+    const newOrganization = await OrgAndDeptService.createOrganization(name);
+
+    res.status(201).json({ message: "สร้างองค์กรสำเร็จ", data: newOrganization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateOrganization = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name) {
+      throw createError(400, "กรุณากรอกชื่อองค์กร");
+    }
+
+    const updatedOrganization = await OrgAndDeptService.updateOrganization(id, name);
+
+    if (!updatedOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "อัปเดตข้อมูลองค์กรสำเร็จ", data: updatedOrganization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteOrganization = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deletedOrganization = await OrgAndDeptService.deleteOrganization(id);
+
+    if (!deletedOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "ลบองค์กรสำเร็จ", data: deletedOrganization });
   } catch (err) {
     next(err);
   }

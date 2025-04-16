@@ -8,20 +8,20 @@ class OrgAndDeptService {
     return await prisma.organization.findMany();
   }
   static async getOrganizationById(id) {
-    return await prisma.organization.findUnique({ where: { id } });
+    return await prisma.organization.findUnique({ where: { id:parseInt(id) } });
   }
   static async createOrganization(name) {
     return await prisma.organization.create({ data: { name } });
   }
   static async updateOrganization(id, name) {
     return await prisma.organization.update({
-      where: { id },
+      where: { id:parseInt(id) },
       data: { name },
     });
   }
   static async deleteOrganization(id) {
     return await prisma.organization.delete({
-      where: { id },
+      where: { id:parseInt(id) },
     });
   }
 

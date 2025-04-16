@@ -31,7 +31,12 @@ router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('p
 //     authController.googleLogin
 // );
 
-router.get('/organization-list', authenticate, authController.getOrganization);
+router.get('/organizations', authController.getAllOrganizations);
+router.get('/organizations/:id', authController.getOrganizationById);
+router.post('/organizations', authController.createOrganization);
+router.put('/organizations/:id', authController.updateOrganization);
+router.delete('/organizations/:id', authController.deleteOrganization);
+
 router.get('/OrgAndDep-list', authenticate, authController.getOrganizationAndDepartment);
 router.get('/department-list/:id', authenticate, authController.getDepartment);
 router.get('/personneltype-list', authenticate, authController.getPersonnelType);
