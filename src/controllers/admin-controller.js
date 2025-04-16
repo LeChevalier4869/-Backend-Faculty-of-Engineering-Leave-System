@@ -166,7 +166,6 @@ exports.updateHoliday = async (req, res, next) => {
     }
 
     const { date, description, fiscalYear, isRecurring, holidayType } = req.body;
-
     const updateData = {};
 
     if (date) {
@@ -212,9 +211,6 @@ exports.deleteHoliday = async (req, res, next) => {
     next(err);
   }
 };
-
-
-
 
 //--------------------- Approver --------------------
 

@@ -36,4 +36,10 @@ router.get('/OrgAndDep-list', authenticate, authController.getOrganizationAndDep
 router.get('/department-list/:id', authenticate, authController.getDepartment);
 router.get('/personneltype-list', authenticate, authController.getPersonnelType);
 
+//reset pass
+router.post("/change-password", authController.changePassword);
+router.post("/forgot-password", authController.forgotPassword);
+router.post("/reset-password", authController.resetPassword);
+
+
 module.exports = router;

@@ -123,6 +123,7 @@ exports.deleteSignature = async (req, res) => {
   }
 };
 
+//err
 exports.getSignatureIsMine = async (req, res) => {
   try {
     const userId = req.user.id; // ต้องใช้ middleware auth เพื่อให้ req.user มีข้อมูล

@@ -583,3 +583,31 @@ exports.getPersonnelType = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.changePassword = async (req, res) => {
+  try {
+    const result = await UserService.changePassword(req.body);
+    res.json({ success: true, message: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const result = await UserService.forgotPassword(req.body.email);
+    res.json({ success: true, message: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const result = await UserService.resetPassword(req.body);
+    res.json({ success: true, message: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+

@@ -1,5 +1,11 @@
 const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
+//reset pass
+const JWT_SECRET = process.env.JWT_SECRET || "mysecret";
+const RESET_TOKEN_EXPIRY = "10m";
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 
 class UserService {
   static async createUser(data) {
@@ -435,6 +441,79 @@ class UserService {
 
     return roles.map((role) => role.roles.name);
   }
+
+  //------reset pass
+
+  //ใช้เมื่อผู้ใช้ ล็อกอินอยู่แล้ว และต้องการเปลี่ยนรหัสผ่านของตัวเอง
+  static async changePassword({ email, oldPassword, newPassword }) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new Error("ไม่พบผู้ใช้");
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) throw new Error("รหัสผ่านเดิมไม่ถูกต้อง");
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed },
+    });
+
+    return "เปลี่ยนรหัสผ่านสำเร็จ";
+  }
+
+  //ใช้เมื่อผู้ใช้ ลืมรหัสผ่านและยังไม่ได้ล็อกอิน
+  static async forgotPassword(email) {
+    if (!email) throw new Error("กรุณาระบุอีเมล");
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new Error("ไม่พบผู้ใช้");
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
+      expiresIn: RESET_TOKEN_EXPIRY || "1h",
+    });
+
+    const resetUrl = `http://localhost:8000/reset-password?token=${token}`;
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER_RMUTI2,
+        pass: process.env.EMAIL_APP_PASS2, // 🟡 ต้องเป็น App Password เท่านั้น
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
+      to: email,
+      subject: "ลิงก์รีเซ็ตรหัสผ่าน",
+      html: `
+        <p>คุณได้รับคำขอรีเซ็ตรหัสผ่าน</p>
+        <p>คลิกที่ลิงก์ด้านล่างเพื่อรีเซ็ตรหัสผ่านของคุณ:</p>
+        <a href="${resetUrl}">${resetUrl}</a>
+        <p>หากคุณไม่ได้ร้องขอ สามารถละเว้นอีเมลนี้ได้</p>
+      `,
+    });
+
+    return "ส่งอีเมลรีเซ็ตรหัสผ่านแล้ว";
+  }
+
+  //ใช้เมื่อผู้ใช้ ได้รับลิงก์รีเซ็ตรหัสผ่าน จาก forgot-password แล้วคลิกเข้ามาในหน้า reset
+  static async resetPassword({ token, newPassword }) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      const hashed = await bcrypt.hash(newPassword, 10);
+
+      await prisma.user.update({
+        where: { id: payload.userId },
+        data: { password: hashed },
+      });
+
+      return "รีเซ็ตรหัสผ่านสำเร็จ";
+    } catch (err) {
+      throw new Error("โทเคนไม่ถูกต้องหรือหมดอายุ");
+    }
+  }
 }
 
 module.exports = UserService;
+
