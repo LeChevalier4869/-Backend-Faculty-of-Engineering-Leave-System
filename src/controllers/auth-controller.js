@@ -505,16 +505,85 @@ exports.getUserInfoById = async (req, res, next) => {
 //   }
 // };
 
-exports.getOrganization = async (req, res, next) => {
-  try {
-    const organization = await OrgAndDeptService.getAllOrganization();
 
-    if (!organization) {
-      console.log("Debug organization: ", organization);
-      throw createError(404, "not found");
+//Organizations---------------------------------------------------------------------------------------------------
+exports.getAllOrganizations = async (req, res, next) => {
+  try {
+    const organizations = await OrgAndDeptService.getAllOrganizations();
+
+    if (!organizations || organizations.length === 0) {
+      console.log("ข้อมูลองค์กร: ", organizations);
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
     }
 
-    res.status(200).json({ message: "ok", data: organization });
+    res.status(200).json({ message: "สำเร็จ", data: organizations });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getOrganizationById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const organization = await OrgAndDeptService.getOrganizationById(id);
+
+    if (!organization) {
+      console.log("ข้อมูลองค์กร: ", organization);
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "สำเร็จ", data: organization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createOrganization = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      throw createError(400, "กรุณากรอกชื่อองค์กร");
+    }
+
+    const newOrganization = await OrgAndDeptService.createOrganization(name);
+
+    res.status(201).json({ message: "สร้างองค์กรสำเร็จ", data: newOrganization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateOrganization = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name) {
+      throw createError(400, "กรุณากรอกชื่อองค์กร");
+    }
+
+    const updatedOrganization = await OrgAndDeptService.updateOrganization(id, name);
+
+    if (!updatedOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "อัปเดตข้อมูลองค์กรสำเร็จ", data: updatedOrganization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteOrganization = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deletedOrganization = await OrgAndDeptService.deleteOrganization(id);
+
+    if (!deletedOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "ลบองค์กรสำเร็จ", data: deletedOrganization });
   } catch (err) {
     next(err);
   }
@@ -535,22 +604,94 @@ exports.getOrganizationAndDepartment = async (req, res, next) => {
   }
 };
 
-
-exports.getDepartment = async (req, res, next) => {
+//Departments---------------------------------------------------------------------------------------------------
+exports.getAllDepartments = async (req, res, next) => {
   try {
-    const organizationId = parseInt(req.params.id);
-    const department = await OrgAndDeptService.getDepartmentById(organizationId);
+    const departments = await OrgAndDeptService.getAllDepartments();
 
-    if (!organizationId) {
-      throw createError(404, "org not found");
+    if (!departments || departments.length === 0) {
+      console.log("ข้อมูลองค์กร: ", departments);
+      throw createError(404, "ไม่พบข้อมูลแผนก");
     }
+
+    res.status(200).json({ message: "สำเร็จ", data: departments });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getDepartmentById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const department = await OrgAndDeptService.getDepartmentById(id);
 
     if (!department) {
-      console.log("Debug organization: ", department);
-      throw createError(404, "not found");
+      console.log("ข้อมูลองค์กร: ", department);
+      throw createError(404, "ไม่พบข้อมูลแผนก");
     }
 
-    res.status(200).json({ message: "ok", data: department });
+    res.status(200).json({ message: "สำเร็จ", data: department });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createDepartment = async (req, res, next) => {
+  try {
+    const { name, headId, organizationId, appointDate } = req.body;
+    if (!name || !organizationId) {
+      throw createError(400, "กรุณากรอกชื่อแผนกและ ID ขององค์กร");
+    }
+
+    const newDepartment = await OrgAndDeptService.createDepartment({
+      name,
+      headId,
+      organizationId,
+      appointDate,
+    });
+
+    res.status(201).json({ message: "สร้างแผนกสำเร็จ", data: newDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, headId, organizationId, appointDate } = req.body;
+
+    if (!name || !organizationId) {
+      throw createError(400, "กรุณากรอกชื่อแผนกและ ID ขององค์กร");
+    }
+
+    const updatedDepartment = await OrgAndDeptService.updateDepartment(id, {
+      name,
+      headId,
+      organizationId,
+      appointDate,
+    });
+
+    if (!updatedDepartment) {
+      throw createError(404, "ไม่พบแผนกที่ต้องการอัปเดต");
+    }
+
+    res.status(200).json({ message: "อัปเดตแผนกสำเร็จ", data: updatedDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deletedDepartment = await OrgAndDeptService.deleteDepartment(id);
+
+    if (!deletedDepartment) {
+      throw createError(404, "ไม่พบแผนกที่ต้องการลบ");
+    }
+
+    res.status(200).json({ message: "ลบแผนกสำเร็จ", data: deletedDepartment });
   } catch (err) {
     next(err);
   }
@@ -565,12 +706,28 @@ const validatePhone = (phone) => {
   return true;
 };
 
-exports.getPersonnelType = async (req, res, next) => {
+
+//PersonnelTypes---------------------------------------------------------------------------------------------------
+exports.getPersonnelTypes = async (req, res, next) => {
   try {
-    const personnelType = await OrgAndDeptService.getPersonnelType();
+    const personnelTypes = await OrgAndDeptService.getAllPersonnelTypes();
+
+    if (!personnelTypes || personnelTypes.length === 0) {
+      throw createError(404, "Personnel types not found");
+    }
+
+    res.status(200).json({ message: "response ok", data: personnelTypes });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getPersonnelTypeById = async (req, res, next) => {
+  try {
+    const personnelType = await OrgAndDeptService.getPersonnelTypeById(parseInt(req.params.id));
 
     if (!personnelType) {
-      throw createError(404, "personnel type not found");
+      throw createError(404, "Personnel type not found");
     }
 
     res.status(200).json({ message: "response ok", data: personnelType });
@@ -579,6 +736,62 @@ exports.getPersonnelType = async (req, res, next) => {
   }
 };
 
+exports.createPersonnelType = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+
+    if (!name) {
+      throw createError(400, "Name is required");
+    }
+
+    const personnelType = await OrgAndDeptService.createPersonnelType({ name });
+
+    res.status(201).json({ message: "Personnel type created successfully", data: personnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updatePersonnelType = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    const { id } = req.params;
+
+    if (!name) {
+      throw createError(400, "Name is required");
+    }
+
+    const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(parseInt(id), { name });
+
+    if (!updatedPersonnelType) {
+      throw createError(404, "Personnel type not found");
+    }
+
+    res.status(200).json({ message: "Personnel type updated successfully", data: updatedPersonnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deletePersonnelType = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const deletedPersonnelType = await OrgAndDeptService.deletePersonnelType(parseInt(id));
+
+    if (!deletedPersonnelType) {
+      throw createError(404, "Personnel type not found");
+    }
+
+    res.status(200).json({ message: "Personnel type deleted successfully", data: deletedPersonnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+//reset password-----------------------------------------------------------------------
 exports.changePassword = async (req, res) => {
   try {
     const result = await UserService.changePassword(req.body);
