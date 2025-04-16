@@ -199,6 +199,32 @@ class AdminService {
       where: { id },
     });
   }
+
+    //------------------------ Role -----------
+    static async roleList() {
+      return await prisma.role.findMany();
+    }
+    static async createRole(name) {
+      return await prisma.role.create({ data: { name } });
+    }
+    static async updateRole(id, name) {
+      return await prisma.role.update({
+        where: { id },
+        data: {
+          name,
+        },
+      });
+    }
+    static async deleteRole(id) {
+      return await prisma.role.delete({
+        where: { id },
+      });
+    }
+    static async getRoleById(id) {
+      return await prisma.role.findUnique({
+        where: { id },
+      });
+    }
 }
 
 module.exports = AdminService;

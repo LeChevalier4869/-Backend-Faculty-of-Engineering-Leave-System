@@ -146,7 +146,7 @@ exports.addHoliday = async (req, res, next) => {
     const holiday = await AdminService.createHoliday({
       date: parsedDate,
       description,
-      fiscalYear:parseInt(fiscalYear),
+      fiscalYear: parseInt(fiscalYear),
       isRecurring,
       holidayType,
     });
@@ -272,6 +272,88 @@ exports.deleteApprover = async (req, res, next) => {
     const approver = await AdminService.deleteApprover(parseInt(id));
 
     res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+  // --------------------
+  //        role
+  // --------------------
+
+  exports.roleList = async (req, res, next) => {
+    try {
+      const roleList = await AdminService.roleList();
+  
+      if (!roleList) {
+        console.log("Debug roleList: ", roleList);
+        return createError(404, "role not found");
+      }
+  
+      res.status(200).json({ message: "respones ok", roleList });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  exports.createRole = async (req, res, next) => {
+    try {
+      const { name } = req.body;
+
+      // console.log('Debug name: ', name);
+      if (!name) throw createError(400, "กรุณาใส่ชื่อ");
+
+      const role = await AdminService.createRole(name);
+
+      res
+        .status(201)
+        .json({ message: "เพิ่ม role เรียบร้อย", data: role });
+
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  exports.updateRole = async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+  
+      if (!id || !name) throw createError(400, "ไม่สามารถอัพเดตได้");
+      if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
+  
+      const role = await AdminService.updateRole(parseInt(id), name);
+  
+      res.status(200).json({ message: "อัพเดตเรียบร้อย", data: role });
+    } catch (err) {
+      next(err);
+    }
+  };
+  
+  exports.deleteRole = async (req, res, next) => {
+    try {
+      const { id } = req.params;
+  
+      if (!id) throw createError(400, "ไม่พบไอดี");
+      if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
+  
+      const role = await AdminService.deleteRole(parseInt(id));
+  
+      res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
+    } catch (err) {
+      next(err);
+    }
+};
+
+exports.getRoleById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) throw createError(400, "ไม่พบไอดี");
+    if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
+
+    const role = await AdminService.getRoleById(parseInt(id));
+    res.status(200).json({ message: "ดึงข้อมูล role เรียบร้อยแล้ว", data: role });
   } catch (err) {
     next(err);
   }
