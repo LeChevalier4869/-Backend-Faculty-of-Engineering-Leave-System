@@ -711,12 +711,28 @@ const validatePhone = (phone) => {
   return true;
 };
 
-exports.getPersonnelType = async (req, res, next) => {
+
+//PersonnelTypes---------------------------------------------------------------------------------------------------
+exports.getPersonnelTypes = async (req, res, next) => {
   try {
-    const personnelType = await OrgAndDeptService.getPersonnelType();
+    const personnelTypes = await OrgAndDeptService.getAllPersonnelTypes();
+
+    if (!personnelTypes || personnelTypes.length === 0) {
+      throw createError(404, "Personnel types not found");
+    }
+
+    res.status(200).json({ message: "response ok", data: personnelTypes });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getPersonnelTypeById = async (req, res, next) => {
+  try {
+    const personnelType = await OrgAndDeptService.getPersonnelTypeById(parseInt(req.params.id));
 
     if (!personnelType) {
-      throw createError(404, "personnel type not found");
+      throw createError(404, "Personnel type not found");
     }
 
     res.status(200).json({ message: "response ok", data: personnelType });
@@ -725,6 +741,62 @@ exports.getPersonnelType = async (req, res, next) => {
   }
 };
 
+exports.createPersonnelType = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+
+    if (!name) {
+      throw createError(400, "Name is required");
+    }
+
+    const personnelType = await OrgAndDeptService.createPersonnelType({ name });
+
+    res.status(201).json({ message: "Personnel type created successfully", data: personnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updatePersonnelType = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    const { id } = req.params;
+
+    if (!name) {
+      throw createError(400, "Name is required");
+    }
+
+    const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(parseInt(id), { name });
+
+    if (!updatedPersonnelType) {
+      throw createError(404, "Personnel type not found");
+    }
+
+    res.status(200).json({ message: "Personnel type updated successfully", data: updatedPersonnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deletePersonnelType = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const deletedPersonnelType = await OrgAndDeptService.deletePersonnelType(parseInt(id));
+
+    if (!deletedPersonnelType) {
+      throw createError(404, "Personnel type not found");
+    }
+
+    res.status(200).json({ message: "Personnel type deleted successfully", data: deletedPersonnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+//reset password-----------------------------------------------------------------------
 exports.changePassword = async (req, res) => {
   try {
     const result = await UserService.changePassword(req.body);

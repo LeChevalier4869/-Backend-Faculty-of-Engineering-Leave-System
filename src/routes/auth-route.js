@@ -45,10 +45,15 @@ router.post('/departments', authController.createDepartment);
 router.put('/departments/:id', authController.updateDepartment);
 router.delete('/departments/:id', authController.deleteDepartment);
 
+//personnel-types---------------------------------------------------
+router.get("/personnel-types", authController.getPersonnelTypes);
+router.get("/personnel-types/:id", authController.getPersonnelTypeById);
+router.post("/personnel-types", authController.createPersonnelType);
+router.put("/personnel-types/:id", authController.updatePersonnelType);
+router.delete("/personnel-types/:id", authController.deletePersonnelType);
+
 
 router.get('/OrgAndDep-list', authenticate, authController.getOrganizationAndDepartment);
-//router.get('/department-list/:id', authenticate, authController.getDepartment);
-router.get('/personneltype-list', authenticate, authController.getPersonnelType);
 
 //reset pass
 router.post("/change-password", authController.changePassword);
