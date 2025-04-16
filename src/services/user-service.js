@@ -312,54 +312,42 @@ class UserService {
     return personnelType ? personnelType.personnelType : null;
   }
   static async getVerifier() {
-    const verifier = await prisma.role.findFirst({
-      where: { name: "VERIFIER" }, //role is verifier
-      some: {
+    const user = await prisma.user.findFirst({
+      where: {
         userRoles: {
           some: {
-            user: true,
-          }
-        }
-      }
+            role: {
+              name: "VERIFIER",
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      include: { userRoles: { include: { role: true } } },
     });
 
-    if (!verifier || verifier === null) {
-      throw createError(400, `verifier is ${verifier}`);
-    }
+    if (!user) throw createError(404, "ไม่พบผู้ตรวจสอบ (Verifier");
 
-    // console.log('Debug verifier ID: ', verifier.userId);
-
-    // const verifier = await prisma.users.findFirst({
-    //   where: { id: userRole },
-    //   select: { id: true },
-    // });
-
-    if (!verifier) {
-      throw createError(500, "No verifier found in the system.");
-    }
-    return verifier.userId;
+    return user;
   }
   static async getReceiver() {
-    const receiver = await prisma.user_Role.findFirst({
-      where: { roleId: 8 },
-      select: { userId: true },
+    const user = await prisma.user.findFirst({
+      where: {
+        userRoles: {
+          some: {
+            role: {
+              name: "RECEIVER",
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      include: { userRoles: { include: { role: true } } },
     });
 
-    if (!receiver || receiver === null) {
-      throw createError(400, `receiver is ${receiver}`);
-    }
+    if (!user) throw createError(404, "ไม่พบผู้รับหนังสือ (Receiver)");
 
-    // console.log('Debug verifier ID: ', verifier.userId);
-
-    // const receiver = await prisma.users.findFirst({
-    //   where: { role: "RECEIVER" },
-    //   select: { id: true },
-    // });
-
-    if (!receiver) {
-      throw createError(500, "No receiver found in the system.");
-    }
-    return receiver.userId;
+    return user;
   }
   static async getHeadOfDepartment(departmentId) {
     if (!departmentId || isNaN(departmentId)) {
