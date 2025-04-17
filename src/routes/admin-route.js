@@ -59,4 +59,18 @@ router.post('/role', adminController.createRole);
 router.put('/role/:id', adminController.updateRole);
 router.delete('/role/:id', adminController.deleteRole);
 
+//-------------------------------------- rank --------------------------------
+router.get('/rank', adminController.getAllRank);
+router.get('/rank/:id', adminController.getRankById);
+router.post('/rank', adminController.createRank);
+router.put('/rank/:id', adminController.updateRank);
+router.delete('/rank/:id', adminController.deleteRank);
+
+//---------------------------------- personnelType -----------------------
+router.get('/personnelType', adminController.getAllPersonnelType);
+router.get('/personnelType/:id', adminController.getPersonnelTypeById);
+router.post('/personnelType', adminController.createPersonnelType);
+router.put('/personnelType/:id', adminController.updatePersonnelType);
+router.delete('/personnelType/:id', adminController.deletePersonnelType);
+
 module.exports = router;
