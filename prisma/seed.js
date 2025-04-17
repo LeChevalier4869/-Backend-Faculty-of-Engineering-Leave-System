@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+//const prisma = new PrismaClient();
+const prisma = require('../config/prisma');
 
 async function role() {
     const User = await prisma.roles.upsert({

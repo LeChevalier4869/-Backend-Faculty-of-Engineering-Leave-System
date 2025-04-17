@@ -1,8 +1,9 @@
 const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 const LeaveRequestService = require("./leaveRequest-service");
-const { calculateWorkingDays } = require('../utils/dateCalculate');
+const { calculateWorkingDays } = require("../utils/dateCalculate");
 const LeaveBalanceService = require("./leaveBalance-service");
+const nodemailer = require("nodemailer");
 
 class AdminService {
   // ✅ ดึงรายชื่อผู้ใช้งานที่มี role ADMIN
@@ -48,9 +49,13 @@ class AdminService {
     const start = new Date(startDate);
     const end = new Date(endDate);
     const requestedDays = await calculateWorkingDays(start, end);
-    if (requestedDays <= 0) throw createError(400, "จำนวนวันลาต้องมากกว่า 0"); 
+    if (requestedDays <= 0) throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
 
-    const eligibility = await LeaveRequestService.checkEligibility(userId, leaveTypeId, requestedDays);
+    const eligibility = await LeaveRequestService.checkEligibility(
+      userId,
+      leaveTypeId,
+      requestedDays
+    );
     if (!eligibility.success) throw createError(400, eligibility.message);
 
     const leaveRequest = await prisma.leaveRequest.create({
@@ -74,7 +79,11 @@ class AdminService {
       },
     });
 
-    await LeaveBalanceService.finalizeLeaveBalance(userId, leaveTypeId, requestedDays);
+    await LeaveBalanceService.finalizeLeaveBalance(
+      userId,
+      leaveTypeId,
+      requestedDays
+    );
 
     await prisma.leaveRequestDetail.create({
       data: {
@@ -121,12 +130,27 @@ class AdminService {
     });
   }
   static async updateHolidayById(holidayId, updateData) {
+    const existingHoliday = await prisma.holiday.findUnique({
+      where: { id: holidayId },
+    });
+
+    if (!existingHoliday) {
+      throw createError(404, "Holiday not found");
+    }
+
     return await prisma.holiday.update({
       where: { id: holidayId },
       data: updateData,
     });
   }
   static async deleteHoliday(holidayId) {
+    const existingHoliday = await prisma.holiday.findUnique({
+      where: { id: holidayId },
+    });
+
+    if (!existingHoliday) {
+      throw createError(404, "Holiday not found");
+    }
     return await prisma.holiday.delete({
       where: { id: holidayId },
     });
@@ -200,31 +224,78 @@ class AdminService {
     });
   }
 
-    //------------------------ Role -----------
-    static async roleList() {
-      return await prisma.role.findMany();
-    }
-    static async createRole(name) {
-      return await prisma.role.create({ data: { name } });
-    }
-    static async updateRole(id, name) {
-      return await prisma.role.update({
-        where: { id },
-        data: {
-          name,
-        },
-      });
-    }
-    static async deleteRole(id) {
-      return await prisma.role.delete({
-        where: { id },
-      });
-    }
-    static async getRoleById(id) {
-      return await prisma.role.findUnique({
-        where: { id },
-      });
-    }
+  //------------------------ Role -----------
+  static async roleList() {
+    return await prisma.role.findMany();
+  }
+  static async createRole(name) {
+    return await prisma.role.create({ data: { name } });
+  }
+  static async updateRole(id, name) {
+    return await prisma.role.update({
+      where: { id },
+      data: {
+        name,
+      },
+    });
+  }
+  static async deleteRole(id) {
+    return await prisma.role.delete({
+      where: { id },
+    });
+  }
+  static async getRoleById(id) {
+    return await prisma.role.findUnique({
+      where: { id },
+    });
+  }
+
+  static async assignHead(departmentId, headId) {
+    // ตรวจสอบว่า department มีอยู่
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+    if (!department) throw createError(404, "Department not found");
+  
+    // ตรวจสอบว่า user (หัวหน้า) มีอยู่
+    const user = await prisma.user.findUnique({
+      where: { id: headId },
+    });
+    if (!user) throw createError(404, "User not found");
+  
+    // อัปเดต headId
+    const updated = await prisma.department.update({
+      where: { id: departmentId },
+      data: { headId },
+      include: { head: true },
+    });
+  
+    // สร้าง nodemailer transporter
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER_RMUTI2,
+        pass: process.env.EMAIL_APP_PASS2, // 🟡 ต้องใช้ App Password เท่านั้น
+      },
+    });
+  
+    // ส่งอีเมลแจ้งเตือน
+    const email = user.email; // อีเมลของหัวหน้าใหม่
+  
+    await transporter.sendMail({
+      from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
+      to: email,
+      subject: `คุณได้รับการแต่งตั้งเป็นหัวหน้าสาขา`,
+      html: `
+        <p>เรียนคุณ ${user.firstName} ${user.lastName},</p>
+        <p>คุณได้รับการแต่งตั้งเป็นหัวหน้าสาขา ${department.name} ในระบบลาคณะวิศวกรรมศาสตร์ เรียบร้อยแล้ว</p>
+        <p>ขอแสดงความยินดี!</p>
+        <p>จากระบบการจัดการของคณะวิศวกรรมศาสตร์</p>
+      `,
+    });
+  
+    return updated; // คืนค่าแผนกที่ได้รับการอัปเดต
+}
 }
 
 module.exports = AdminService;

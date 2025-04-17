@@ -7,7 +7,7 @@ async function isHoliday(date) {
   }
 
   
-  const holiday = await prisma.holidays.findFirst({
+  const holiday = await prisma.holiday.findFirst({
     where: {
       date: date,
     },

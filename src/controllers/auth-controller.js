@@ -7,7 +7,7 @@ const cloudUpload = require("../utils/cloudUpload");
 const multer = require("multer");
 const upload = multer();
 const { sendEmail } = require("../utils/emailService");
-const { isCorporateEmail } = require("../utils/checkEmailDomain").default;
+const { isCorporateEmail } = require("../utils/checkEmailDomain");
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {

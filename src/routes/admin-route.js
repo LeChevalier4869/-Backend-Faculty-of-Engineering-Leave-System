@@ -59,4 +59,7 @@ router.post('/role', adminController.createRole);
 router.put('/role/:id', adminController.updateRole);
 router.delete('/role/:id', adminController.deleteRole);
 
+//------------------------------------- Assign Head epartment ----------------------------------
+router.post("/assign-head", adminController.assignHeadDepartment);
+
 module.exports = router;
