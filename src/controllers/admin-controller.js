@@ -308,14 +308,6 @@ exports.createRole = async (req, res, next) => {
 
     const role = await AdminService.createRole(name);
 
-<<<<<<< HEAD
-    res.status(201).json({ message: "เพิ่ม role เรียบร้อย", data: role });
-  } catch (err) {
-    next(err);
-  }
-};
-
-=======
     res
       .status(201)
       .json({ message: "เพิ่ม role เรียบร้อย", data: role });
@@ -324,8 +316,6 @@ exports.createRole = async (req, res, next) => {
     next(err);
   }
 };
-
->>>>>>> a8e95efd396e3a459daae1ffbcc8986e69b1a9c1
 exports.updateRole = async (req, res, next) => {
   try {
     const { id } = req.params;
