@@ -94,13 +94,15 @@ class OrgAndDeptService {
       where: { id },
     });
   }
-  static async createPersonnelType(data) {
-    return await prisma.personnelType.create({ data });
+  static async createPersonnelType(name) {
+    return await prisma.personnelType.create({ data: { name} });
   }
-  static async updatePersonnelType(id, data) {
+  static async updatePersonnelType(id, name) {
     return await prisma.personnelType.update({
       where: { id },
-      data,
+      data: {
+        name
+      },
     });
   }
   static async deletePersonnelType(id) {

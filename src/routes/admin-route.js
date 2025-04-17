@@ -59,7 +59,23 @@ router.post('/role', adminController.createRole);
 router.put('/role/:id', adminController.updateRole);
 router.delete('/role/:id', adminController.deleteRole);
 
+<<<<<<< HEAD
 //------------------------------------- Assign Head epartment ----------------------------------
 router.post("/assign-head", adminController.assignHeadDepartment);
+=======
+//-------------------------------------- rank --------------------------------
+router.get('/rank', adminController.getAllRank);
+router.get('/rank/:id', adminController.getRankById);
+router.post('/rank', adminController.createRank);
+router.put('/rank/:id', adminController.updateRank);
+router.delete('/rank/:id', adminController.deleteRank);
+
+//---------------------------------- personnelType -----------------------
+router.get('/personnelType', adminController.getAllPersonnelType);
+router.get('/personnelType/:id', adminController.getPersonnelTypeById);
+router.post('/personnelType', adminController.createPersonnelType);
+router.put('/personnelType/:id', adminController.updatePersonnelType);
+router.delete('/personnelType/:id', adminController.deletePersonnelType);
+>>>>>>> a8e95efd396e3a459daae1ffbcc8986e69b1a9c1
 
 module.exports = router;
