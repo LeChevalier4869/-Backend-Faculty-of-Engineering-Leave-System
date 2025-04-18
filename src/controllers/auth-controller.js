@@ -8,6 +8,7 @@ const multer = require("multer");
 const upload = multer();
 const { sendEmail } = require("../utils/emailService");
 const { isCorporateEmail } = require("../utils/checkEmailDomain");
+const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
@@ -20,36 +21,47 @@ exports.register = async (req, res, next) => {
       email,
       password,
       phone,
-      roleNames = ["USER"],
+      roleNames,
       position,
       hireDate,
-      inActive,
+      inActiveRaw = "false",
       employmentType,
       personnelTypeId,
       departmentId,
     } = req.body;
 
+    // ✅ ตรวจสอบ email และ password
     if (!email || !password) {
       throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
     }
 
+    // ✅ ตรวจสอบ domain email
+    if (!isAllowedEmailDomain(email)) {
+      throw createError(400, "อีเมลต้องอยู่ในโดเมน rmuti.ac.th เท่านั้น");
+    }
+
+    // ✅ ตรวจสอบเบอร์โทรศัพท์
     validatePhone(phone);
 
+    // ✅ ตรวจสอบความซับซ้อนของรหัสผ่าน
     const letterCount = (password.match(/[a-zA-Z]/g) || []).length;
-    if (String(password).length < 8 || letterCount < 5) {
+    if (String(password).length < 8 || letterCount < 4) {
       throw createError(
         400,
-        "รหัสผ่านต้องมีความยาวมากกว่า 8 ตัวอักษร และต้องมีตัวอักษรอย่างน้อย 5 ตัว"
+        "รหัสผ่านต้องมีความยาวมากกว่า 8 ตัวอักษร และต้องมีตัวอักษรอย่างน้อย 4 ตัว"
       );
     }
 
+    // ✅ ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้วหรือไม่
     const userExist = await UserService.getUserByEmail(email);
     if (userExist) {
       throw createError(400, "มีบัญชีที่ใช้อีเมลนี้แล้ว");
     }
 
+    // ✅ Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // ✅ ตรวจสอบประเภทพนักงาน
     const employmentTypeMap = {
       ACADEMIC: "ACADEMIC",
       SUPPORT: "SUPPORT",
@@ -60,10 +72,10 @@ exports.register = async (req, res, next) => {
       throw createError(400, "ประเภทพนักงานไม่ถูกต้อง");
     }
 
-    const {
-      inActiveRaw = "false", // default เป็น "false"
-    } = req.body;
+    // ✅ แปลง hireDate ถ้ามีค่า
+    const parsedHireDate = hireDate ? new Date(hireDate) : null;
 
+    // ✅ สร้างผู้ใช้
     const newUser = await UserService.createUser({
       prefixName,
       firstName,
@@ -73,23 +85,30 @@ exports.register = async (req, res, next) => {
       password: passwordHash,
       phone,
       position,
-      hireDate,
+      hireDate: parsedHireDate,
       inActive: inActiveRaw === "true",
       employmentType: mapEmploymentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
     });
 
-    // upload profile picture
+    // ✅ โปรไฟล์ (อัปโหลดไฟล์)
     const file = req.file;
     if (file) {
       const imgUrl = await cloudUpload(file.path);
       await UserService.createUserProfile(newUser.id, imgUrl);
+      // ลบไฟล์หลังอัปโหลด
+      fs.unlink(file.path, () => {});
     }
 
-    const roles = await UserService.getRolesByNames(roleNames);
-    if (!roles || roles.length !== roleNames.length) {
-      console.log("Debug roles: ", roleNames);
+    // ✅ กำหนด Role
+    const roleList = Array.isArray(roleNames)
+      ? roleNames
+      : [roleNames || "USER"];
+
+    const roles = await UserService.getRolesByNames(roleList);
+    if (!roles || roles.length !== roleList.length) {
+      console.log("Debug roles: ", roleList);
       throw createError(400, "Invalid roles provided");
     }
 
@@ -98,6 +117,7 @@ exports.register = async (req, res, next) => {
       roles.map((role) => role.id)
     );
 
+    //response
     res.status(201).json({ message: "ลงทะเบียนผู้ใช้สำเร็จ" });
   } catch (err) {
     if (err.code === 11000) {
