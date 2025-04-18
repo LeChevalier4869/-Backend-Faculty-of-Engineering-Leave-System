@@ -5,7 +5,7 @@ const upload = require('../middlewares/upload');
 const { authorize } = require('../middlewares/auth');
 
 /**
- * @swagger
+//  * @swagger
  * /admin/list:
  *   get:
  *     summary: ดึงข้อมูลผู้ใช้งานที่เป็น admin
@@ -35,13 +35,45 @@ const { authorize } = require('../middlewares/auth');
 
 router.get('/list', adminController.adminList);
 router.post('/leave-request', upload.array("images", 5), adminController.createRequestByAdmin);
-router.post('/holiday', upload.none(), adminController.addHoliday);
+
+//-------------------------------------- holiday -------------------- 
 router.get('/holiday', adminController.getHoliday);
+router.post('/holiday', upload.none(), adminController.addHoliday);
+router.put('/holiday/:id',adminController.updateHoliday);
+router.delete('/holiday/:id',adminController.deleteHoliday);
+
 
 //-------------------------------------- approver -------------------- 
 router.get('/approver', adminController.approverList);
 router.post('/approver', upload.none(), adminController.createApprover);
 router.put('/approver/:id', adminController.updateApprover);
 router.delete('/approver/:id', adminController.deleteApprover);
+
+//------------------------------------ delete user -----------------
+// router.delete("/user/:id", adminController.);
+
+//------------------------------------- role ----------------------------------
+router.get('/role', adminController.roleList);
+router.get('/role/:id', adminController.getRoleById);
+router.post('/role', adminController.createRole);
+router.put('/role/:id', adminController.updateRole);
+router.delete('/role/:id', adminController.deleteRole);
+
+//------------------------------------- Assign Head epartment ----------------------------------
+router.post("/assign-head", adminController.assignHeadDepartment);
+
+//-------------------------------------- rank --------------------------------
+router.get('/rank', adminController.getAllRank);
+router.get('/rank/:id', adminController.getRankById);
+router.post('/rank', adminController.createRank);
+router.put('/rank/:id', adminController.updateRank);
+router.delete('/rank/:id', adminController.deleteRank);
+
+//---------------------------------- personnelType -----------------------
+router.get('/personnelType', adminController.getAllPersonnelType);
+router.get('/personnelType/:id', adminController.getPersonnelTypeById);
+router.post('/personnelType', adminController.createPersonnelType);
+router.put('/personnelType/:id', adminController.updatePersonnelType);
+router.delete('/personnelType/:id', adminController.deletePersonnelType);
 
 module.exports = router;

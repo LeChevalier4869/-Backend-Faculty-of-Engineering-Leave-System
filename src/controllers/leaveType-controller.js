@@ -4,11 +4,13 @@ const createError = require("../utils/createError");
 exports.createLeaveType = async (req, res, next) => {
   try {
     const { name, conditions } = req.body;
+    if (!name) throw createError(400, "กรุณาระบุชื่อประเภทการลา");
+
     const leaveType = await LeaveTypeService.createLeaveType(
       name,
       conditions
     );
-    res.status(201).json({ message: "Leave type created", leaveType });
+    res.status(201).json({ message: "สร้างประเภทการลาเรียบร้อยแล้ว", data: leaveType });
   } catch (err) {
     next(err);
   }
@@ -21,11 +23,11 @@ exports.updateLeaveType = async (req, res, next) => {
     const numID = Number(id);
 
     if (!numID || isNaN(id)) {
-      throw createError(400, "Invalid ID provided");
+      throw createError(400, "รหัสประเภทการลาไม่ถูกต้อง");
     }
 
     const leaveType = await LeaveTypeService.updateLeaveType(numID, updates);
-    res.status(200).json({ message: "Leave type updated", leaveType });
+    res.status(200).json({ message: "อัปเดตประเภทการลาแล้ว", data: leaveType });
   } catch (err) {
     next(err);
   }
@@ -37,11 +39,13 @@ exports.deleteLeaveType = async (req, res, next) => {
     const numID = Number(id);
 
     if (!numID || isNaN(id)) {
-      throw createError(400, "Invalid ID provided");
+      throw createError(400, "รหัสประเภทการลาไม่ถูกต้อง");
     }
 
-    await LeaveTypeService.deleteLeaveType(numID);
-    res.status(200).json({ message: "Leave type deleted" });
+    const deleted = await LeaveTypeService.deleteLeaveType(numID);
+    if (!deleted) throw createError(404, "ไม่พบประเภทการลาที่ต้องการลบ"); 
+
+    res.status(200).json({ message: "ลบประเภทการลาเรียบร้อยแล้ว" });
   } catch (err) {
     next(err);
   }
@@ -50,7 +54,7 @@ exports.deleteLeaveType = async (req, res, next) => {
 exports.getAllLeaveType = async (req, res, next) => {
   try {
     const leaveType = await LeaveTypeService.getAllLeaveTypes();
-    res.status(200).json({ leaveType });
+    res.status(200).json({ message: "ดึงข้อมูลประเภทการลาทั้งหมดแล้ว", data: leaveType });
   } catch (err) {
     next(err);
   }
@@ -62,16 +66,16 @@ exports.getLeaveTypeById = async (req, res, next) => {
     const numID = Number(id);
 
     if (!numID || isNaN(id)) {
-      throw createError(400, "Invalid ID provided");
+      throw createError(400, "รหัสประเภทการลาไม่ถูกต้อง");
     }
 
-    const leaveType = await LeaveTypeService.getLeaveTypeByID(numID);
+    const leaveType = await LeaveTypeService.getLeaveTypeById(numID);
 
     if (!leaveType) {
-      throw createError(404, `Leave type with ID ${id} not found`);
+      throw createError(404, "ไม่พบประเภทการลาที่ต้องการ");
     }
 
-    res.status(200).json({ leaveType });
+    res.status(200).json({ message: "ดึงข้อมูลประเภทการลาเรียบร้อยแล้ว", data: leaveType });
   } catch (err) {
     next(err);
   }

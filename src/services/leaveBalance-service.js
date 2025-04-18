@@ -12,6 +12,11 @@ class LeaveBalanceService {
         });
     }
 
+    // ดึง leave balance by userId
+    static async getLeaveBalanceByUserId(userId) {
+        return await prisma.leaveBalance.findUnique({ where: { id: userId } });
+    }
+
     // ดึง Leave balance ทั้งหมด
     static async getAllBalancesForUser(userId) {
         return await prisma.leaveBalance.findMany({

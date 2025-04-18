@@ -8,6 +8,7 @@ const multer = require("multer");
 const upload = multer();
 const { sendEmail } = require("../utils/emailService");
 const { isCorporateEmail } = require("../utils/checkEmailDomain");
+const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
@@ -20,36 +21,47 @@ exports.register = async (req, res, next) => {
       email,
       password,
       phone,
-      roleNames = ["USER"],
+      roleNames,
       position,
       hireDate,
-      inActive,
+      inActiveRaw = "false",
       employmentType,
       personnelTypeId,
       departmentId,
     } = req.body;
 
+    // ✅ ตรวจสอบ email และ password
     if (!email || !password) {
       throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
     }
 
+    // ✅ ตรวจสอบ domain email
+    if (!isAllowedEmailDomain(email)) {
+      throw createError(400, "อีเมลต้องอยู่ในโดเมน rmuti.ac.th เท่านั้น");
+    }
+
+    // ✅ ตรวจสอบเบอร์โทรศัพท์
     validatePhone(phone);
 
+    // ✅ ตรวจสอบความซับซ้อนของรหัสผ่าน
     const letterCount = (password.match(/[a-zA-Z]/g) || []).length;
-    if (String(password).length < 8 || letterCount < 5) {
+    if (String(password).length < 8 || letterCount < 4) {
       throw createError(
         400,
-        "รหัสผ่านต้องมีความยาวมากกว่า 8 ตัวอักษร และต้องมีตัวอักษรอย่างน้อย 5 ตัว"
+        "รหัสผ่านต้องมีความยาวมากกว่า 8 ตัวอักษร และต้องมีตัวอักษรอย่างน้อย 4 ตัว"
       );
     }
 
+    // ✅ ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้วหรือไม่
     const userExist = await UserService.getUserByEmail(email);
     if (userExist) {
       throw createError(400, "มีบัญชีที่ใช้อีเมลนี้แล้ว");
     }
 
+    // ✅ Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // ✅ ตรวจสอบประเภทพนักงาน
     const employmentTypeMap = {
       ACADEMIC: "ACADEMIC",
       SUPPORT: "SUPPORT",
@@ -60,10 +72,10 @@ exports.register = async (req, res, next) => {
       throw createError(400, "ประเภทพนักงานไม่ถูกต้อง");
     }
 
-    const {
-      inActiveRaw = "false", // default เป็น "false"
-    } = req.body;
+    // ✅ แปลง hireDate ถ้ามีค่า
+    const parsedHireDate = hireDate ? new Date(hireDate) : null;
 
+    // ✅ สร้างผู้ใช้
     const newUser = await UserService.createUser({
       prefixName,
       firstName,
@@ -73,23 +85,30 @@ exports.register = async (req, res, next) => {
       password: passwordHash,
       phone,
       position,
-      hireDate,
+      hireDate: parsedHireDate,
       inActive: inActiveRaw === "true",
       employmentType: mapEmploymentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
     });
 
-    // upload profile picture
+    // ✅ โปรไฟล์ (อัปโหลดไฟล์)
     const file = req.file;
     if (file) {
       const imgUrl = await cloudUpload(file.path);
       await UserService.createUserProfile(newUser.id, imgUrl);
+      // ลบไฟล์หลังอัปโหลด
+      fs.unlink(file.path, () => {});
     }
 
-    const roles = await UserService.getRolesByNames(roleNames);
-    if (!roles || roles.length !== roleNames.length) {
-      console.log("Debug roles: ", roleNames);
+    // ✅ กำหนด Role
+    const roleList = Array.isArray(roleNames)
+      ? roleNames
+      : [roleNames || "USER"];
+
+    const roles = await UserService.getRolesByNames(roleList);
+    if (!roles || roles.length !== roleList.length) {
+      console.log("Debug roles: ", roleList);
       throw createError(400, "Invalid roles provided");
     }
 
@@ -98,6 +117,7 @@ exports.register = async (req, res, next) => {
       roles.map((role) => role.id)
     );
 
+    //response
     res.status(201).json({ message: "ลงทะเบียนผู้ใช้สำเร็จ" });
   } catch (err) {
     if (err.code === 11000) {
@@ -112,13 +132,8 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email) {
-      return createError(400, "กรุณากรอกอีเมล");
-    }
-
-    if (!password) {
-      return createError(400, "กรุณากรอกรหัสผ่าน");
-    }
+    if (!email || !password) throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
+    
 
     if (!isCorporateEmail(email)) {
       return createError(403, "อนุญาตให้ล็อกอินด้วยอีเมลมหาวิทยาลัยเท่านั้น");
@@ -510,16 +525,85 @@ exports.getUserInfoById = async (req, res, next) => {
 //   }
 // };
 
-exports.getOrganization = async (req, res, next) => {
-  try {
-    const organization = await OrgAndDeptService.getAllOrganization();
 
-    if (!organization) {
-      console.log("Debug organization: ", organization);
-      throw createError(404, "not found");
+//Organizations---------------------------------------------------------------------------------------------------
+exports.getAllOrganizations = async (req, res, next) => {
+  try {
+    const organizations = await OrgAndDeptService.getAllOrganizations();
+
+    if (!organizations || organizations.length === 0) {
+      console.log("ข้อมูลองค์กร: ", organizations);
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
     }
 
-    res.status(200).json({ message: "ok", data: organization });
+    res.status(200).json({ message: "สำเร็จ", data: organizations });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getOrganizationById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const organization = await OrgAndDeptService.getOrganizationById(id);
+
+    if (!organization) {
+      console.log("ข้อมูลองค์กร: ", organization);
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "สำเร็จ", data: organization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createOrganization = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      throw createError(400, "กรุณากรอกชื่อองค์กร");
+    }
+
+    const newOrganization = await OrgAndDeptService.createOrganization(name);
+
+    res.status(201).json({ message: "สร้างองค์กรสำเร็จ", data: newOrganization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateOrganization = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name) {
+      throw createError(400, "กรุณากรอกชื่อองค์กร");
+    }
+
+    const updatedOrganization = await OrgAndDeptService.updateOrganization(id, name);
+
+    if (!updatedOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "อัปเดตข้อมูลองค์กรสำเร็จ", data: updatedOrganization });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteOrganization = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deletedOrganization = await OrgAndDeptService.deleteOrganization(id);
+
+    if (!deletedOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    res.status(200).json({ message: "ลบองค์กรสำเร็จ", data: deletedOrganization });
   } catch (err) {
     next(err);
   }
@@ -540,22 +624,94 @@ exports.getOrganizationAndDepartment = async (req, res, next) => {
   }
 };
 
-
-exports.getDepartment = async (req, res, next) => {
+//Departments---------------------------------------------------------------------------------------------------
+exports.getAllDepartments = async (req, res, next) => {
   try {
-    const organizationId = parseInt(req.params.id);
-    const department = await OrgAndDeptService.getDepartmentById(organizationId);
+    const departments = await OrgAndDeptService.getAllDepartments();
 
-    if (!organizationId) {
-      throw createError(404, "org not found");
+    if (!departments || departments.length === 0) {
+      console.log("ข้อมูลองค์กร: ", departments);
+      throw createError(404, "ไม่พบข้อมูลแผนก");
     }
+
+    res.status(200).json({ message: "สำเร็จ", data: departments });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getDepartmentById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const department = await OrgAndDeptService.getDepartmentById(id);
 
     if (!department) {
-      console.log("Debug organization: ", department);
-      throw createError(404, "not found");
+      console.log("ข้อมูลองค์กร: ", department);
+      throw createError(404, "ไม่พบข้อมูลแผนก");
     }
 
-    res.status(200).json({ message: "ok", data: department });
+    res.status(200).json({ message: "สำเร็จ", data: department });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createDepartment = async (req, res, next) => {
+  try {
+    const { name, headId, organizationId, appointDate } = req.body;
+    if (!name || !organizationId) {
+      throw createError(400, "กรุณากรอกชื่อแผนกและ ID ขององค์กร");
+    }
+
+    const newDepartment = await OrgAndDeptService.createDepartment({
+      name,
+      headId,
+      organizationId,
+      appointDate,
+    });
+
+    res.status(201).json({ message: "สร้างแผนกสำเร็จ", data: newDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, headId, organizationId, appointDate } = req.body;
+
+    if (!name || !organizationId) {
+      throw createError(400, "กรุณากรอกชื่อแผนกและ ID ขององค์กร");
+    }
+
+    const updatedDepartment = await OrgAndDeptService.updateDepartment(id, {
+      name,
+      headId,
+      organizationId,
+      appointDate,
+    });
+
+    if (!updatedDepartment) {
+      throw createError(404, "ไม่พบแผนกที่ต้องการอัปเดต");
+    }
+
+    res.status(200).json({ message: "อัปเดตแผนกสำเร็จ", data: updatedDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deletedDepartment = await OrgAndDeptService.deleteDepartment(id);
+
+    if (!deletedDepartment) {
+      throw createError(404, "ไม่พบแผนกที่ต้องการลบ");
+    }
+
+    res.status(200).json({ message: "ลบแผนกสำเร็จ", data: deletedDepartment });
   } catch (err) {
     next(err);
   }
@@ -570,12 +726,28 @@ const validatePhone = (phone) => {
   return true;
 };
 
-exports.getPersonnelType = async (req, res, next) => {
+
+//PersonnelTypes---------------------------------------------------------------------------------------------------
+exports.getPersonnelTypes = async (req, res, next) => {
   try {
-    const personnelType = await OrgAndDeptService.getPersonnelType();
+    const personnelTypes = await OrgAndDeptService.getAllPersonnelTypes();
+
+    if (!personnelTypes || personnelTypes.length === 0) {
+      throw createError(404, "Personnel types not found");
+    }
+
+    res.status(200).json({ message: "response ok", data: personnelTypes });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getPersonnelTypeById = async (req, res, next) => {
+  try {
+    const personnelType = await OrgAndDeptService.getPersonnelTypeById(parseInt(req.params.id));
 
     if (!personnelType) {
-      throw createError(404, "personnel type not found");
+      throw createError(404, "Personnel type not found");
     }
 
     res.status(200).json({ message: "response ok", data: personnelType });
@@ -583,3 +755,87 @@ exports.getPersonnelType = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.createPersonnelType = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+
+    if (!name) {
+      throw createError(400, "Name is required");
+    }
+
+    const personnelType = await OrgAndDeptService.createPersonnelType({ name });
+
+    res.status(201).json({ message: "Personnel type created successfully", data: personnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updatePersonnelType = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    const { id } = req.params;
+
+    if (!name) {
+      throw createError(400, "Name is required");
+    }
+
+    const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(parseInt(id), { name });
+
+    if (!updatedPersonnelType) {
+      throw createError(404, "Personnel type not found");
+    }
+
+    res.status(200).json({ message: "Personnel type updated successfully", data: updatedPersonnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deletePersonnelType = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const deletedPersonnelType = await OrgAndDeptService.deletePersonnelType(parseInt(id));
+
+    if (!deletedPersonnelType) {
+      throw createError(404, "Personnel type not found");
+    }
+
+    res.status(200).json({ message: "Personnel type deleted successfully", data: deletedPersonnelType });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+//reset password-----------------------------------------------------------------------
+exports.changePassword = async (req, res) => {
+  try {
+    const result = await UserService.changePassword(req.body);
+    res.json({ success: true, message: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const result = await UserService.forgotPassword(req.body.email);
+    res.json({ success: true, message: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const result = await UserService.resetPassword(req.body);
+    res.json({ success: true, message: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
