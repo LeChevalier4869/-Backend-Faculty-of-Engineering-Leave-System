@@ -1,392 +1,102 @@
-const LeaveRequestService = require("../services/leaveRequest-service");
-const LeaveBalanceService = require("../services/leaveBalance-service");
-const AuditLogService = require("../services/auditLog-service");
-//const RoleAssignmentService = require("../services/roleAssignment-service");
 const createError = require("../utils/createError");
-const multer = require("multer");
-const cloudUpload = require("../utils/cloudUpload");
-const UserService = require("../services/user-service");
-const upload = multer();
-const { sendEmail, sendNotification } = require("../utils/emailService");
-const { calculateWorkingDays } = require("../utils/dateCalculate");
+const LeaveRequestService = require("../services/leaveRequest-service");
 
+// POST /leave-requests/
 exports.createLeaveRequest = async (req, res, next) => {
   try {
-    const { leaveTypeId, startDate, endDate, reason, isEmergency } = req.body;
-    // console.log("req.user.id = ", req.user.id);
-    // console.log("Debug leaveTypeId con: ", leaveTypeId);
-    // console.log("Debug req.user.id con: ", req.user.id);
-
-    if (!leaveTypeId || !startDate || !endDate) {
-      console.log(
-        "Debug createRequest leaveType, start, end",
-        leaveTypeId,
-        startDate,
-        endDate
-      );
-      throw createError(
-        400,
-        "กรุณาเลือกวันที่เริ่มและวันที่สิ้นสุดและ leave type"
-      );
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    // Validation: startDate ต้องไม่มากกว่า endDate
-    if (start > end) {
-      throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
-    }
-
-    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    // const requestedDays = await calculateWorkingDays(start, end);
-
-    if (requestedDays <= 0) {
-      throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
-    }
-
-    // console.log("Debug leaveBalance: ", leaveBalance);
-
-    const eligibility = await LeaveRequestService.checkEligibility(
+    const result = await LeaveRequestService.createLeaveRequest(
       req.user.id,
-      leaveTypeId,
-      requestedDays
+      req.body,
+      req.files
     );
-
-    if (!eligibility.success) {
-      throw createError(400, eligibility.message);
-    }
-
-    const leaveBalance = await LeaveBalanceService.getUserBalance(
-      req.user.id,
-      leaveTypeId
-    );
-
-    if (requestedDays > leaveBalance.remainingDays || requestedDays > leaveBalance.maxDays) {
-      return createError(400, "วันลาคงเหลือไม่พอ");
-    }
-
-    if (!leaveBalance) {
-      throw createError(404, `Leave balance not found`);
-    }
-
-    //console.log(req.body);
-
-    const leaveRequest = await LeaveRequestService.createRequest(
-      req.user.id,
-      leaveTypeId,
-      startDate,
-      endDate,
-      reason,
-      isEmergency,
-      requestedDays
-    );
-
-    await LeaveBalanceService.updatePendingLeaveBalance(
-      req.user.id,
-      leaveTypeId,
-      requestedDays
-    );
-    // create log
-    await AuditLogService.createLog(
-      req.user.id,
-      "Create Request",
-      leaveRequest.id,
-      `คำขอถูกสร้าง: ${reason} , ฉุกเฉิน: ${req.body.isEmergency}`,
-      "LEAVE_REQUEST"
-    );
-
-    //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
-    const user = await UserService.getUserByIdWithRoles(req.user.id);
-
-    if (user) {
-      const userEmail = user.email;
-      const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
-
-      const subject = "ยืนยันการยื่นคำขอลา";
-      const message = `
-              <h3>สวัสดี ${userName}</h3>
-              <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
-              <p>จำนวนวันลา: ${requestedDays}</p>
-              <br/>
-              <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          `;
-      await sendEmail(userEmail, subject, message);
-    }
-
-    // ดึง assignment สำหรับ APPROVER_1 ในวันนั้น
-    // const assignmentApprover1 = await RoleAssignmentService.getAssignments(
-    //   "APPROVER_1"
-    // );
-    // if (assignmentApprover1 && assignmentApprover1.user) {
-    //   await sendNotification("SUBMISSION", {
-    //     to: assignmentApprover1.user.email,
-    //     approverName: `${assignmentApprover1.user.prefixName} ${assignmentApprover1.user.firstName} ${assignmentApprover1.user.lastName}`,
-    //     userName: `${req.user.prefixName} ${req.user.firstName} ${req.user.lastName}`,
-    //   });
-    // }
-
-    const file = req.files;
-    if (file && file.length > 0) {
-      const imagesPromiseArray = file.map((file) => {
-        return cloudUpload(file.path);
-      });
-
-      const imgUrlArray = await Promise.all(imagesPromiseArray);
-
-      const attachImages = imgUrlArray.map((imgUrl) => {
-        return {
-          fileName: "attachment",
-          filePath: imgUrl,
-          leaveRequestId: leaveRequest.id,
-        };
-      });
-
-      LeaveRequestService.attachImages(attachImages);
-    }
-    //   const newLeaveRequest = await prisma.leaverequests.findFirst({
-    //     where: {
-    //       id: leaveRequest.id,
-    //     },
-    //     include: {
-    //       attachments: true,
-    //     },
-    //   });
-    //   res.json({ newLeaveRequest });
-    // }
-
-    res
-      .status(201)
-      .json({ message: "คำขอลาได้ถูกสร้าง", requestId: leaveRequest.id });
+    res.status(201).json(result);
   } catch (err) {
     next(err);
   }
 };
 
-//use (not mail)
-exports.updateLeaveStatus = async (req, res, next) => {
-  try {
-    const requestId = parseInt(req.params.id);
-    const { status, remarks, documentNumber } = req.body;
-    const approverId = req.user.id;
-
-    if (!status) throw createError(400, "ต้องระบุสถานะ");
-
-    if (!["APPROVED", "REJECTED"].includes(status.trim().toUpperCase())) {
-      console.log("Debug status: ", status);
-      throw createError(400, "สถานะไม่ถูกต้อง");
-    }
-
-    let docNumber = null;
-    const user = req.user;
-    const userRole = Array.isArray(user.role) ? user.role : [user.role];
-
-    if (userRole.includes("RECEIVER")) {
-      docNumber = documentNumber;
-    }
-
-    const updatedStatus = await LeaveRequestService.updateRequestStatus(
-      requestId,
-      status,
-      approverId,
-      remarks,
-      docNumber
-    );
-    await AuditLogService.createLog(
-      req.user.id,
-      "Update Status",
-      requestId,
-      `สถานะเปลี่ยนเป็น: ${status}${remarks ? " เหตุผล: " + remarks : ""}`,
-      status === "REJECTED" ? "REJECTION" : "APPROVAL"
-    );
-    res
-      .status(200)
-      .json({ message: "สถานะคำขอลาถูกอัปเดต", data: updatedStatus });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.getLeaveRequest = async (req, res, next) => {
-  try {
-    const requestId = parseInt(req.params.id);
-    console.log("Debug requestId11:", requestId);
-    const user = req.user;
-    // console.log(user)
-    // console.log("Debug user.departmentId",user.department.id);
-
-    // if (!requestId || isNaN(requestId)) {
-    //   console.log("Debug requestId: ", requestId);
-    //   throw createError(400, "Invalid request ID.");
-    // }
-
-    //const role = req.user.role;
-
-    //const whereCondition = {};
-
-    // if (requestId) {
-    //   whereCondition.id = parseInt(requestId);
-    // }
-    // if (role === "USER" && !requestId) {
-    //   whereCondition.userId = req.user.id;
-    // } else if (role === "APPROVER" && !requestId) {
-    //   whereCondition.ApprovalSteps = {
-    //     some: {
-    //       approverId: req.user.id,
-    //     },
-    //   };
-    // } else if (role === "ADMIN" && userId) {
-    //   whereCondition.userId = parseInt(userId);
-    // }
-
-    // const leaveRequests = await LeaveRequestService.getRequests(whereCondition);
-    const leaveRequests = await LeaveRequestService.getRequestsById(requestId);
-    // console.log("Debug leaveRequest: ", leaveRequests);
-    if (!leaveRequests) {
-      throw createError(404, "Leave request not found");
-    }
-
-    if (!user.department || !user.department.id) {
-      throw createError(400, "User has no department assigned.");
-    }
-
-    // ค้นหาหัวหน้าสาขาของคำขอลานี้
-    const headDepartment = await UserService.getHeadOfDepartment(
-      user.department.id
-    );
-    // console.log('Debug headDepartment: ', headDepartment);
-    const approvalSteps = await LeaveRequestService.getApprovalSteps(requestId);
-
-    res.status(200).json({
-      message: "Leave requests retrieved",
-      data: {
-        ...leaveRequests[0],
-        headOfDepartment: headDepartment
-          ? await UserService.getUserByIdWithRoles(headDepartment)
-          : null,
-        verifier: await UserService.getUserByIdWithRoles(
-          leaveRequests[0].verifierId
-        ),
-        receiver: await UserService.getUserByIdWithRoles(
-          leaveRequests[0].receiverId
-        ),
-        approvalSteps,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
+// GET /leave-requests/me
 exports.getLeaveRequestIsMine = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const leaveRequests = await LeaveRequestService.getRequestIsMine(userId);
-
-    if (!leaveRequests) {
-      throw createError(404, "Leave request not found");
-    }
-
-    res.status(200).json({
-      message: "Leave request retrieved",
-      data: leaveRequests,
-    });
+    const list = await LeaveRequestService.getLeaveRequestIsMine(req.user.id);
+    res.json({ data: list });
   } catch (err) {
     next(err);
   }
 };
 
-exports.updateLeaveRequest = async (req, res, next) => {
-  const leaveRequestId = req.params.id;
-  const updateData = req.body;
+// GET /leave-requests/:id
+exports.getLeaveRequest = async (req, res, next) => {
   try {
-    const leaveRequest = await LeaveRequestService.getRequestsById(
-      leaveRequestId
-    );
-    if (!leaveRequest) {
-      throw createError(404, "Leave request not found");
-    }
-    if (leaveRequest.userId !== req.user.id) {
-      throw createError(403, "You are not allowed to update");
-    }
-
-    const updateRequest = await LeaveRequestService.updateRequest(
-      leaveRequestId,
-      updateData
-    );
-    res.status(200).json({
-      message: "Leave request updated",
-      data: updateRequest,
-    });
+    const id = parseInt(req.params.id, 10);
+    const data = await LeaveRequestService.getLeaveRequest(id, req.user);
+    res.json({ data });
   } catch (err) {
     next(err);
   }
 };
 
+// PATCH /leave-requests/:id
+exports.updateLeaveRequest = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const updated = await LeaveRequestService.updateLeaveRequest(id, req.user.id, req.body);
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /leave-requests/:id/status
+exports.updateLeaveStatus = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const updated = await LeaveRequestService.updateLeaveStatus(id, req.user.id, req.body);
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /leave-requests/:id/approve
 exports.approveLeaveRequest = async (req, res, next) => {
   try {
-    const leaveRequestId = parseInt(req.params.id);
-    const approverId = req.user.id;
-
-    const updatedLeaveRequest = await LeaveRequestService.approveRequest(
-      leaveRequestId,
-      approverId
-    );
-
-    res.status(200).json({
-      message: "Leave request approved",
-      leaveRequestId: updatedLeaveRequest,
-    });
+    const id = parseInt(req.params.id, 10);
+    const result = await LeaveRequestService.approveLeaveRequest(id, req.user.id);
+    res.json({ data: result });
   } catch (err) {
     next(err);
   }
 };
 
+// POST /leave-requests/:id/reject
 exports.rejectLeaveRequest = async (req, res, next) => {
   try {
-    const leaveRequestId = parseInt(req.params.id);
-    const { remarks } = req.body;
-    const approverId = req.user.id;
-
-    const updatedLeaveRequest = await LeaveRequestService.rejectRequest(
-      leaveRequestId,
-      remarks,
-      approverId
-    );
-
-    res.status(200).json({
-      message: "Leave request rejected",
-      leaveRequest: updatedLeaveRequest,
-    });
+    const id = parseInt(req.params.id, 10);
+    const result = await LeaveRequestService.rejectLeaveRequest(id, req.user.id, req.body);
+    res.json({ data: result });
   } catch (err) {
     next(err);
   }
 };
 
+// DELETE /leave-requests/:id
 exports.deleteLeaveRequest = async (req, res, next) => {
-  const leaveRequestId = parseInt(req.params.id);
-
   try {
-    const result = await LeaveRequestService.deleteRequest(leaveRequestId);
-
-    if (!result) {
-      return createError(400, "Leave request can't delete");
-    }
-
-    res.status(200).json({ message: "Leave request deleted" });
+    await LeaveRequestService.deleteLeaveRequest(parseInt(req.params.id, 10), req.user.id);
+    res.json({ message: 'Deleted' });
   } catch (err) {
     next(err);
   }
 };
 
+// GET /leave-requests/landing
 exports.getLeaveRequestLanding = async (req, res, next) => {
   try {
-    const leaveRequest = await LeaveRequestService.getLanding();
-    if (!leaveRequest) {
-      throw createError(404, "Leave request not found");
-    }
-    res.status(200).json({ leaveRequest });
+    const summary = await LeaveRequestService.getLeaveRequestLanding();
+    res.json({ data: summary });
   } catch (err) {
     next(err);
   }
 };
+
