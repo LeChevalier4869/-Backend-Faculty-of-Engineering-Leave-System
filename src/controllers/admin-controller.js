@@ -455,7 +455,7 @@ exports.deleteRank = async (req, res, next) => {
 };
 
 // --------------------
-//        ranks
+//     personnelType
 // --------------------
 
 exports.getAllPersonnelType = async (req, res, next) => {
