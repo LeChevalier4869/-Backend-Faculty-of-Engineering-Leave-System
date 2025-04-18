@@ -5,10 +5,7 @@ async function isHoliday(date) {
     return true; // เสาร์-อาทิตย์
   }
 
-<<<<<<< HEAD
-=======
   
->>>>>>> bc29adb71bdbc379ae0aa52c252089985b98633b
   const holiday = await prisma.holiday.findFirst({
     where: {
       date: new Date(date),
