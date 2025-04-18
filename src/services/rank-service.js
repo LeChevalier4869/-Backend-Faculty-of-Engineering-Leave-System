@@ -1,25 +1,20 @@
 const prisma = require("../config/prisma");
-const dayjs = require("dayjs");
 
 class RankService {
     // ดึง rank ที่ตรงกับเงื่อนไขอายุงาน และ personnelType ของ user
     static async getRankForUser(user) {
-        const personnelTypeId = user.personnelTypeId;
-        const hireDate = dayjs(user.hireDate);
-        const today = dayjs();
-        const monthsSinceHire = today.diff(hireDate, "month");
+        if (!user?.hireDate || !user.personnelTypeId) return null;
+        
+        const months = calculateMonths(user.hireDate);
 
-        return await prisma.rank.findFirst({
+        const rank = await prisma.rank.findFirst({
             where: {
-                personnelTypeId,
-                minHireMonths: { lte: monthsSinceHire },
-                OR: [
-                    { maxHireMonths: null },
-                    { maxHireMonths: { gte: monthsSinceHire }},
-                ],
+                personnelTypeId: user.personnelTypeId,
+                minHireMonths: { lte: months },
+                maxHireMonths: { gte: months },
             },
-            orderBy: { minHireMonths: "desc" },
         });
+        return rank;
     }
 
     // ดึง rank ทั้งหมด (admin)
@@ -57,6 +52,17 @@ class RankService {
             where: { id },
         });
     }
+}
+
+function calculateMonths(hireDate) {
+    const now = new Date();
+    const hire = new Date(hireDate);
+    let months = (now.getFullYear() - hire.getFullYear()) * 12;
+    months += now.getMonth() - hire.getMonth();
+    if (now.getDate() < hire.getDate()) {
+        months--;
+    }
+    return months;
 }
 
 module.exports = RankService;
