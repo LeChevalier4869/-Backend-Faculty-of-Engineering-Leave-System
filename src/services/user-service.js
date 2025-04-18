@@ -322,7 +322,7 @@ class UserService {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      // orderBy: { createdAt: "desc" },
       include: { userRoles: { include: { role: true } } },
     });
 
@@ -341,7 +341,7 @@ class UserService {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      // orderBy: { createdAt: "desc" },
       include: { userRoles: { include: { role: true } } },
     });
 

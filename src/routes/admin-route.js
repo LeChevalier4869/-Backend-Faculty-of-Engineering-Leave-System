@@ -59,6 +59,9 @@ router.post('/role', adminController.createRole);
 router.put('/role/:id', adminController.updateRole);
 router.delete('/role/:id', adminController.deleteRole);
 
+//------------------------------------- Assign Head epartment ----------------------------------
+router.post("/assign-head", adminController.assignHeadDepartment);
+
 //-------------------------------------- rank --------------------------------
 router.get('/rank', adminController.getAllRank);
 router.get('/rank/:id', adminController.getRankById);

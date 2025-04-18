@@ -139,7 +139,6 @@ model User_Role {
   role Role @relation(fields: [roleId], references: [id])
 
   @@unique([userId, roleId])
-
   @@map("user_role")
 }
 
@@ -177,7 +176,7 @@ model Approver {
 }
 
 model Rank {
-  id              Int           @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   rank            String
   minHireMonths   Int?
   maxHireMonths   Int?
@@ -185,9 +184,12 @@ model Rank {
   maxDays         Int?
   isBalance       Boolean?
   personnelTypeId Int
+  leaveTypeId     Int // nullable สำหรับความปลอดภัย
+
   // Relations
-  userRanks       User_Rank[]
-  personnelType   PersonnelType @relation(fields: [personnelTypeId], references: [id])
+  userRanks     User_Rank[]
+  personnelType PersonnelType @relation(fields: [personnelTypeId], references: [id])
+  leaveType     LeaveType     @relation(fields: [leaveTypeId], references: [id])
 
   @@map("rank")
 }
@@ -228,6 +230,7 @@ model LeaveType {
   // Relations
   leaveBalances LeaveBalance[]
   leaveRequests LeaveRequest[]
+  Rank          Rank[]
 
   @@map("leavetype")
 }

@@ -115,6 +115,7 @@ exports.createRequestByAdmin = async (req, res, next) => {
   }
 };
 
+//--------------------- Holiday --------------------
 exports.getHoliday = async (req, res, next) => {
   try {
     const holiday = await AdminService.getHoliday();
@@ -127,13 +128,11 @@ exports.getHoliday = async (req, res, next) => {
 
 exports.addHoliday = async (req, res, next) => {
   try {
-    const { fiscalYear, date, description, isRecurring, holidayType } =
-      req.body;
+    const { date, description, isRecurring, holidayType } = req.body;
 
     if (
       date === undefined ||
       description === undefined ||
-      fiscalYear === undefined ||
       isRecurring === undefined ||
       holidayType === undefined
     ) {
@@ -145,10 +144,12 @@ exports.addHoliday = async (req, res, next) => {
       throw createError(400, "Invalid date format");
     }
 
+    const fiscalYear = parsedDate.getFullYear();
+
     const holiday = await AdminService.createHoliday({
       date: parsedDate,
       description,
-      fiscalYear: parseInt(fiscalYear),
+      fiscalYear,
       isRecurring,
       holidayType,
     });
@@ -159,15 +160,16 @@ exports.addHoliday = async (req, res, next) => {
   }
 };
 
+
 exports.updateHoliday = async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id); // 👈 แปลงเป็น int
+    const id = parseInt(req.params.id);
 
     if (isNaN(id)) {
       throw createError(400, "Invalid holiday ID");
     }
 
-    const { date, description, fiscalYear, isRecurring, holidayType } = req.body;
+    const { date, description, isRecurring, holidayType } = req.body;
     const updateData = {};
 
     if (date) {
@@ -176,27 +178,26 @@ exports.updateHoliday = async (req, res, next) => {
         throw createError(400, "Invalid date format");
       }
       updateData.date = parsedDate;
+
+      // ✅ คำนวณ fiscalYear จาก date
+      updateData.fiscalYear = parsedDate.getFullYear();
     }
 
     if (description !== undefined) updateData.description = description;
-    if (fiscalYear !== undefined) {
-      const yearInt = parseInt(fiscalYear);
-      if (isNaN(yearInt)) {
-        throw createError(400, "Invalid fiscal year");
-      }
-      updateData.fiscalYear = yearInt;
-    }
-
     if (isRecurring !== undefined) updateData.isRecurring = isRecurring;
     if (holidayType !== undefined) updateData.holidayType = holidayType;
 
     const updatedHoliday = await AdminService.updateHolidayById(id, updateData);
 
-    res.status(200).json({ message: "Updated holiday successfully", data: updatedHoliday });
+    res.status(200).json({
+      message: "Updated holiday successfully",
+      data: updatedHoliday,
+    });
   } catch (err) {
     next(err);
   }
 };
+
 
 exports.deleteHoliday = async (req, res, next) => {
   try {
@@ -277,7 +278,7 @@ exports.deleteApprover = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-}
+};
 
 // --------------------
 //        role
@@ -315,7 +316,6 @@ exports.createRole = async (req, res, next) => {
     next(err);
   }
 };
-
 exports.updateRole = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -355,7 +355,28 @@ exports.getRoleById = async (req, res, next) => {
     if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
 
     const role = await AdminService.getRoleById(parseInt(id));
-    res.status(200).json({ message: "ดึงข้อมูล role เรียบร้อยแล้ว", data: role });
+    res
+      .status(200)
+      .json({ message: "ดึงข้อมูล role เรียบร้อยแล้ว", data: role });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.assignHeadDepartment = async (req, res, next) => {
+  try {
+    const { departmentId, headId } = req.body;
+
+    if (!departmentId || !headId) {
+      throw createError(400, "departmentId and headId are required");
+    }
+
+    const updatedDepartment = await AdminService.assignHead(
+      parseInt(departmentId),
+      parseInt(headId)
+    );
+
+    res.status(200).json({ message: "Assigned head successfully", data: updatedDepartment });
   } catch (err) {
     next(err);
   }
