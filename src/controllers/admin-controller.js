@@ -1,5 +1,6 @@
 const AdminService = require("../services/admin-service");
 const LeaveRequestService = require("../services/leaveRequest-service");
+const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const createError = require("../utils/createError");
@@ -409,13 +410,16 @@ exports.getRankById = async (req, res, next) => {
 
 exports.createRank = async (req, res, next) => {
   try {
-    const { rank, minHireMonths, maxHireMonths, receiveDays, maxDays, isBalance, personnelTypeId } = req.body;
-    if (!rank || !minHireMonths || !maxHireMonths || !receiveDays || !maxDays || !isBalance || !personnelTypeId) throw createError(400, "กรุณากรอกข้อมูลให้ครบถ้วนก่อนทำการสร้าง rank ใหม่");
+    const { rank, minHireMonths, maxHireMonths, receiveDays, maxDays, isBalance, personnelTypeId, leaveTypeId } = req.body;
+    if (!rank || !minHireMonths || !maxHireMonths || !receiveDays || !maxDays || !isBalance || !personnelTypeId || !leaveTypeId) throw createError(400, "กรุณากรอกข้อมูลให้ครบถ้วนก่อนทำการสร้าง rank ใหม่");
     const personnelType = await OrgAndDeptService.getPersonnelTypeById(personnelTypeId);
     if (!personnelType) throw createError(404, "ไม่พบข้อมูล personnelType");
 
+    const leaveType = await LeaveTypeService.getLeaveTypeById(leaveTypeId);
+    if (!leaveType) throw createError(404, "ไม่พบข้อมูล leaveType");
+
     const data = {
-      rank, minHireMonths, maxHireMonths, receiveDays, maxDays, isBalance, personnelTypeId
+      rank, minHireMonths, maxHireMonths, receiveDays, maxDays, isBalance, personnelTypeId, leaveTypeId
     };
 
     const ranks = await RankService.createRank(data);
