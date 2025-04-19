@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const createError = require("../utils/createError");
 
 class RankService {
     // ดึง rank ที่ตรงกับเงื่อนไขอายุงาน และ personnelType ของ user
@@ -40,6 +41,9 @@ class RankService {
 
     // update rank
     static async updateRank(id, data) {
+        const exists = await prisma.rank.findUnique({ where: { id } });
+        if (!exists) throw createError(404, `ไม่พบ rank id ${id}`);
+
         return await prisma.rank.update({
             where: { id },
             data,
