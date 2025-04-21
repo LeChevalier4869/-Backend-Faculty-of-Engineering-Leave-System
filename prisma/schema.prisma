@@ -241,7 +241,7 @@ model LeaveRequest {
   leaveTypeId        Int
   startDate          DateTime
   endDate            DateTime
-  leavedDays         Int
+  leavedDays         Int 
   thisTimeDays       Int
   totalDays          Int
   balanceDays        Int

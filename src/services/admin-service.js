@@ -4,6 +4,7 @@ const LeaveRequestService = require("./leaveRequest-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const LeaveBalanceService = require("./leaveBalance-service");
 const nodemailer = require("nodemailer");
+const cloudUpload = require("../utils/cloudUpload"); 
 
 class AdminService {
   // ✅ ดึงรายชื่อผู้ใช้งานที่มี role ADMIN
@@ -295,29 +296,116 @@ class AdminService {
   }
 
   //------------ Manage User -----------
+  static async getUserById(id) {
+    return await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        prefixName: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        sex: true,
+        position: true,
+        hireDate: true,
+        inActive: true,
+        employmentType: true,
+        personnelTypeId: true,
+        departmentId: true,
+      },
+    });
+  }
+  
+  static async createUserByAdmin(data, file = null) {
+    const {
+      prefixName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      sex,
+      password,
+      position,
+      hireDate,
+      inActive,
+      employmentType,
+      personnelTypeId,
+      departmentId,
+    } = data;
 
+    const hashedPassword = await require("bcryptjs").hash(password, 10);
+
+    const newUser = await prisma.user.create({
+      data: {
+        prefixName,
+        firstName,
+        lastName,
+        email,
+        phone,
+        sex,
+        password: hashedPassword,
+        position,
+        hireDate,
+        inActive,
+        employmentType,
+        personnelType: { connect: { id: personnelTypeId } },
+        department: { connect: { id: departmentId } },
+        userRoles: {
+          create: [{ role: { connect: { name: "USER" } } }],
+        },
+      },
+    });
+
+    if (file) {
+      const imgUrl = await cloudUpload(file.path);
+      await prisma.user.update({
+        where: { id: newUser.id },
+        data: { profilePicturePath: imgUrl },
+      });
+      fs.unlink(file.path, () => {});
+    }
+
+    return newUser;
+  }
+
+  static async updateUserByAdmin(userId, updateData, file = null) {
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existingUser) throw createError(404, "ไม่พบผู้ใช้งาน");
+  
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...updateData,
+        personnelType: updateData.personnelTypeId
+          ? { connect: { id: updateData.personnelTypeId } }
+          : undefined,
+        department: updateData.departmentId
+          ? { connect: { id: updateData.departmentId } }
+          : undefined,
+      },
+    });
+  
+    if (file) {
+      const imgUrl = await cloudUpload(file.path);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { profilePicturePath: imgUrl },
+      });
+      fs.unlink(file.path, () => {});
+    }
+  
+    return updatedUser;
+  }
+
+  // ✅ ใช้ใน controller
   static async deleteUserById(userId) {
-    // ✅ ตรวจว่ามีผู้ใช้จริง
     const existing = await prisma.user.findUnique({ where: { id: userId } });
     if (!existing) throw createError(404, "User not found");
 
-    // ตัวอย่าง: ไม่ให้ลบตัวเองหรือ ADMIN คนสุดท้าย
-    // (ตัดทิ้งได้ถ้าไม่จำเป็น)
-    // const adminCount = await prisma.user.count({
-    //   where: { userRoles: { some: { role: { name: "ADMIN" } } } }
-    // });
-    // if (adminCount === 1 && existing.userRoles.some(r => r.role.name === "ADMIN"))
-    //   throw createError(400, "Cannot delete the last ADMIN");
-
-    // 🔥 ลบ – ถ้ามี FK ต้องใส่ `onDelete: Cascade` ใน schema หรือจัดการ manual cleaning
     await prisma.user.delete({ where: { id: userId } });
-
-    // (ถ้ามี audit log)
-    // await AuditLogService.createLog(adminId, "AdminDeleteUser", userId, `Deleted user ${userId}`);
-
     return { message: "User deleted successfully" };
   }
 }
-
 
 module.exports = AdminService;

@@ -8,6 +8,7 @@ const { sendEmail } = require('../utils/emailService');
 const UserService = require('../services/user-service');
 const { calculateWorkingDays } = require('../utils/dateCalculate');
 
+
 class LeaveRequestService {
   static async createLeaveRequest(userId, body, files) {
     const { leaveTypeId, startDate, endDate, reason, isEmergency, additionalDetails } = body;
@@ -17,7 +18,7 @@ class LeaveRequestService {
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start > end) throw createError(400, 'วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด');
-    const totalDays = calculateWorkingDays(start, end);
+    const daysThisTime = await calculateWorkingDays(start, end);
 
     // Check admin role
     const user = await UserService.getUserByIdWithRoles(userId);
@@ -25,15 +26,19 @@ class LeaveRequestService {
     const isAdmin = roles.includes("ADMIN");
 
     let balance;
+    let remainingAfter = 0;
+
     if (!isAdmin) {
-      balance = await LeaveBalanceService.getUserBalance(userId, parseInt(leaveTypeId,10));
-      if (totalDays > balance.remainingDays) {
+      balance = await LeaveBalanceService.getUserBalance(userId, +leaveTypeId);
+      if (daysThisTime > balance.remainingDays) {
         throw createError(400, 'วันลาคงเหลือไม่เพียงพอ');
       }
 
       // Update pending
-      await LeaveBalanceService.updatePendingLeaveBalance(userId, parseInt(leaveTypeId,10), totalDays);
+      await LeaveBalanceService.updatePendingLeaveBalance(userId, +leaveTypeId, daysThisTime);
+      remainingAfter = balance.remainingDays - daysThisTime;
     }
+    const totalDaysUsed = balance ? balance.usedDays + balance.pendingDays + daysThisTime: daysThisTime;
 
     // Create leave request
     const req = await prisma.leaveRequest.create({ data: {
@@ -41,15 +46,17 @@ class LeaveRequestService {
       leaveTypeId: parseInt(leaveTypeId,10),
       startDate: start,
       endDate: end,
-      thisTimeDays: totalDays,
-      totalDays,
-      balanceDays: isAdmin ? 0 : balance.remainingDays,
+      leavedDays:   daysThisTime,
+      thisTimeDays: daysThisTime,
+      totalDays:    totalDaysUsed,
+      balanceDays:  isAdmin ? 0 : remainingAfter,
       reason,
       status: 'PENDING',
       isEmergency: Boolean(isEmergency),
       contact: additionalDetails
     }});
 
+    console.log(">>> create data", req);
     // Attach files
     if (files?.length) {
       for (const f of files) {
