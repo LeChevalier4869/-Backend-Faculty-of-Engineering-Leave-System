@@ -114,12 +114,15 @@ exports.register = async (req, res, next) => {
       roles.map((role) => role.id)
     );
 
-    // ✅ กำหนด Rank ตาม personnelType และ hireDate
+    // ✅ กำหนด Rank ตาม personnelType
     await UserService.assignRankToUser(
       newUser.id,
       personnelTypeId,
       parsedHireDate
     );
+
+    // ✅ gen balance ของ ลาป่วย ลากิจ ลาพัก ตาม rank ที่ได้
+    await UserService.assignLeaveBalanceFromRanks(newUser.id);
 
     // ✅ ส่ง response
     res.status(201).json({ message: "ลงทะเบียนผู้ใช้สำเร็จ" });
@@ -789,12 +792,10 @@ exports.createPersonnelType = async (req, res, next) => {
 
     const personnelType = await OrgAndDeptService.createPersonnelType({ name });
 
-    res
-      .status(201)
-      .json({
-        message: "Personnel type created successfully",
-        data: personnelType,
-      });
+    res.status(201).json({
+      message: "Personnel type created successfully",
+      data: personnelType,
+    });
   } catch (err) {
     next(err);
   }
@@ -818,12 +819,10 @@ exports.updatePersonnelType = async (req, res, next) => {
       throw createError(404, "Personnel type not found");
     }
 
-    res
-      .status(200)
-      .json({
-        message: "Personnel type updated successfully",
-        data: updatedPersonnelType,
-      });
+    res.status(200).json({
+      message: "Personnel type updated successfully",
+      data: updatedPersonnelType,
+    });
   } catch (err) {
     next(err);
   }
@@ -841,12 +840,10 @@ exports.deletePersonnelType = async (req, res, next) => {
       throw createError(404, "Personnel type not found");
     }
 
-    res
-      .status(200)
-      .json({
-        message: "Personnel type deleted successfully",
-        data: deletedPersonnelType,
-      });
+    res.status(200).json({
+      message: "Personnel type deleted successfully",
+      data: deletedPersonnelType,
+    });
   } catch (err) {
     next(err);
   }
