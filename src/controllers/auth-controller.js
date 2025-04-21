@@ -11,7 +11,6 @@ const { isCorporateEmail } = require("../utils/checkEmailDomain");
 const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
 const fs = require("fs");
 
-
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
   try {
@@ -94,17 +93,16 @@ exports.register = async (req, res, next) => {
       departmentId: parseInt(departmentId),
     });
 
-    // ✅ โปรไฟล์ (อัปโหลดไฟล์)
+    // ✅ อัปโหลดโปรไฟล์
     const file = req.file;
     if (file) {
       const imgUrl = await cloudUpload(file.path);
       await UserService.createUserProfile(newUser.id, imgUrl);
-      // ลบไฟล์หลังอัปโหลด
-      fs.unlink(file.path, () => { });
+      fs.unlink(file.path, () => {});
     }
 
+    // ✅ กำหนดบทบาท
     const roleList = ["USER"];
-
     const roles = await UserService.getRolesByNames(roleList);
     if (!roles || roles.length !== roleList.length) {
       console.log("Debug roles: ", roleList);
@@ -116,7 +114,14 @@ exports.register = async (req, res, next) => {
       roles.map((role) => role.id)
     );
 
-    //response
+    // ✅ กำหนด Rank ตาม personnelType และ hireDate
+    await UserService.assignRankToUser(
+      newUser.id,
+      personnelTypeId,
+      parsedHireDate
+    );
+
+    // ✅ ส่ง response
     res.status(201).json({ message: "ลงทะเบียนผู้ใช้สำเร็จ" });
   } catch (err) {
     if (err.code === 11000) {
@@ -131,8 +136,8 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
-
+    if (!email || !password)
+      throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
 
     if (!isCorporateEmail(email)) {
       return createError(403, "อนุญาตให้ล็อกอินด้วยอีเมลมหาวิทยาลัยเท่านั้น");
@@ -155,9 +160,7 @@ exports.login = async (req, res, next) => {
     // console.log('user pass = ' + user.password);
 
     const userWithRoles = await UserService.getUserByIdWithRoles(user.id);
-    const roles = userWithRoles.userRoles.map(
-      (userRole) => userRole.role.name
-    );
+    const roles = userWithRoles.userRoles.map((userRole) => userRole.role.name);
 
     const departments = await UserService.getDepartment(user.id);
     const organization = await UserService.getOrganization(user.id);
@@ -269,9 +272,15 @@ exports.updateUserRole = async (req, res, next) => {
 
     let updatedRole;
     if (action === "ADD") {
-      updatedRole = await UserService.addUserRoles(userId, roles.map((role) => role.id))
+      updatedRole = await UserService.addUserRoles(
+        userId,
+        roles.map((role) => role.id)
+      );
     } else if (action === "REMOVE") {
-      updatedRole = await UserService.removeUserRoles(userId, roles.map((role) => role.id))
+      updatedRole = await UserService.removeUserRoles(
+        userId,
+        roles.map((role) => role.id)
+      );
     } else {
       throw createError(400, "Invalid action. Use 'ADD' or 'REMOVE'");
     }
@@ -348,10 +357,10 @@ exports.updateUser = async (req, res, next) => {
         inActive: Boolean(inActive),
         employmentType,
         personnelType: {
-          connect: { id: parseInt(personnelTypeId) },  // เชื่อมโยง personnelType
+          connect: { id: parseInt(personnelTypeId) }, // เชื่อมโยง personnelType
         },
         department: {
-          connect: { id: parseInt(departmentId) },  // เชื่อมโยง personnelType
+          connect: { id: parseInt(departmentId) }, // เชื่อมโยง personnelType
         },
         // organization: {  // เชื่อมโยง organization แทน organizationId
         //   connect: { id: parseInt(organizationId) },
@@ -450,7 +459,7 @@ exports.checkUserRole = async (req, res, next) => {
       console.log("Debug userRole", userRole.role);
       throw createError(404, "User role not found");
     }
-    console.log(userRole)
+    console.log(userRole);
 
     res.status(200).json({ message: "User role checked", role: userRole.role });
   } catch (err) {
@@ -524,7 +533,6 @@ exports.getUserInfoById = async (req, res, next) => {
 //   }
 // };
 
-
 //Organizations---------------------------------------------------------------------------------------------------
 exports.getAllOrganizations = async (req, res, next) => {
   try {
@@ -566,7 +574,9 @@ exports.createOrganization = async (req, res, next) => {
 
     const newOrganization = await OrgAndDeptService.createOrganization(name);
 
-    res.status(201).json({ message: "สร้างองค์กรสำเร็จ", data: newOrganization });
+    res
+      .status(201)
+      .json({ message: "สร้างองค์กรสำเร็จ", data: newOrganization });
   } catch (err) {
     next(err);
   }
@@ -581,13 +591,18 @@ exports.updateOrganization = async (req, res, next) => {
       throw createError(400, "กรุณากรอกชื่อองค์กร");
     }
 
-    const updatedOrganization = await OrgAndDeptService.updateOrganization(id, name);
+    const updatedOrganization = await OrgAndDeptService.updateOrganization(
+      id,
+      name
+    );
 
     if (!updatedOrganization) {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
     }
 
-    res.status(200).json({ message: "อัปเดตข้อมูลองค์กรสำเร็จ", data: updatedOrganization });
+    res
+      .status(200)
+      .json({ message: "อัปเดตข้อมูลองค์กรสำเร็จ", data: updatedOrganization });
   } catch (err) {
     next(err);
   }
@@ -602,7 +617,9 @@ exports.deleteOrganization = async (req, res, next) => {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
     }
 
-    res.status(200).json({ message: "ลบองค์กรสำเร็จ", data: deletedOrganization });
+    res
+      .status(200)
+      .json({ message: "ลบองค์กรสำเร็จ", data: deletedOrganization });
   } catch (err) {
     next(err);
   }
@@ -610,10 +627,14 @@ exports.deleteOrganization = async (req, res, next) => {
 
 exports.getOrganizationAndDepartment = async (req, res, next) => {
   try {
-    const organizationAndDepartment = await OrgAndDeptService.getOrganizationAndDepartment();
+    const organizationAndDepartment =
+      await OrgAndDeptService.getOrganizationAndDepartment();
 
     if (!organizationAndDepartment) {
-      console.log("Debug organizationAndDepartment: ", organizationAndDepartment);
+      console.log(
+        "Debug organizationAndDepartment: ",
+        organizationAndDepartment
+      );
       throw createError(404, "not found");
     }
 
@@ -695,7 +716,9 @@ exports.updateDepartment = async (req, res, next) => {
       throw createError(404, "ไม่พบแผนกที่ต้องการอัปเดต");
     }
 
-    res.status(200).json({ message: "อัปเดตแผนกสำเร็จ", data: updatedDepartment });
+    res
+      .status(200)
+      .json({ message: "อัปเดตแผนกสำเร็จ", data: updatedDepartment });
   } catch (err) {
     next(err);
   }
@@ -725,7 +748,6 @@ const validatePhone = (phone) => {
   return true;
 };
 
-
 //PersonnelTypes---------------------------------------------------------------------------------------------------
 exports.getPersonnelTypes = async (req, res, next) => {
   try {
@@ -743,7 +765,9 @@ exports.getPersonnelTypes = async (req, res, next) => {
 
 exports.getPersonnelTypeById = async (req, res, next) => {
   try {
-    const personnelType = await OrgAndDeptService.getPersonnelTypeById(parseInt(req.params.id));
+    const personnelType = await OrgAndDeptService.getPersonnelTypeById(
+      parseInt(req.params.id)
+    );
 
     if (!personnelType) {
       throw createError(404, "Personnel type not found");
@@ -765,7 +789,12 @@ exports.createPersonnelType = async (req, res, next) => {
 
     const personnelType = await OrgAndDeptService.createPersonnelType({ name });
 
-    res.status(201).json({ message: "Personnel type created successfully", data: personnelType });
+    res
+      .status(201)
+      .json({
+        message: "Personnel type created successfully",
+        data: personnelType,
+      });
   } catch (err) {
     next(err);
   }
@@ -780,13 +809,21 @@ exports.updatePersonnelType = async (req, res, next) => {
       throw createError(400, "Name is required");
     }
 
-    const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(parseInt(id), { name });
+    const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(
+      parseInt(id),
+      { name }
+    );
 
     if (!updatedPersonnelType) {
       throw createError(404, "Personnel type not found");
     }
 
-    res.status(200).json({ message: "Personnel type updated successfully", data: updatedPersonnelType });
+    res
+      .status(200)
+      .json({
+        message: "Personnel type updated successfully",
+        data: updatedPersonnelType,
+      });
   } catch (err) {
     next(err);
   }
@@ -796,13 +833,20 @@ exports.deletePersonnelType = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const deletedPersonnelType = await OrgAndDeptService.deletePersonnelType(parseInt(id));
+    const deletedPersonnelType = await OrgAndDeptService.deletePersonnelType(
+      parseInt(id)
+    );
 
     if (!deletedPersonnelType) {
       throw createError(404, "Personnel type not found");
     }
 
-    res.status(200).json({ message: "Personnel type deleted successfully", data: deletedPersonnelType });
+    res
+      .status(200)
+      .json({
+        message: "Personnel type deleted successfully",
+        data: deletedPersonnelType,
+      });
   } catch (err) {
     next(err);
   }
@@ -852,8 +896,8 @@ exports.adminCreateUser = async (req, res, next) => {
         phone,
         password: hashed,
         personnelTypeId: +personnelTypeId || null,
-        departmentId:    +departmentId    || null,
-        organizationId:  +organizationId  || null,
+        departmentId: +departmentId || null,
+        organizationId: +organizationId || null,
         employmentType,
         hireDate: hireDate ? new Date(hireDate) : null,
         inActive: inActiveRaw === "true",
@@ -895,4 +939,3 @@ exports.resetPassword = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
-

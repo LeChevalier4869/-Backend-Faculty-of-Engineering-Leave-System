@@ -67,11 +67,11 @@ class UserService {
       include: {
         userRoles: {
           include: {
-            role: { 
+            role: {
               select: {
                 name: true,
-              }
-             }
+              },
+            },
           },
         },
         department: {
@@ -80,7 +80,7 @@ class UserService {
           },
         },
         personnelType: true,
-      }
+      },
     });
   }
 
@@ -92,8 +92,8 @@ class UserService {
         department: {
           include: {
             organization: true,
-          }
-        }
+          },
+        },
       },
     });
   }
@@ -103,11 +103,11 @@ class UserService {
         userRoles: {
           some: {
             role: {
-              name: roleName
-            }
-          }
-        }
-      }
+              name: roleName,
+            },
+          },
+        },
+      },
     });
   }
   static async deleteUserById(id) {
@@ -195,8 +195,8 @@ class UserService {
           department: {
             include: {
               organization: true,
-            }
-          }
+            },
+          },
         },
       });
 
@@ -282,9 +282,11 @@ class UserService {
     const organizations = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        department: {  // เรียก `department` ก่อน
+        department: {
+          // เรียก `department` ก่อน
           select: {
-            organization: {  // จากนั้นเลือก `organization` ของแผนกนั้น
+            organization: {
+              // จากนั้นเลือก `organization` ของแผนกนั้น
               select: {
                 id: true,
                 name: true,
@@ -395,7 +397,9 @@ class UserService {
     });
 
     const existingRoleIds = existingRoles.map((role) => role.roleId);
-    const newRoles = roleIds.filter((roleId) => !existingRoleIds.includes(roleId));
+    const newRoles = roleIds.filter(
+      (roleId) => !existingRoleIds.includes(roleId)
+    );
 
     if (newRoles.length === 0) return existingRoles;
 
@@ -501,7 +505,39 @@ class UserService {
       throw new Error("โทเคนไม่ถูกต้องหรือหมดอายุ");
     }
   }
+
+  static async assignRankToUser(userId, personnelTypeId, hireDate) {
+    if (!hireDate) return;
+
+    const currentDate = new Date();
+    const hireMonths =
+      (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
+      (currentDate.getMonth() - hireDate.getMonth());
+
+    const allRanks = await prisma.rank.findMany({
+      where: {
+        personnelTypeId: parseInt(personnelTypeId),
+      },
+    });
+
+    for (const rank of allRanks) {
+      const { id: rankId, minHireMonths, maxHireMonths, leaveTypeId } = rank;
+
+      // ตรวจสอบว่าเข้าเงื่อนไขหรือไม่
+      const minPass = minHireMonths === null || hireMonths >= minHireMonths;
+      const maxPass = maxHireMonths === null || hireMonths <= maxHireMonths;
+
+      // เงื่อนไขต้องผ่านทั้งคู่ และต้องมี leaveTypeId
+      if (minPass && maxPass && leaveTypeId !== null) {
+        await prisma.user_Rank.create({
+          data: {
+            userId,
+            rankId,
+          },
+        });
+      }
+    }
+  }
 }
 
 module.exports = UserService;
-
