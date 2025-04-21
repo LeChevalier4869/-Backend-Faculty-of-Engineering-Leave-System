@@ -359,6 +359,10 @@ exports.getRoleById = async (req, res, next) => {
   }
 };
 
+// --------------------
+//      departments
+// --------------------
+
 exports.assignHeadDepartment = async (req, res, next) => {
   try {
     const { departmentId, headId } = req.body;
@@ -566,6 +570,58 @@ exports.deletePersonnelType = async (req, res, next) => {
     if (!id) throw createError(404, "ไม่พบข้อมูล id");
     await OrgAndDeptService.deletePersonnelType(parseInt(id));
     res.status(200).json({ message: "ลบประเภทบุคคลากรเรียบร้อยแล้ว" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -------------------- departments --------------------
+exports.departmentList = async (req, res, next) => {
+  try {
+    const list = await AdminService.departmentList();
+    if (!list) throw createError(404, "ไม่พบข้อมูลแผนก");
+    res.status(200).json({ message: "ดึงข้อมูลแผนกเรียบร้อยแล้ว", data: list });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -------------------- employmentTypes --------------------
+const EMPLOYMENT_TYPES = ["ACADEMIC", "SUPPORT"];   
+
+exports.employmentTypeList = async (_req, res) => {
+  res.status(200).json({ message: "ดึงข้อมูลประเภทพนักงานแล้ว", data: EMPLOYMENT_TYPES });
+};
+
+// -------------------- organizations --------------------
+exports.organizationList = async (req, res, next) => {
+  try {
+    const list = await AdminService.organizationList();   
+    if (!list || list.length === 0) {
+      throw createError(404, "ไม่พบข้อมูลหน่วยงาน");
+    }
+    res.status(200).json({
+      message: "ดึงข้อมูลหน่วยงานเรียบร้อยแล้ว",
+      data: list,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+// --------------------
+//     manageUser
+// --------------------
+
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) throw createError(400, "Invalid user ID");
+
+    await AdminService.deleteUserById(id);
+    res.status(200).json({ message: "ลบผู้ใช้เรียบร้อยแล้ว" });
   } catch (err) {
     next(err);
   }

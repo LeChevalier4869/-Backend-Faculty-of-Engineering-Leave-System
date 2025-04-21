@@ -28,6 +28,7 @@ class AdminService {
       },
     });
   }
+
   // ✅ สร้างคำขอลาแทนผู้ใช้งาน (ใช้โดย ADMIN เท่านั้น)
   static async createLeaveRequestForUser(data, adminId = null) {
     const {
@@ -106,6 +107,7 @@ class AdminService {
     }
     return leaveRequest;
   }
+
   // ✅ จัดการวันหยุด
   static async createHoliday({
     date,
@@ -251,37 +253,32 @@ class AdminService {
   }
 
   static async assignHead(departmentId, headId) {
-    // ตรวจสอบว่า department มีอยู่
     const department = await prisma.department.findUnique({
       where: { id: departmentId },
     });
     if (!department) throw createError(404, "Department not found");
-  
-    // ตรวจสอบว่า user (หัวหน้า) มีอยู่
+
     const user = await prisma.user.findUnique({
       where: { id: headId },
     });
     if (!user) throw createError(404, "User not found");
-  
-    // อัปเดต headId
+
     const updated = await prisma.department.update({
       where: { id: departmentId },
       data: { headId },
       include: { head: true },
     });
-  
-    // สร้าง nodemailer transporter
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
         user: process.env.EMAIL_USER_RMUTI2,
-        pass: process.env.EMAIL_APP_PASS2, // 🟡 ต้องใช้ App Password เท่านั้น
+        pass: process.env.EMAIL_APP_PASS2,
       },
     });
-  
-    // ส่งอีเมลแจ้งเตือน
-    const email = user.email; // อีเมลของหัวหน้าใหม่
-  
+
+    const email = user.email;
+
     await transporter.sendMail({
       from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
       to: email,
@@ -293,9 +290,34 @@ class AdminService {
         <p>จากระบบการจัดการของคณะวิศวกรรมศาสตร์</p>
       `,
     });
-  
-    return updated; // คืนค่าแผนกที่ได้รับการอัปเดต
+
+    return updated;
+  }
+
+  //------------ Manage User -----------
+
+  static async deleteUserById(userId) {
+    // ✅ ตรวจว่ามีผู้ใช้จริง
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) throw createError(404, "User not found");
+
+    // ตัวอย่าง: ไม่ให้ลบตัวเองหรือ ADMIN คนสุดท้าย
+    // (ตัดทิ้งได้ถ้าไม่จำเป็น)
+    // const adminCount = await prisma.user.count({
+    //   where: { userRoles: { some: { role: { name: "ADMIN" } } } }
+    // });
+    // if (adminCount === 1 && existing.userRoles.some(r => r.role.name === "ADMIN"))
+    //   throw createError(400, "Cannot delete the last ADMIN");
+
+    // 🔥 ลบ – ถ้ามี FK ต้องใส่ `onDelete: Cascade` ใน schema หรือจัดการ manual cleaning
+    await prisma.user.delete({ where: { id: userId } });
+
+    // (ถ้ามี audit log)
+    // await AuditLogService.createLog(adminId, "AdminDeleteUser", userId, `Deleted user ${userId}`);
+
+    return { message: "User deleted successfully" };
+  }
 }
-}
+
 
 module.exports = AdminService;

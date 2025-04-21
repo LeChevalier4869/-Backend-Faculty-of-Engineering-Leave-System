@@ -1,66 +1,83 @@
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
-const app = express();
 const helmet = require('helmet');
+
 const { swaggerUi, specs } = require('./config/swagger');
-
-app.use(helmet());
-app.use(helmet.contentSecurityPolicy({
-    directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com'],
-    },
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cors());
-
+const { authenticate, authorize } = require('./middlewares/auth');
 const errorHandler = require('./middlewares/error');
 const notFoundHandler = require('./middlewares/notFound');
-const { authenticate, authorize } = require('./middlewares/auth');
 
-const authRoute = require('./routes/auth-route');
-const leaveRequestRoute = require('./routes/leaveRequest-route');
-const leaveTypeRoute = require('./routes/leaveType-route');
-const leaveBalance = require('./routes/leaveBalance-route');
-const testRote = require('./routes/test-route');
-const adminRoute = require('./routes/admin-route');
-const settingRoute = require('./routes/setting-route');
-const signatureRoute = require('./routes/signature-route');
-//const roleAssignmentRoute = require('./routes/roleAssignment-route');
+// Route modules
+const authRoute            = require('./routes/auth-route');
+const userRoute            = require('./routes/user-route');
+const leaveRequestRoute    = require('./routes/leaveRequest-route');
+const leaveTypeRoute       = require('./routes/leaveType-route');
+const leaveBalanceRoute    = require('./routes/leaveBalance-route');
+const testRoute            = require('./routes/test-route');
+const adminRoute           = require('./routes/admin-route');
+const settingRoute         = require('./routes/setting-route');
+const signatureRoute       = require('./routes/signature-route');
+const reportRoutes         = require('./routes/reportRoutes');
+const lookupRoute          = require('./routes/lookup-routes');
+const adminUserRoute       = require("./routes/admin-user-route");
 
-// ทดสอบ pdf------------------------------------------------------------------------------------------------------------------------
+// Initialize app
+const app = express();
+
+// Security middleware
+app.use(helmet());
+app.use(
+  helmet.contentSecurityPolicy({
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "'unsafe-inline'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", 'data:', 'https://res.cloudinary.com'],
+    },
+  })
+);
+
+// Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// CORS
+app.use(cors());
 
-const reportRoutes = require('./routes/reportRoutes');
+// Public & utility routes
 app.use('/api', reportRoutes);
 app.use('/public', express.static('public'));
-// ทดสอบ pdf------------------------------------------------------------------------------------------------------------------------
 
-
+// Authentication & user management
 app.use('/auth', authRoute);
+app.use('/api/user', userRoute);
+
+// Leave management
 app.use('/leave-requests', leaveRequestRoute);
 app.use('/leave-types', leaveTypeRoute);
-app.use('/leave-balances', authenticate, leaveBalance);
-app.use('/test', authenticate, testRote);
-app.use('/setting', settingRoute);
+app.use('/leave-balances', authenticate, leaveBalanceRoute);
+app.use('/test', authenticate, testRoute);
+
+// Signature & settings
 app.use('/signature', signatureRoute);
-//app.use('/role-assignment', authenticate, authorize(['ADMIN']), roleAssignmentRoute);
+app.use('/setting', settingRoute);
 
-//swagger UI
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
-
-//new feature admin
+// Admin routes (requires ADMIN role)
 app.use('/admin', authenticate, authorize(['ADMIN']), adminRoute);
+app.use('/admin/users', adminUserRoute);
 
+// Swagger documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
+
+// Lookup
+app.use("/api/lookups", lookupRoute);
+
+// Error handling (must be last)
 app.use(errorHandler);
 app.use('*', notFoundHandler);
 
-const PORT = process.env.PORT;
-app.listen(PORT || 8000, () => console.log(`Server is running on port ${PORT}`));
+// Server listen
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

@@ -9,6 +9,8 @@ const upload = multer();
 const { sendEmail } = require("../utils/emailService");
 const { isCorporateEmail } = require("../utils/checkEmailDomain");
 const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
+const fs = require("fs");
+
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
@@ -98,13 +100,10 @@ exports.register = async (req, res, next) => {
       const imgUrl = await cloudUpload(file.path);
       await UserService.createUserProfile(newUser.id, imgUrl);
       // ลบไฟล์หลังอัปโหลด
-      fs.unlink(file.path, () => {});
+      fs.unlink(file.path, () => { });
     }
 
-    // ✅ กำหนด Role
-    const roleList = Array.isArray(roleNames)
-      ? roleNames
-      : [roleNames || "USER"];
+    const roleList = ["USER"];
 
     const roles = await UserService.getRolesByNames(roleList);
     if (!roles || roles.length !== roleList.length) {
@@ -133,7 +132,7 @@ exports.login = async (req, res, next) => {
     const { email, password } = req.body;
 
     if (!email || !password) throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
-    
+
 
     if (!isCorporateEmail(email)) {
       return createError(403, "อนุญาตให้ล็อกอินด้วยอีเมลมหาวิทยาลัยเท่านั้น");
@@ -809,7 +808,65 @@ exports.deletePersonnelType = async (req, res, next) => {
   }
 };
 
+exports.adminCreateUser = async (req, res, next) => {
+  try {
+    // 1. รับค่า
+    const {
+      prefixName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      personnelTypeId,
+      departmentId,
+      organizationId,
+      employmentType,
+      hireDate,
+      roleNames = "USER",
+      inActiveRaw = "false",
+    } = req.body;
 
+    // 2. validate (ตัวอย่างสั้น ๆ)
+    if (!email || !password || !firstName) {
+      return res.status(400).json({ message: "ข้อมูลไม่ครบ" });
+    }
+
+    // 3. check duplicate
+    const exist = await prisma.user.findUnique({ where: { email } });
+    if (exist) return res.status(409).json({ message: "อีเมลซ้ำ" });
+
+    // 4. hash password
+    const hashed = await bcrypt.hash(password, 12);
+
+    // 5. อัปโหลดรูปถ้ามี
+    const avatar = req.file ? await uploadImage(req.file) : null;
+
+    // 6. create user
+    const user = await prisma.user.create({
+      data: {
+        prefixName,
+        firstName,
+        lastName,
+        email,
+        phone,
+        password: hashed,
+        personnelTypeId: +personnelTypeId || null,
+        departmentId:    +departmentId    || null,
+        organizationId:  +organizationId  || null,
+        employmentType,
+        hireDate: hireDate ? new Date(hireDate) : null,
+        inActive: inActiveRaw === "true",
+        roleNames: Array.isArray(roleNames) ? roleNames : [roleNames],
+        profilePicture: avatar,
+      },
+    });
+
+    res.status(201).json({ message: "สร้างผู้ใช้สำเร็จ", data: user });
+  } catch (err) {
+    next(err);
+  }
+};
 
 //reset password-----------------------------------------------------------------------
 exports.changePassword = async (req, res) => {

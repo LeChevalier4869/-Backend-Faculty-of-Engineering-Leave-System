@@ -27,17 +27,19 @@
 
 // module.exports = { uploadProfile };
 
-const multer = require("multer");
-const { v4: uuidv4 } = require("uuid");
+// middlewares/upload.js
+const multer  = require("multer");
+const path    = require("path");
+const fs      = require("fs");
+
+// เตรียมโฟลเดอร์ tmp เก็บไฟล์ชั่วคราว
+const tmpDir = path.join(__dirname, "..", "tmp");
+if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads");
-  },
-  filename: function (req, file, cb) {
-    cb(null, uuidv4() + "." + file.mimetype.split("/")[1]);
-  },
+  destination: (req, file, cb) => cb(null, tmpDir),
+  filename:    (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
 });
 
-const upload = multer({ storage });
+module.exports = multer({ storage });
 
-module.exports = upload;

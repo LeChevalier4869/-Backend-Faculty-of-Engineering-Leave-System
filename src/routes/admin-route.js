@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin-controller');
 const upload = require('../middlewares/upload');
-const { authorize } = require('../middlewares/auth');
+const { authenticate , authorize } = require('../middlewares/auth');
 
 /**
 //  * @swagger
@@ -50,7 +50,7 @@ router.put('/approver/:id', adminController.updateApprover);
 router.delete('/approver/:id', adminController.deleteApprover);
 
 //------------------------------------ delete user -----------------
-// router.delete("/user/:id", adminController.);
+router.delete('/user/:id', authenticate, authorize(["ADMIN"]), adminController.deleteUser);
 
 //------------------------------------- role ----------------------------------
 router.get('/role', adminController.roleList);
@@ -59,7 +59,7 @@ router.post('/role', adminController.createRole);
 router.put('/role/:id', adminController.updateRole);
 router.delete('/role/:id', adminController.deleteRole);
 
-//------------------------------------- Assign Head epartment ----------------------------------
+//------------------------------------- Assign Head department ----------------------------------
 router.post("/assign-head", adminController.assignHeadDepartment);
 
 //-------------------------------------- rank --------------------------------
@@ -70,10 +70,15 @@ router.put('/rank/:id', adminController.updateRank);
 router.delete('/rank/:id', adminController.deleteRank);
 
 //---------------------------------- personnelType -----------------------
-router.get('/personnelType', adminController.getAllPersonnelType);
+router.get('/personnel-types', adminController.getAllPersonnelType);
 router.get('/personnelType/:id', adminController.getPersonnelTypeById);
 router.post('/personnelType', adminController.createPersonnelType);
 router.put('/personnelType/:id', adminController.updatePersonnelType);
 router.delete('/personnelType/:id', adminController.deletePersonnelType);
 
+//---------------------------------- department -----------------------
+router.get('/departments', adminController.departmentList);
+
+//---------------------------------- employmentType -----------------------
+router.get('/organizations', adminController.organizationList);
 module.exports = router;
