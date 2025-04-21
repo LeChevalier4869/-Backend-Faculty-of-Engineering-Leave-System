@@ -9,7 +9,15 @@ const { sendEmail } = require('../utils/emailService');
 const UserService = require('./user-service');
 const { calculateWorkingDays } = require('../utils/dateCalculate');
 
+
 class LeaveRequestService {
+  static async checkEligibility(userId, leaveTypeId, totalDays) {
+    const rank = await RankService.getRankForUser(userId, leaveTypeId);
+    if (!rank) throw createError(403, 'คุณไม่มีสิทธิ์การลาในช่วงอายุงานนี้');
+    if (totalDays > rank.receiveDays) throw createError(403, `คุณสามารถลาสูงสุด ${rank.receiveDays} วัน`);
+    return { success: true, rank };
+  }
+
   static async createLeaveRequest(userId, body, files) {
     const { leaveTypeId, startDate, endDate, reason, isEmergency, additionalDetails } = body;
 
@@ -20,20 +28,29 @@ class LeaveRequestService {
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start > end) throw createError(400, 'วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด');
-    const totalDays = calculateWorkingDays(start, end);
+    const daysThisTime = await calculateWorkingDays(start, end);
 
     const user = await UserService.getUserByIdWithRoles(userId);
     const roles = Array.isArray(user.role) ? user.role : [user.role];
-    const isAdmin = roles.includes("ADMIN");
+    const isAdmin = roles.includes('ADMIN');
 
     let balance;
+    let remainingAfter = 0;
+
     if (!isAdmin) {
+      balance = await LeaveBalanceService.getUserBalance(userId, +leaveTypeId);
+      if (daysThisTime > balance.remainingDays) {
       balance = await LeaveBalanceService.getUserBalance(userId, parseInt(leaveTypeId));
       if (totalDays > balance.remainingDays) {
         throw createError(400, 'วันลาคงเหลือไม่เพียงพอ');
       }
       await LeaveBalanceService.updatePendingLeaveBalance(userId, parseInt(leaveTypeId), totalDays);
+
+      // Update pending
+      await LeaveBalanceService.updatePendingLeaveBalance(userId, +leaveTypeId, daysThisTime);
+      remainingAfter = balance.remainingDays - daysThisTime;
     }
+    const totalDaysUsed = balance ? balance.usedDays + balance.pendingDays + daysThisTime: daysThisTime;
 
     const leave = await prisma.leaveRequest.create({
       data: {
@@ -50,8 +67,26 @@ class LeaveRequestService {
         contact: additionalDetails || null,
       },
     });
+    // Create leave request
+    const req = await prisma.leaveRequest.create({ data: {
+      userId,
+      leaveTypeId: parseInt(leaveTypeId,10),
+      startDate: start,
+      endDate: end,
+      leavedDays:   daysThisTime,
+      thisTimeDays: daysThisTime,
+      totalDays:    totalDaysUsed,
+      balanceDays:  isAdmin ? 0 : remainingAfter,
+      reason,
+      status: 'PENDING',
+      isEmergency: Boolean(isEmergency),
+      contact: additionalDetails
+    }});
 
     if (files?.length > 0) {
+    console.log(">>> create data", req);
+    // Attach files
+    if (files?.length) {
       for (const f of files) {
         const url = await cloudUpload(f.path);
         await prisma.file.create({

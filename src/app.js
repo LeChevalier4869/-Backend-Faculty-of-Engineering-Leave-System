@@ -20,7 +20,7 @@ const adminRoute           = require('./routes/admin-route');
 const settingRoute         = require('./routes/setting-route');
 const signatureRoute       = require('./routes/signature-route');
 const reportRoutes         = require('./routes/reportRoutes');
-const lookupRoute          = require('./routes/lookup-routes');
+const lookupRoute          = require('./routes/lookup-routes')
 const adminUserRoute       = require("./routes/admin-user-route");
 
 // Initialize app
@@ -66,17 +66,20 @@ app.use('/setting', settingRoute);
 
 // Admin routes (requires ADMIN role)
 app.use('/admin', authenticate, authorize(['ADMIN']), adminRoute);
-app.use('/admin/users', adminUserRoute);
+app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
 // Lookup
-app.use("/api/lookups", lookupRoute);
+app.use('/api/lookups', lookupRoute);
 
 // Error handling (must be last)
 app.use(errorHandler);
 app.use('*', notFoundHandler);
+
+// เรียก reset leave balance เมื่อขึ้นปีงบประมาณใหม่
+require('./utils/resetLeaveBalance');
 
 // Server listen
 const PORT = process.env.PORT || 8000;
