@@ -7,6 +7,11 @@ const createError = require("../utils/createError");
 const { sendEmail } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const RankService = require("../services/rank-service");
+const bcrypt = require("bcryptjs");
+const fs = require("fs");
+const UserService = require("../services/user-service");
+const cloudUpload = require("../utils/cloudUpload");
+
 
 exports.adminList = async (req, res, next) => {
   try {
@@ -585,6 +590,83 @@ exports.departmentList = async (req, res, next) => {
     next(err);
   }
 };
+// -------------------- departments --------------------
+
+// GET /admin/departments
+exports.departmentList = async (req, res, next) => {
+  try {
+    const list = await AdminService.departmentList();
+    if (!list) throw createError(404, "ไม่พบข้อมูลแผนก");
+    res.status(200).json({ message: "ดึงข้อมูลแผนกเรียบร้อยแล้ว", data: list });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /admin/departments
+exports.departmentCreate = async (req, res, next) => {
+  try {
+    const { name, organizationId, headId, appointDate } = req.body;
+    if (!name || !organizationId) {
+      throw createError(400, "ต้องระบุชื่อแผนกและ organizationId");
+    }
+
+    // optional: เช็ก organization มีจริง
+    const org = await AdminService.getOrganizationById(+organizationId);
+    if (!org) throw createError(404, "ไม่พบหน่วยงาน");
+
+    const data = {
+      name,
+      organizationId: +organizationId,
+      headId: headId != null ? +headId : null,
+      appointDate: appointDate ? new Date(appointDate) : null,
+    };
+
+    const newDept = await AdminService.createDepartment(data);
+    res.status(201).json({ message: "สร้างแผนกเรียบร้อย", data: newDept });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PUT /admin/departments/:id
+exports.departmentUpdate = async (req, res, next) => {
+  try {
+    const id = +req.params.id;
+    if (isNaN(id)) throw createError(400, "Invalid department ID");
+
+    const { name, organizationId, headId, appointDate } = req.body;
+    if (!name && !organizationId && headId == null && !appointDate) {
+      throw createError(400, "ไม่มีข้อมูลจะอัปเดต");
+    }
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (organizationId) updateData.organizationId = +organizationId;
+    if (headId !== undefined) updateData.headId = headId ? +headId : null;
+    if (appointDate) updateData.appointDate = new Date(appointDate);
+
+    const updated = await AdminService.updateDepartment({ id, ...updateData });
+    if (!updated) throw createError(404, "ไม่พบแผนกที่จะอัปเดต");
+
+    res.status(200).json({ message: "อัปเดตแผนกเรียบร้อย", data: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// DELETE /admin/departments/:id
+exports.departmentDelete = async (req, res, next) => {
+  try {
+    const id = +req.params.id;
+    if (isNaN(id)) throw createError(400, "Invalid department ID");
+
+    await AdminService.deleteDepartment(id);
+    res.status(200).json({ message: "ลบแผนกเรียบร้อยแล้ว" });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // -------------------- employmentTypes --------------------
 const EMPLOYMENT_TYPES = ["ACADEMIC", "SUPPORT"];   
@@ -614,6 +696,124 @@ exports.organizationList = async (req, res, next) => {
 // --------------------
 //     manageUser
 // --------------------
+exports.getUserById = async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: Number(req.params.id) } });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+exports.createUserByAdmin = async (req, res, next) => {
+  try {
+    const {
+      prefixName,
+      firstName,
+      lastName,
+      sex,
+      email,
+      password,
+      phone,
+      position,
+      hireDate,
+      inActiveRaw = "false",
+      employmentType,
+      personnelTypeId,
+      departmentId,
+    } = req.body;
+
+    // ✅ Validation
+    if (!email || !password || !firstName || !lastName) {
+      throw createError(400, "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
+    }
+
+    if (!email.endsWith("@rmuti.ac.th")) {
+      throw createError(400, "อีเมลต้องอยู่ในโดเมน rmuti.ac.th เท่านั้น");
+    }
+
+    const exists = await UserService.getUserByEmail(email);
+    if (exists) {
+      throw createError(400, "อีเมลนี้มีผู้ใช้งานในระบบแล้ว");
+    }
+
+    const passLetters = (password.match(/[a-zA-Z]/g) || []).length;
+    if (password.length < 8 || passLetters < 4) {
+      throw createError(
+        400,
+        "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และมีตัวอักษรอย่างน้อย 4 ตัว"
+      );
+    }
+
+    if (!["ACADEMIC", "SUPPORT"].includes(employmentType)) {
+      throw createError(400, "ประเภทพนักงานไม่ถูกต้อง");
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await UserService.createUser({
+      prefixName,
+      firstName,
+      lastName,
+      sex,
+      email,
+      password: passwordHash,
+      phone,
+      position,
+      hireDate: hireDate ? new Date(hireDate) : null,
+      inActive: inActiveRaw === "true",
+      employmentType,
+      personnelTypeId: parseInt(personnelTypeId),
+      departmentId: parseInt(departmentId),
+    });
+
+    // ✅ Profile Picture (Optional)
+    if (req.file) {
+      const imgUrl = await cloudUpload(req.file.path);
+      await UserService.createUserProfile(user.id, imgUrl);
+      fs.unlink(req.file.path, () => {});
+    }
+
+    // ✅ Default Role = USER
+    const roles = await UserService.getRolesByNames(["USER"]);
+    await UserService.assignRolesToUser(user.id, roles.map((r) => r.id));
+
+    return res.status(201).json({ message: "สร้างผู้ใช้งานใหม่เรียบร้อยแล้ว", data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+exports.updateUserById = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) throw createError(400, "ID ต้องเป็นตัวเลข");
+
+    const {
+      prefixName, firstName, lastName, email, phone, sex,
+      position, hireDate, inActiveRaw, employmentType,
+      personnelTypeId, departmentId,
+    } = req.body;
+
+    const updateData = {
+      prefixName, firstName, lastName, email, phone, sex,
+      position,
+      hireDate: hireDate ? new Date(hireDate) : null,
+      inActive: inActiveRaw === "true",
+      employmentType,
+      personnelTypeId: parseInt(personnelTypeId),
+      departmentId: parseInt(departmentId),
+    };
+
+    const updatedUser = await AdminService.updateUserById(id, updateData);
+    res.status(200).json({ message: "อัปเดตผู้ใช้งานเรียบร้อย", data: updatedUser });
+  } catch (err) {
+    next(err);
+  }
+};
 
 exports.deleteUser = async (req, res, next) => {
   try {

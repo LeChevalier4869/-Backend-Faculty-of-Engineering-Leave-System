@@ -49,8 +49,11 @@ router.post('/approver', upload.none(), adminController.createApprover);
 router.put('/approver/:id', adminController.updateApprover);
 router.delete('/approver/:id', adminController.deleteApprover);
 
-//------------------------------------ delete user -----------------
-router.delete('/user/:id', authenticate, authorize(["ADMIN"]), adminController.deleteUser);
+//------------------------------------ Manage user -----------------
+router.get('/users/:id', authenticate, authorize(["ADMIN"]), adminController.getUserById);
+router.post("/create-user", authenticate, authorize(["ADMIN"]), upload.single("profilePicture"), adminController.createUserByAdmin);
+router.put('/users/:id', authenticate, authorize(['ADMIN']), adminController.updateUserById);
+router.delete("/user/:id", authenticate, authorize(["ADMIN"]), adminController.deleteUser);
 
 //------------------------------------- role ----------------------------------
 router.get('/role', adminController.roleList);
@@ -77,8 +80,19 @@ router.put('/personnelType/:id', adminController.updatePersonnelType);
 router.delete('/personnelType/:id', adminController.deletePersonnelType);
 
 //---------------------------------- department -----------------------
-router.get('/departments', adminController.departmentList);
+router.get('/departmentsList', adminController.departmentList);
+router
+  .route("/departments")
+  .get(authenticate, authorize(["ADMIN"]), adminController.departmentList)
+  .post(authenticate, authorize(["ADMIN"]), adminController.departmentCreate);
+
+router
+  .route("/departments/:id")
+  .put(authenticate, authorize(["ADMIN"]), adminController.departmentUpdate)
+  .delete(authenticate, authorize(["ADMIN"]), adminController.departmentDelete);
 
 //---------------------------------- employmentType -----------------------
 router.get('/organizations', adminController.organizationList);
+router.post("/create-user", upload.single("profilePicture"), adminController.createUserByAdmin);
+
 module.exports = router;
