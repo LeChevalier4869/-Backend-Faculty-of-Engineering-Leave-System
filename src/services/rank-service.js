@@ -3,20 +3,23 @@ const createError = require("../utils/createError");
 
 class RankService {
     // ดึง rank ที่ตรงกับเงื่อนไขอายุงาน และ personnelType ของ user
-    static async getRankForUser(user) {
-        if (!user?.hireDate || !user.personnelTypeId) return null;
-        
+    static async getRankForUser(user, leaveTypeId) {
+        if (!user?.hireDate || !user.personnelTypeId || !leaveTypeId) return null;
+    
         const months = calculateMonths(user.hireDate);
-
+    
         const rank = await prisma.rank.findFirst({
             where: {
                 personnelTypeId: user.personnelTypeId,
+                leaveTypeId: leaveTypeId,
                 minHireMonths: { lte: months },
                 maxHireMonths: { gte: months },
             },
         });
+    
         return rank;
     }
+    
 
     // ดึง rank ทั้งหมด (admin)
     static async getAllRanks() {
