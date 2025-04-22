@@ -62,7 +62,7 @@ class UserService {
     });
   }
   static async getUserByIdWithRoles(id) {
-    return await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id },
       include: {
         userRoles: {
@@ -82,6 +82,10 @@ class UserService {
         personnelType: true,
       },
     });
+
+    if (user) delete user.password;
+
+    return user;
   }
 
   static async getUserByEmail(email) {
@@ -134,7 +138,7 @@ class UserService {
       createError(400, "Failed to update");
     }
   }
-  
+
   //update
   static async updateUserById(userId, data) {
     try {
@@ -249,6 +253,23 @@ class UserService {
       data: userRoles,
     });
   }
+
+  static async deleteUserRole(userId, roleId) {
+    return await prisma.user_Role.deleteMany({
+      where: {
+        userId,
+        roleId,
+      },
+    });
+  }
+  
+  static async getHeadIdByDepartmentId(departmentId) {
+    return await prisma.department.findUnique({
+      where: { id: departmentId },
+      select: { headId: true },
+    });
+  }
+
   static async getDepartment(userId) {
     const departments = await prisma.user.findUnique({
       where: { id: userId },

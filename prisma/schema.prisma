@@ -105,7 +105,6 @@ model AuditLog {
   user         User         @relation(fields: [userId], references: [id])
   leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
 
-  @@map("auditlog")
 }
 
 model Notification {

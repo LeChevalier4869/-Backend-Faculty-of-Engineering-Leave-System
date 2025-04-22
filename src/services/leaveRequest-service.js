@@ -5,7 +5,7 @@ const LeaveBalanceService = require("./leaveBalance-service");
 const RankService = require("./rank-service");
 const AuditLogService = require("./auditLog-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
-const { sendNotification } = require("../utils/emailService");
+const { sendNotification, sendEmail } = require("../utils/emailService");
 
 class LeaveRequestService {
   // ────────────────────────────────
@@ -19,7 +19,6 @@ class LeaveRequestService {
     startDate,
     endDate,
     reason,
-    isEmergency,
     contact
   ) {
     if (!userId || !leaveTypeId || !startDate || !endDate) {
@@ -59,7 +58,7 @@ class LeaveRequestService {
         totalDays: balance.usedDays + requestedDays,
         balanceDays: balance.remainingDays,
         reason,
-        isEmergency: Boolean(isEmergency),
+        //isEmergency: Boolean(isEmergency? isEmergency : false),
         contact,
         verifierId: verifier.id,
         receiverId: receiver.id,
@@ -82,6 +81,35 @@ class LeaveRequestService {
         status: "PENDING",
       },
     });
+
+    //sent email ให้หัวหน้าสาขา สำหรับ การแจ้งเตือนว่ามีการ create request
+    const approver = await UserService.getUserByIdWithRoles(user.department.headId);
+    if (approver) {
+      const approverEmail = approver.email;
+      const approverName = `${approver.prefixName} ${approver.firstName} ${approver.lastName}`;
+
+      const subject = "ยืนยันการยื่นคำขอลา";
+      const message = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <h3 style="color: #2c3e50;">เรียน ${approverName},</h3>
+          <p>คุณได้รับการแจ้งเตือนเกี่ยวกับคำขอลาใหม่จากระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+          <p><strong>รายละเอียดคำขอลา:</strong></p>
+          <ul style="list-style: none; padding: 0;">
+            <li><strong>ผู้ยื่นคำขอ:</strong> ${user.prefixName} ${user.firstName} ${user.lastName}</li>
+            <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
+            <li><strong>เหตุผล:</strong> ${reason}</li>
+            ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
+          </ul>
+          <p>กรุณาตรวจสอบและดำเนินการในระบบตามขั้นตอนที่กำหนด</p>
+          <br/>
+          <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
+          <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+          <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
+        </div>
+      `;
+      await sendEmail(approverEmail, subject, message);
+    }
 
     return leaveRequest;
   }
@@ -344,9 +372,14 @@ class LeaveRequestService {
     });
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
 
-    const rank = await RankService.getRankForUser(user, leaveTypeId);
+    //const rank = await RankService.getRankForUser(user, leaveTypeId);
+    const rank = await RankService.getRankForUserByLeaveType(user, leaveTypeId);
     if (!rank) {
-      return { success: false, message: "ยังไม่มีสิทธิ์ลาพักผ่อนในช่วงอายุงานปัจจุบัน" };
+      // console.log("Debug user: ", user);
+      // console.log("Debug rank: ", rank);
+      // console.log("Debug leaveTypeId: ", leaveTypeId);
+      // console.log("Debug user.perId: ", user.personnelTypeId);
+      return { success: false, message: "ยังไม่มีสิทธิ์ลาพักผ่อนในช่วงอายุงานปัจจุบัน!" };
     }
 
     if (requestedDays > rank.receiveDays) {
@@ -380,6 +413,70 @@ class LeaveRequestService {
       balance,
     };
   }
+
+
+  // static async createRequest(data) {
+  //   const {
+  //     userId,
+  //     leaveTypeId,
+  //     startDate,
+  //     endDate,
+  //     leavedDays,
+  //     thisTimeDays,
+  //     totalDays,
+  //     balanceDays,
+  //     reason,
+  //     contact,
+  //   } = data;
+
+  //   console.log("44444444444444444444", userId)
+
+  //   // 1. Find user's department
+  //   const user = await prisma.user.findUnique({
+  //     where: { id: userId },
+  //     include: { department: true },
+  //   });
+
+  //   if (!user || !user.departmentId) {
+  //     throw createError(400, 'ไม่พบแผนกของผู้ใช้');
+  //   }
+
+  //   // 2. Find department head
+  //   const department = await prisma.department.findUnique({
+  //     where: { id: user.departmentId },
+  //   });
+
+  //   if (!department || !department.headId) {
+  //     throw createError(400, 'ไม่พบผู้อนุมัติ (หัวหน้าแผนก)');
+  //   }
+
+  //   // 3. Create LeaveRequest + LeaveRequestDetail
+  //   const leaveRequest = await prisma.leaveRequest.create({
+  //     data: {
+  //       userId,
+  //       leaveTypeId,
+  //       startDate: new Date(startDate),
+  //       endDate: new Date(endDate),
+  //       leavedDays,
+  //       thisTimeDays,
+  //       totalDays,
+  //       balanceDays,
+  //       reason,
+  //       contact,
+  //       leaveRequestDetails: {
+  //         create: {
+  //           approverId: department.headId,
+  //           stepOrder: 1,
+  //         },
+  //       },
+  //     },
+  //     include: {
+  //       leaveRequestDetails: true,
+  //     },
+  //   });
+
+  //   return leaveRequest;
+  // }
 }
 
 module.exports = LeaveRequestService;

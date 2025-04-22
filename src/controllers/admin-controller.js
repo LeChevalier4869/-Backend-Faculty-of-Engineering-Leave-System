@@ -12,7 +12,6 @@ const fs = require("fs");
 const UserService = require("../services/user-service");
 const cloudUpload = require("../utils/cloudUpload");
 
-
 exports.adminList = async (req, res, next) => {
   try {
     const list = await AdminService.getAdminList();
@@ -375,9 +374,33 @@ exports.assignHeadDepartment = async (req, res, next) => {
       throw createError(400, "departmentId and headId are required");
     }
 
+    const roleName = "APPROVER_1";
+    const [role] = await UserService.getRolesByNames([roleName]);
+    if (!role) {
+      console.log("Debug role: ", roleName);
+      throw createError(400, "Invalid role provided");
+    }
+
+    const { headId: lastHeadId } = await UserService.getHeadIdByDepartmentId(departmentId);
+    const userIdInt = parseInt(lastHeadId, 10);
+    const roleIdInt = parseInt(role.id, 10);
+
+    await UserService.deleteUserRole(userIdInt, roleIdInt);
+
     const updatedDepartment = await AdminService.assignHead(
       parseInt(departmentId),
       parseInt(headId)
+    );
+
+    const roleList = ["APPROVER_1"];
+    const roles = await UserService.getRolesByNames(roleList);
+    if (!roles || roles.length !== roleList.length) {
+      console.log("Debug roles: ", roleList);
+      throw createError(400, "Invalid roles provided");
+    }
+    await UserService.assignRolesToUser(
+      headId,
+      roles.map((role) => role.id)
     );
 
     res
@@ -501,12 +524,10 @@ exports.getAllPersonnelType = async (req, res, next) => {
     const personnelType = await OrgAndDeptService.getAllPersonnelTypes();
     if (!personnelType || personnelType.length === 0)
       throw createError(404, "ไม่พบข้อมูลประเภทบุคคลากร");
-    res
-      .status(200)
-      .json({
-        message: "ดึงข้อมูลประเภทบุคคลากรทั้งหมดเรียบร้อยแล้ว",
-        data: personnelType,
-      });
+    res.status(200).json({
+      message: "ดึงข้อมูลประเภทบุคคลากรทั้งหมดเรียบร้อยแล้ว",
+      data: personnelType,
+    });
   } catch (err) {
     next(err);
   }
@@ -519,12 +540,10 @@ exports.getPersonnelTypeById = async (req, res, next) => {
       parseInt(id)
     );
     if (!personnelType) throw createError(404, "ไม่พบประเภทบุคคลากร");
-    res
-      .status(200)
-      .json({
-        message: "ดึงข้อมูลประเภทบุคคลากรเรียบร้อยแล้ว",
-        data: personnelType,
-      });
+    res.status(200).json({
+      message: "ดึงข้อมูลประเภทบุคคลากรเรียบร้อยแล้ว",
+      data: personnelType,
+    });
   } catch (err) {
     next(err);
   }
@@ -535,12 +554,10 @@ exports.createPersonnelType = async (req, res, next) => {
     const { name } = req.body;
     const personnelType = await OrgAndDeptService.createPersonnelType(name);
     if (!personnelType) throw createError(400, "สร้างประเภทบุคคลากรไม่สำเร็จ");
-    res
-      .status(201)
-      .json({
-        message: "สร้างประเภทบุคคลากรเรียบร้อยแล้ว",
-        data: personnelType,
-      });
+    res.status(201).json({
+      message: "สร้างประเภทบุคคลากรเรียบร้อยแล้ว",
+      data: personnelType,
+    });
   } catch (err) {
     next(err);
   }
@@ -557,12 +574,10 @@ exports.updatePersonnelType = async (req, res, next) => {
       name
     );
     if (!personnelType) throw createError(400, "อัปเดตประเภทบุคคลากรไม่สำเร็จ");
-    res
-      .status(200)
-      .json({
-        message: "อัปเดตประเภทบุคคลากรเรียบร้อยแล้ว",
-        data: personnelType,
-      });
+    res.status(200).json({
+      message: "อัปเดตประเภทบุคคลากรเรียบร้อยแล้ว",
+      data: personnelType,
+    });
   } catch (err) {
     next(err);
   }
@@ -668,16 +683,18 @@ exports.departmentDelete = async (req, res, next) => {
 };
 
 // -------------------- employmentTypes --------------------
-const EMPLOYMENT_TYPES = ["ACADEMIC", "SUPPORT"];   
+const EMPLOYMENT_TYPES = ["ACADEMIC", "SUPPORT"];
 
 exports.employmentTypeList = async (_req, res) => {
-  res.status(200).json({ message: "ดึงข้อมูลประเภทพนักงานแล้ว", data: EMPLOYMENT_TYPES });
+  res
+    .status(200)
+    .json({ message: "ดึงข้อมูลประเภทพนักงานแล้ว", data: EMPLOYMENT_TYPES });
 };
 
 // -------------------- organizations --------------------
 exports.organizationList = async (req, res, next) => {
   try {
-    const list = await AdminService.organizationList();   
+    const list = await AdminService.organizationList();
     if (!list || list.length === 0) {
       throw createError(404, "ไม่พบข้อมูลหน่วยงาน");
     }
@@ -690,21 +707,20 @@ exports.organizationList = async (req, res, next) => {
   }
 };
 
-
-
 // --------------------
 //     manageUser
 // --------------------
 exports.getUserById = async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: Number(req.params.id) } });
+    const user = await prisma.user.findUnique({
+      where: { id: Number(req.params.id) },
+    });
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ data: user });
   } catch (err) {
     next(err);
   }
 };
-
 
 exports.createUserByAdmin = async (req, res, next) => {
   try {
@@ -777,14 +793,18 @@ exports.createUserByAdmin = async (req, res, next) => {
 
     // ✅ Default Role = USER
     const roles = await UserService.getRolesByNames(["USER"]);
-    await UserService.assignRolesToUser(user.id, roles.map((r) => r.id));
+    await UserService.assignRolesToUser(
+      user.id,
+      roles.map((r) => r.id)
+    );
 
-    return res.status(201).json({ message: "สร้างผู้ใช้งานใหม่เรียบร้อยแล้ว", data: user });
+    return res
+      .status(201)
+      .json({ message: "สร้างผู้ใช้งานใหม่เรียบร้อยแล้ว", data: user });
   } catch (err) {
     next(err);
   }
 };
-
 
 exports.updateUserById = async (req, res, next) => {
   try {
@@ -792,13 +812,27 @@ exports.updateUserById = async (req, res, next) => {
     if (isNaN(id)) throw createError(400, "ID ต้องเป็นตัวเลข");
 
     const {
-      prefixName, firstName, lastName, email, phone, sex,
-      position, hireDate, inActiveRaw, employmentType,
-      personnelTypeId, departmentId,
+      prefixName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      sex,
+      position,
+      hireDate,
+      inActiveRaw,
+      employmentType,
+      personnelTypeId,
+      departmentId,
     } = req.body;
 
     const updateData = {
-      prefixName, firstName, lastName, email, phone, sex,
+      prefixName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      sex,
       position,
       hireDate: hireDate ? new Date(hireDate) : null,
       inActive: inActiveRaw === "true",
@@ -808,7 +842,9 @@ exports.updateUserById = async (req, res, next) => {
     };
 
     const updatedUser = await AdminService.updateUserById(id, updateData);
-    res.status(200).json({ message: "อัปเดตผู้ใช้งานเรียบร้อย", data: updatedUser });
+    res
+      .status(200)
+      .json({ message: "อัปเดตผู้ใช้งานเรียบร้อย", data: updatedUser });
   } catch (err) {
     next(err);
   }
