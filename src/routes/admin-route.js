@@ -53,7 +53,8 @@ router.delete('/approver/:id', adminController.deleteApprover);
 router.get('/users/:id', authenticate, authorize(["ADMIN"]), adminController.getUserById);
 router.post("/create-user", authenticate, authorize(["ADMIN"]), upload.single("profilePicture"), adminController.createUserByAdmin);
 router.put('/users/:id', authenticate, authorize(['ADMIN']), adminController.updateUserById);
-router.delete("/user/:id", authenticate, authorize(["ADMIN"]), adminController.deleteUser);
+router.delete('/users/:id', authenticate, authorize(['ADMIN']), adminController.deleteUser);
+
 
 //------------------------------------- role ----------------------------------
 router.get('/role', adminController.roleList);

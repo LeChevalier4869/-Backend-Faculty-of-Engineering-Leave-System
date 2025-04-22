@@ -134,6 +134,7 @@ class UserService {
       createError(400, "Failed to update");
     }
   }
+  
   //update
   static async updateUserById(userId, data) {
     try {

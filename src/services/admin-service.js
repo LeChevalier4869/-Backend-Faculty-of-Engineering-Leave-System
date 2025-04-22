@@ -369,41 +369,53 @@ class AdminService {
     return newUser;
   }
 
-  static async updateUserByAdmin(userId, updateData, file = null) {
-    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
-    if (!existingUser) throw createError(404, "ไม่พบผู้ใช้งาน");
+  static async updateUserById(userId, updateData) {
+    const existing = await prisma.user.findUnique({
+      where: { id: Number(userId) },
+    });
+    if (!existing) throw createError(404, "ไม่พบผู้ใช้งาน");
   
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
+    const updated = await prisma.user.update({
+      where: { id: Number(userId) },
       data: {
-        ...updateData,
-        personnelType: updateData.personnelTypeId
-          ? { connect: { id: updateData.personnelTypeId } }
-          : undefined,
-        department: updateData.departmentId
-          ? { connect: { id: updateData.departmentId } }
-          : undefined,
+        prefixName:      updateData.prefixName,
+        firstName:       updateData.firstName,
+        lastName:        updateData.lastName,
+        email:           updateData.email,
+        phone:           updateData.phone,
+        sex:             updateData.sex,
+        position:        updateData.position,
+        hireDate:        new Date(updateData.hireDate),
+        employmentType:  updateData.employmentType,
+        inActive:        updateData.inActiveRaw === "true",
+  
+        // relations
+        personnelType: { connect: { id: Number(updateData.personnelTypeId) } },
+        department:    { connect: { id: Number(updateData.departmentId) } },
       },
     });
   
-    if (file) {
-      const imgUrl = await cloudUpload(file.path);
-      await prisma.user.update({
-        where: { id: userId },
-        data: { profilePicturePath: imgUrl },
-      });
-      fs.unlink(file.path, () => {});
-    }
-  
-    return updatedUser;
-  }
+    return updated;
+  }  
 
-  // ✅ ใช้ใน controller
   static async deleteUserById(userId) {
-    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    const id = Number(userId);
+    const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) throw createError(404, "User not found");
 
-    await prisma.user.delete({ where: { id: userId } });
+    // Remove dependent records to satisfy FK constraints
+    await prisma.user_Role.deleteMany({ where: { userId: id } });
+    await prisma.auditLog.deleteMany({ where: { userId: id } });
+    await prisma.notification.deleteMany({ where: { userId: id } });
+    await prisma.signature.deleteMany({ where: { userId: id } });
+    await prisma.leaveRequestDetail.deleteMany({ where: { approverId: id } });
+    await prisma.leaveRequest.deleteMany({ where: { userId: id } });
+    await prisma.leaveBalance.deleteMany({ where: { userId: id } });
+    await prisma.user_Rank.deleteMany({ where: { userId: id } });
+    await prisma.approveStep.deleteMany({ where: { userId: id } });
+
+    // Finally delete user
+    await prisma.user.delete({ where: { id } });
     return { message: "User deleted successfully" };
   }
 }
