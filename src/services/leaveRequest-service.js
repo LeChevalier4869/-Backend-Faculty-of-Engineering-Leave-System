@@ -344,15 +344,7 @@ class LeaveRequestService {
     });
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
 
-    const leaveType = await prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
-    if (!leaveType) throw createError(404, "ไม่พบประเภทการลา");
-
-    // for ลาพักผ่อน
-    if (leaveType.name !== "ลาพักผ่อน") {
-      return { success: true, message: "ไม่ใช่การลาพักผ่อน จึงไม่มีการตรวจสอบ Rank" };
-    }
-
-    const rank = await RankService.getRankForUser(user);
+    const rank = await RankService.getRankForUser(user, leaveTypeId);
     if (!rank) {
       return { success: false, message: "ยังไม่มีสิทธิ์ลาพักผ่อนในช่วงอายุงานปัจจุบัน" };
     }
