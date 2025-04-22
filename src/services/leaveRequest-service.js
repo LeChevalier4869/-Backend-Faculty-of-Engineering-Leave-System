@@ -1,29 +1,38 @@
+// 📦 leaveRequest-service.js (combined & optimized version)
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const createError = require('../utils/createError');
-const LeaveBalanceService = require('../services/leaveBalance-service');
-const AuditLogService = require('../services/auditLog-service');
+const LeaveBalanceService = require('./leaveBalance-service');
+const AuditLogService = require('./auditLog-service');
 const cloudUpload = require('../utils/cloudUpload');
 const { sendEmail } = require('../utils/emailService');
-const UserService = require('../services/user-service');
+const UserService = require('./user-service');
 const { calculateWorkingDays } = require('../utils/dateCalculate');
 
 
 class LeaveRequestService {
+  static async checkEligibility(userId, leaveTypeId, totalDays) {
+    const rank = await RankService.getRankForUser(userId, leaveTypeId);
+    if (!rank) throw createError(403, 'คุณไม่มีสิทธิ์การลาในช่วงอายุงานนี้');
+    if (totalDays > rank.receiveDays) throw createError(403, `คุณสามารถลาสูงสุด ${rank.receiveDays} วัน`);
+    return { success: true, rank };
+  }
+
   static async createLeaveRequest(userId, body, files) {
     const { leaveTypeId, startDate, endDate, reason, isEmergency, additionalDetails } = body;
+
     if (!leaveTypeId || !startDate || !endDate) {
       throw createError(400, 'กรุณากรอกข้อมูลให้ครบ');
     }
+
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start > end) throw createError(400, 'วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด');
     const daysThisTime = await calculateWorkingDays(start, end);
 
-    // Check admin role
     const user = await UserService.getUserByIdWithRoles(userId);
     const roles = Array.isArray(user.role) ? user.role : [user.role];
-    const isAdmin = roles.includes("ADMIN");
+    const isAdmin = roles.includes('ADMIN');
 
     let balance;
     let remainingAfter = 0;
@@ -31,63 +40,99 @@ class LeaveRequestService {
     if (!isAdmin) {
       balance = await LeaveBalanceService.getUserBalance(userId, +leaveTypeId);
       if (daysThisTime > balance.remainingDays) {
-        throw createError(400, 'วันลาคงเหลือไม่เพียงพอ');
+        balance = await LeaveBalanceService.getUserBalance(userId, parseInt(leaveTypeId));
+        if (totalDays > balance.remainingDays) {
+          throw createError(400, 'วันลาคงเหลือไม่เพียงพอ');
+        }
+        await LeaveBalanceService.updatePendingLeaveBalance(userId, parseInt(leaveTypeId), totalDays);
+
+        // Update pending
+        await LeaveBalanceService.updatePendingLeaveBalance(userId, +leaveTypeId, daysThisTime);
+        remainingAfter = balance.remainingDays - daysThisTime;
       }
+      const totalDaysUsed = balance ? balance.usedDays + balance.pendingDays + daysThisTime : daysThisTime;
 
-      // Update pending
-      await LeaveBalanceService.updatePendingLeaveBalance(userId, +leaveTypeId, daysThisTime);
-      remainingAfter = balance.remainingDays - daysThisTime;
-    }
-    const totalDaysUsed = balance ? balance.usedDays + balance.pendingDays + daysThisTime: daysThisTime;
+      const leave = await prisma.leaveRequest.create({
+        data: {
+          userId,
+          leaveTypeId: parseInt(leaveTypeId),
+          startDate: start,
+          endDate: end,
+          reason,
+          thisTimeDays: totalDays,
+          totalDays,
+          balanceDays: isAdmin ? 0 : balance.remainingDays,
+          status: 'PENDING',
+          isEmergency: Boolean(isEmergency),
+          contact: additionalDetails || null,
+        },
+      });
+      // Create leave request
+      const req = await prisma.leaveRequest.create({
+        data: {
+          userId,
+          leaveTypeId: parseInt(leaveTypeId, 10),
+          startDate: start,
+          endDate: end,
+          leavedDays: daysThisTime,
+          thisTimeDays: daysThisTime,
+          totalDays: totalDaysUsed,
+          balanceDays: isAdmin ? 0 : remainingAfter,
+          reason,
+          status: 'PENDING',
+          isEmergency: Boolean(isEmergency),
+          contact: additionalDetails
+        }
+      });
 
-    // Create leave request
-    const req = await prisma.leaveRequest.create({ data: {
-      userId,
-      leaveTypeId: parseInt(leaveTypeId,10),
-      startDate: start,
-      endDate: end,
-      leavedDays:   daysThisTime,
-      thisTimeDays: daysThisTime,
-      totalDays:    totalDaysUsed,
-      balanceDays:  isAdmin ? 0 : remainingAfter,
-      reason,
-      status: 'PENDING',
-      isEmergency: Boolean(isEmergency),
-      contact: additionalDetails
-    }});
+      if (files?.length > 0) {
+        console.log(">>> create data", req);
+        // Attach files
+        if (files?.length) {
+          for (const f of files) {
+            const url = await cloudUpload(f.path);
+            await prisma.file.create({
+              data: {
+                leaveRequestId: leave.id,
+                type: 'EVIDENT',
+                filePath: url,
+              },
+            });
+          }
+        }
 
-    console.log(">>> create data", req);
-    // Attach files
-    if (files?.length) {
-      for (const f of files) {
-        const url = await cloudUpload(f.path);
-        await prisma.file.create({ data: {
-          leaveRequestId: req.id,
-          type: 'EVIDENT',
-          filePath: url
-        }});
+        await AuditLogService.createLog(userId, 'Create Request', leave.id, reason, 'LEAVE_REQUEST');
+
+        if (user?.email) {
+          await sendEmail(user.email, 'ยืนยันการยื่นคำขอลา', `<p>เรียน ${user.prefixName} ${user.firstName}</p><p>คำขอลาถูกบันทึกแล้ว</p>`);
+        }
+
+        return { id: leave.id, message: 'Create success' };
       }
     }
-
-    // Audit log
-    await AuditLogService.createLog(userId, 'Create Request', req.id, reason, 'LEAVE_REQUEST');
-
-    // Email confirmation
-    if (user) {
-      await sendEmail(user.email, 'ยืนยันการยื่นคำขอลา', `<p>เรียน ${user.prefixName} ${user.firstName}</p><p>คำขอลาถูกบันทึกแล้ว</p>`);
-    }
-
-    return { id: req.id, message: 'Create success' };
   }
 
   static async getLeaveRequestIsMine(userId) {
-    return await prisma.leaveRequest.findMany({ where: { userId }, orderBy: { startDate: 'desc' } });
+    return await prisma.leaveRequest.findMany({
+      where: { userId },
+      orderBy: { startDate: 'desc' },
+      include: {
+        files: true,
+        leaveType: true,
+        leaveRequestDetails: true,
+      },
+    });
   }
 
-  static async getLeaveRequest(id, user) {
+  static async getLeaveRequest(id) {
     const data = await prisma.leaveRequest.findUnique({
       where: { id },
-      include: { files: true, leaveRequestDetails: { include: { approver: true } } }
+      include: {
+        files: true,
+        leaveRequestDetails: {
+          include: { approver: true },
+        },
+      },
     });
     if (!data) throw createError(404, 'ไม่พบคำขอ');
     return data;
@@ -109,12 +154,27 @@ class LeaveRequestService {
   }
 
   static async approveLeaveRequest(id, approverId) {
-    await prisma.leaveRequestDetail.create({ data: { leaveRequestId: id, approverId, stepOrder: 1, status: 'APPROVED' } });
+    await prisma.leaveRequestDetail.create({
+      data: {
+        leaveRequestId: id,
+        approverId,
+        stepOrder: 1,
+        status: 'APPROVED',
+      },
+    });
     return await prisma.leaveRequest.update({ where: { id }, data: { status: 'APPROVED' } });
   }
 
   static async rejectLeaveRequest(id, approverId, { remarks }) {
-    await prisma.leaveRequestDetail.create({ data: { leaveRequestId: id, approverId, stepOrder: 1, status: 'REJECTED', comment: remarks } });
+    await prisma.leaveRequestDetail.create({
+      data: {
+        leaveRequestId: id,
+        approverId,
+        stepOrder: 1,
+        status: 'REJECTED',
+        comment: remarks,
+      },
+    });
     return await prisma.leaveRequest.update({ where: { id }, data: { status: 'REJECTED' } });
   }
 

@@ -78,6 +78,9 @@ app.use('/api/lookups', lookupRoute);
 app.use(errorHandler);
 app.use('*', notFoundHandler);
 
+// เรียก reset leave balance เมื่อขึ้นปีงบประมาณใหม่
+require('./utils/resetLeaveBalance');
+
 // Server listen
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
