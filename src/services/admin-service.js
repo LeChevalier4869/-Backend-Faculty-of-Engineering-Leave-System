@@ -258,18 +258,21 @@ class AdminService {
       where: { id: departmentId },
     });
     if (!department) throw createError(404, "Department not found");
-
+  
     const user = await prisma.user.findUnique({
       where: { id: headId },
     });
     if (!user) throw createError(404, "User not found");
-
+  
     const updated = await prisma.department.update({
       where: { id: departmentId },
-      data: { headId },
+      data: {
+        headId,
+        appointDate: new Date(), // เพิ่มตรงนี้
+      },
       include: { head: true },
     });
-
+  
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -277,9 +280,9 @@ class AdminService {
         pass: process.env.EMAIL_APP_PASS2,
       },
     });
-
+  
     const email = user.email;
-
+  
     await transporter.sendMail({
       from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
       to: email,
@@ -291,9 +294,10 @@ class AdminService {
         <p>จากระบบการจัดการของคณะวิศวกรรมศาสตร์</p>
       `,
     });
-
+  
     return updated;
   }
+  
 
   //------------ Manage User -----------
   static async getUserById(id) {

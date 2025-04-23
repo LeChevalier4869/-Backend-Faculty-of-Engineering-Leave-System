@@ -12,7 +12,7 @@ const { calculateWorkingDays } = require("../utils/dateCalculate");
 
 exports.createLeaveRequest = async (req, res, next) => {
   try {
-    const { leaveTypeId, startDate, endDate, reason, contact } = req.body;
+    const { leaveTypeId, startDate, endDate, reason, isEmergency } = req.body;
     // console.log("req.user.id = ", req.user.id);
     // console.log("Debug leaveTypeId con: ", leaveTypeId);
     // console.log("Debug req.user.id con: ", req.user.id);
@@ -53,7 +53,6 @@ exports.createLeaveRequest = async (req, res, next) => {
       requestedDays
     );
 
-    console.log("Debug eligibility: ", eligibility);
     if (!eligibility.success) {
       throw createError(400, eligibility.message);
     }
@@ -64,7 +63,7 @@ exports.createLeaveRequest = async (req, res, next) => {
     );
 
     if (requestedDays > leaveBalance.remainingDays || requestedDays > leaveBalance.maxDays) {
-      throw createError(400, "วันลาคงเหลือไม่พอ");
+      return createError(400, "วันลาคงเหลือไม่พอ");
     }
 
     if (!leaveBalance) {
@@ -72,7 +71,6 @@ exports.createLeaveRequest = async (req, res, next) => {
     }
 
     //console.log(req.body);
-    // console.log("Debug req.user.id: ", req.user.id);
 
     const leaveRequest = await LeaveRequestService.createRequest(
       req.user.id,
@@ -80,7 +78,8 @@ exports.createLeaveRequest = async (req, res, next) => {
       startDate,
       endDate,
       reason,
-      contact
+      isEmergency,
+      requestedDays
     );
 
     await LeaveBalanceService.updatePendingLeaveBalance(
@@ -88,13 +87,13 @@ exports.createLeaveRequest = async (req, res, next) => {
       leaveTypeId,
       requestedDays
     );
-
     // create log
     await AuditLogService.createLog(
       req.user.id,
       "Create Request",
       leaveRequest.id,
-      `คำขอถูกสร้าง: ${reason}${contact ? " ติดต่อ: " + contact : ""}`,
+      `คำขอถูกสร้าง: ${reason} , ฉุกเฉิน: ${req.body.isEmergency}`,
+      "LEAVE_REQUEST"
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
@@ -163,19 +162,6 @@ exports.createLeaveRequest = async (req, res, next) => {
     next(err);
   }
 };
-
-exports.createLeaveRequestController = async (req, res) => {
-  try {
-    const result = await LeaveRequestService.createRequest(req.body);
-    res.status(201).json({
-      message: 'สร้างใบลาเรียบร้อยแล้ว',
-      data: result,
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message });
-  }
-};
-
 
 //use (not mail)
 exports.updateLeaveStatus = async (req, res, next) => {
