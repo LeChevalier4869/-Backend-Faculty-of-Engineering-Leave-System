@@ -472,7 +472,7 @@ exports.getLeaveRequestsForFourthApprover = async (req, res) => {
 // 🟢    APPROVED AND REJECTED (version split)
 // ────────────────────────────────────────────────────────
 
-exports.approveByHead = async (req, res, next) => {
+exports.approveByFirstApprover = async (req, res, next) => {
   const id = parseInt(req.params.id);
   const { remarks, comment } = req.body;
   const approverId = req.user.id;
@@ -482,7 +482,7 @@ exports.approveByHead = async (req, res, next) => {
       console.log("Debug id: ", id);
       throw createError(400, "Invalid request ID format");
     }
-    const result = await LeaveRequestService.approveByHead({
+    const result = await LeaveRequestService.approveByFirstApprover({
       id,
       approverId,
       remarks,
@@ -494,7 +494,7 @@ exports.approveByHead = async (req, res, next) => {
   }
 };
 
-exports.rejectByHead = async (req, res, next) => {
+exports.rejectByFirstApprover = async (req, res, next) => {
   const id = parseInt(req.params.id);
   const { remarks, comment } = req.body;
   const approverId = req.user.id;
@@ -506,7 +506,7 @@ exports.rejectByHead = async (req, res, next) => {
     }
 
     // เรียกใช้ service ในการ reject
-    const result = await LeaveRequestService.rejectByHead({
+    const result = await LeaveRequestService.rejectByFirstApprover({
       id,
       approverId,
       remarks,

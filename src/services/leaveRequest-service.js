@@ -831,7 +831,7 @@ class LeaveRequestService {
   // 🟢      APPROVED AND REJECTED (version split approver)
   // ────────────────────────────────────────────────────────────────
 
-  static async approveByHead({ id, approverId, remarks, comment }) {
+  static async approveByFirstApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findUnique({
       where: { id: Number(id) },
@@ -877,7 +877,7 @@ class LeaveRequestService {
       nextStepDetail: newDetail,
     };
   }
-  static async rejectByHead({ id, approverId, remarks, comment }) {
+  static async rejectByFirstApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findUnique({
       where: { id: Number(id) },
