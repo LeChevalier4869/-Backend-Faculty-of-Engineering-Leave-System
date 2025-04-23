@@ -416,7 +416,7 @@ class UserService {
     return user;
   }
 
-  static async getApprover3() { 
+  static async getApprover3() {
     const user = await prisma.user.findFirst({
       where: {
         userRoles: {
@@ -612,7 +612,7 @@ class UserService {
     });
 
     for (const userRank of userRanks) {
-      const { leaveTypeId, maxDays } = userRank.rank;
+      const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
 
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
@@ -624,7 +624,34 @@ class UserService {
           maxDays,
           usedDays: 0,
           pendingDays: 0,
-          remainingDays: maxDays,
+          remainingDays: receiveDays,
+        },
+      });
+    }
+  }
+
+  static async assignLeaveBalanceFromRanksForReset(userId, carryOverDays) {
+    const userRanks = await prisma.user_Rank.findMany({
+      where: { userId },
+      include: {
+        rank: true,
+      },
+    });
+
+    for (const userRank of userRanks) {
+      const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
+
+      // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
+      if (!leaveTypeId || maxDays === null) continue;
+
+      await prisma.leaveBalance.create({
+        data: {
+          userId,
+          leaveTypeId,
+          maxDays,
+          usedDays: 0,
+          pendingDays: 0,
+          remainingDays: carryOverDays + receiveDays,
         },
       });
     }

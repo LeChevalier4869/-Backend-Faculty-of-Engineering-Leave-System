@@ -29,14 +29,14 @@ const authorize = (requiredRoles) => (req, res, next) => {
     if (!req.user || !req.user.role) {
         return next(createError(403, 'Forbidden: no role assigned.'));
     }
-    console.log("Decoded User Role: ", req.user.role);
+    // console.log("Decoded User Role: ", req.user.role);
 
     const userRoles = Array.isArray(req.user.role) ? req.user.role : [req.user.role];
     //const roleNames = Array.isArray(userRoles) ? userRoles.map(role => role.name) : [];
     const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role));
-    console.log("Decoded userRole: ", userRoles);
+    // console.log("Decoded userRole: ", userRoles);
     //console.log("Decoded roleNames: ", roleNames);
-    console.log("Decoded hasRequire Role: ", hasRequiredRole);
+    // console.log("Decoded hasRequire Role: ", hasRequiredRole);
     if (!hasRequiredRole) {
         return next(createError(403, 'Forbidden'));
     }

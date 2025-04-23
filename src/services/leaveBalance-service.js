@@ -8,7 +8,7 @@ class LeaveBalanceService {
    */
   static async getUserBalance(userId, leaveTypeId) {
     return await prisma.leaveBalance.findFirst({
-      where: { userId, leaveTypeId : parseInt(leaveTypeId) },
+      where: { userId: parseInt(userId), leaveTypeId : parseInt(leaveTypeId) },
     });
   }
 
@@ -64,7 +64,7 @@ class LeaveBalanceService {
    * After approval, adjust usedDays and clear pendingDays accordingly.
    */
   static async finalizeLeaveBalance(userId, leaveTypeId, approvedDays) {
-    const balance = await this.getUserBalance(userId, parseInt(leaveTypeId, 10));
+    const balance = await this.getUserBalance(parseInt(userId), parseInt(leaveTypeId));
 
     if (!balance) {
       throw createError(404, 'ไม่พบข้อมูลสิทธิ์การลาสำหรับผู้ใช้งานนี้ กรุณาติดต่อผู้ดูแลระบบ');

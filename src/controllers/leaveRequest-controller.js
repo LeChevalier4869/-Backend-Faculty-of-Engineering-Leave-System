@@ -518,3 +518,239 @@ exports.rejectByFirstApprover = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.approveByVerifier = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+    const result = await LeaveRequestService.approveByVerifier({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.rejectByVerifier = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+
+    // เรียกใช้ service ในการ reject
+    const result = await LeaveRequestService.rejectByVerifier({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.approveByReceiver = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment, documentNumber } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+    const result = await LeaveRequestService.approveByReceiver({
+      id,
+      approverId,
+      remarks,
+      comment,
+      documentNumber
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.rejectByReceiver = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+
+    // เรียกใช้ service ในการ reject
+    const result = await LeaveRequestService.rejectByReceiver({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.approveBySecondApprover = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+    const result = await LeaveRequestService.approveBySecondApprover({
+      id,
+      approverId,
+      remarks,
+      comment
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.rejectBySecondApprover = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+
+    // เรียกใช้ service ในการ reject
+    const result = await LeaveRequestService.rejectBySecondApprover({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.approveByThirdApprover = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+    const result = await LeaveRequestService.approveByThirdApprover({
+      id,
+      approverId,
+      remarks,
+      comment
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.rejectByThirdApprover = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+
+    // เรียกใช้ service ในการ reject
+    const result = await LeaveRequestService.rejectByThirdApprover({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.approveByFourthApprover = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+    const result = await LeaveRequestService.approveByFourthApprover({
+      id,
+      approverId,
+      remarks,
+      comment
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.rejectByFourthApprover = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+
+    // เรียกใช้ service ในการ reject
+    const result = await LeaveRequestService.rejectByFourthApprover({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};

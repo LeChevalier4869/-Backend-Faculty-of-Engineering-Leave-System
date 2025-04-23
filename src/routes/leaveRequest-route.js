@@ -165,4 +165,73 @@ router.patch(
   leaveRequestController.rejectByFirstApprover
 );
 
+//approve and reject for Verifier
+router.patch(
+  "/:id/approve-by-verifier",
+  authenticate,
+  authorize(["VERIFIER"]),
+  leaveRequestController.approveByVerifier
+);
+router.patch(
+  "/:id/reject-by-verifier",
+  authenticate,
+  authorize(["VERIFIER"]),
+  leaveRequestController.rejectByVerifier
+);
+
+//approve and reject for Receiver
+router.patch(
+  "/:id/approve-by-receiver",
+  authenticate,
+  authorize(["RECEIVER"]),
+  leaveRequestController.approveByReceiver
+);
+router.patch(
+  "/:id/reject-by-receiver",
+  authenticate,
+  authorize(["RECEIVER"]),
+  leaveRequestController.rejectByReceiver
+);
+
+//approve and reject for Approver 2
+router.patch(
+  "/:id/approve-by-approver2",
+  authenticate,
+  authorize(["APPROVER_2"]),
+  leaveRequestController.approveBySecondApprover
+);
+router.patch(
+  "/:id/reject-by-approver2",
+  authenticate,
+  authorize(["APPROVER_2"]),
+  leaveRequestController.rejectBySecondApprover
+);
+
+//approve and reject for Approver 3
+router.patch(
+  "/:id/approve-by-approver3",
+  authenticate,
+  authorize(["APPROVER_3"]),
+  leaveRequestController.approveByThirdApprover
+);
+router.patch(
+  "/:id/reject-by-approver3",
+  authenticate,
+  authorize(["APPROVER_3"]),
+  leaveRequestController.rejectByThirdApprover
+);
+
+//approve and reject for Approver 4
+router.patch(
+  "/:id/approve-by-approver4",
+  authenticate,
+  authorize(["APPROVER_4"]),
+  leaveRequestController.approveByFourthApprover
+);
+router.patch(
+  "/:id/reject-by-approver4",
+  authenticate,
+  authorize(["APPROVER_4"]),
+  leaveRequestController.rejectByFourthApprover
+);
 module.exports = router;
