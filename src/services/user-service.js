@@ -262,7 +262,7 @@ class UserService {
       },
     });
   }
-  
+
   static async getHeadIdByDepartmentId(departmentId) {
     return await prisma.department.findUnique({
       where: { id: departmentId },
@@ -335,6 +335,11 @@ class UserService {
     });
     return personnelType ? personnelType.personnelType : null;
   }
+
+  // ────────────────────────────────
+  // 🟢        GET APPROVER
+  // ────────────────────────────────
+
   static async getVerifier() {
     const user = await prisma.user.findFirst({
       where: {
@@ -390,28 +395,65 @@ class UserService {
       throw createError(404, "Department not found");
     }
 
-    // const headId = await prisma.users.findFirst({
-    //   where: {
-    //     id: userId,
-    //   },
-    //   select: {
-    //     departments: {
-    //       select: {
-    //         isHeadId: true,
-    //       }
-    //     }
-    //   },
-    // });
-
-    //validation headId
-
-    // const headPerson = await this.getUserByIdWithRoles(headId);
-
-    // //validation headPerson
-
-    // return headPerson ? headPerson.departments.isHeadId : null;
     return department.headId;
   }
+
+  static async getApprover2() {
+    const user = await prisma.user.findFirst({
+      where: {
+        userRoles: {
+          some: {
+            role: {
+              name: "APPROVER_2",
+            },
+          },
+        },
+      },
+      // orderBy: { createdAt: "desc" },
+      include: { userRoles: { include: { role: true } } },
+    });
+    if (!user) throw createError(404, "ไม่พบผู้อนุมัติ (Approver 2)");
+    return user;
+  }
+
+  static async getApprover3() { 
+    const user = await prisma.user.findFirst({
+      where: {
+        userRoles: {
+          some: {
+            role: {
+              name: "APPROVER_3",
+            },
+          },
+        },
+      },
+      // orderBy: { createdAt: "desc" },
+      include: { userRoles: { include: { role: true } } },
+    });
+    if (!user) throw createError(404, "ไม่พบผู้อนุมัติ (Approver 3)");
+    return user;
+  }
+
+  static async getApprover4() {
+    const user = await prisma.user.findFirst({
+      where: {
+        userRoles: {
+          some: {
+            role: {
+              name: "APPROVER_4",
+            },
+          },
+        },
+      },
+      // orderBy: { createdAt: "desc" },
+      include: { userRoles: { include: { role: true } } },
+    });
+    if (!user) throw createError(404, "ไม่พบผู้อนุมัติ (Approver 4)");
+    return user;
+  }
+
+  //________________________________________________________________________
+
   static async addUserRoles(userId, roleIds) {
     const existingRoles = await prisma.user_Role.findMany({
       where: { userId },
