@@ -7,15 +7,16 @@ const upload = require("../middlewares/upload");
 const router = express.Router();
 
 // Create a new leave request (up to 5 attachments)
-router.post(
+/* router.post(
   "/",
   authenticate,
   leaveRequestLimiter,
   upload.array("images", 5),
   leaveRequestController.createLeaveRequest
-);
+); */
 
-// Get all leave requests for current user
+router.get("/", authenticate, authorize(["ADMIN"]), leaveRequestController.getAllLeaveRequests);
+
 router.get(
   "/me",
   authenticate,

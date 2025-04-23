@@ -114,7 +114,7 @@ class LeaveRequestService {
     return leaveRequest;
   }
 
-  // ────────────────────────────────
+  // 
   // 🔎 READ
   // ────────────────────────────────
 
@@ -412,6 +412,30 @@ class LeaveRequestService {
       },
       balance,
     };
+  }
+
+  // get all leaveRequest
+  static async getAllRequests() {
+    return await prisma.leaveRequest.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            department: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        leaveType: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
   }
 
 

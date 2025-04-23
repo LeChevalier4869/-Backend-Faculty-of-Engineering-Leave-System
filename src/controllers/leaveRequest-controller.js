@@ -10,6 +10,7 @@ const upload = multer();
 const { sendEmail, sendNotification } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 
+
 exports.createLeaveRequest = async (req, res, next) => {
   try {
     const { leaveTypeId, startDate, endDate, reason, contact } = req.body;
@@ -175,7 +176,6 @@ exports.createLeaveRequestController = async (req, res) => {
     res.status(error.status || 500).json({ error: error.message });
   }
 };
-
 
 //use (not mail)
 exports.updateLeaveStatus = async (req, res, next) => {
@@ -400,6 +400,18 @@ exports.getLeaveRequestLanding = async (req, res, next) => {
       throw createError(404, "Leave request not found");
     }
     res.status(200).json({ leaveRequest });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getAllLeaveRequests = async (req, res, next) => {
+  try {
+    const leaveRequests = await LeaveRequestService.getAllRequests();
+    res.status(200).json({
+      message: "ดึงข้อมูลการลาทั้งหมดสำเร็จ",
+      data: leaveRequests,
+    });
   } catch (err) {
     next(err);
   }
