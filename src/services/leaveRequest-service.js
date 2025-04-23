@@ -833,36 +833,44 @@ class LeaveRequestService {
   // 🟢      APPROVED AND REJECTED (version split approver)
   // ────────────────────────────────────────────────────────────────
 
-  static async approveByHead({ id, approverId, remarks, comment }) {
+  static async approveByFirstApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findUnique({
       where: { id: Number(id) },
     });
-  
+
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
-  
-    // 2. อัปเดตรายการคำขอลา โดยไม่ต้องตรวจสอบ approverId อีกแล้ว
+
+    // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
+    if (existingDetail.status !== "PENDING") {
+      throw createError(
+        400,
+        "รายการคำขอนี้ไม่อยู่ในสถานะรอดำเนินการ (PENDING)"
+      );
+    }
+
+    // 2. อัปเดตรายการคำขอลา
     const updatedDetail = await prisma.leaveRequestDetail.update({
       where: { id: Number(id) },
       data: {
         approverId,
         status: "APPROVED",
-        reviewedAt: new Date(), // ใช้เวลาปัจจุบัน
+        reviewedAt: new Date(),
         remarks,
         comment,
       },
     });
-  
+
     // 3. หา verifier user
     const verifier = await prisma.user_Role.findFirst({
       where: {
         role: { name: "VERIFIER" },
       },
-      orderBy: { id: "asc" }, // หรือจะสุ่มก็ได้
+      orderBy: { id: "asc" },
     });
-  
+
     if (!verifier) throw createError(404, "ไม่พบผู้ตรวจสอบ (VERIFIER)");
-  
+
     // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ verifier
     const newDetail = await prisma.leaveRequestDetail.create({
       data: {
@@ -872,20 +880,29 @@ class LeaveRequestService {
         status: "PENDING",
       },
     });
-  
+
     return {
       message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้ตรวจสอบ",
       approvedDetail: updatedDetail,
       nextStepDetail: newDetail,
     };
   }
-  static async rejectByHead({ id, approverId, remarks, comment }) {
+
+  static async rejectByFirstApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findUnique({
       where: { id: Number(id) },
     });
-  
+
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
+
+    // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
+    if (existingDetail.status !== "PENDING") {
+      throw createError(
+        400,
+        "รายการคำขอนี้ไม่อยู่ในสถานะรอดำเนินการ (PENDING)"
+      );
+    }
 
     // 2. อัปเดตรายการคำขอลา
     const updatedDetail = await prisma.leaveRequestDetail.update({

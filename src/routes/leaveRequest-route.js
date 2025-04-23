@@ -156,13 +156,13 @@ router.patch(
   "/:id/approve-by-approver1",
   authenticate,
   authorize(["APPROVER_1"]),
-  leaveRequestController.approveByHead
+  leaveRequestController.approveByFirstApprover
 );
 router.patch(
   "/:id/reject-by-approver1",
   authenticate,
   authorize(["APPROVER_1"]),
-  leaveRequestController.rejectByHead
+  leaveRequestController.rejectByFirstApprover
 );
 
 module.exports = router;
