@@ -353,7 +353,7 @@ class LeaveRequestService {
   static async deleteRequest(requestId) {
     const request = await prisma.leaveRequest.findUnique({ where: { id: requestId } });
     if (!request) return null;
-    if (request.status !== "PENDING") throw createError(400, "ไม่สามารถลบคำขอที่อนุมัติหรือปฏิเสธแล้วได้"); 
+    if (request.status !== "PENDING") throw createError(400, "ไม่สามารถลบคำขอที่อนุมัติหรือปฏิเสธแล้วได้");
     await prisma.leaveRequest.delete({ where: { id: requestId } });
     return true;
   }
@@ -372,8 +372,10 @@ class LeaveRequestService {
     });
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
 
-    //const rank = await RankService.getRankForUser(user, leaveTypeId);
-    const rank = await RankService.getRankForUserByLeaveType(user, leaveTypeId);
+    const leaveTypeIdInt = parseInt(leaveTypeId);
+    if (isNaN(leaveTypeIdInt)) throw createError(400, "leaveTypeId ไม่ถูกต้อง");
+    const rank = await RankService.getRankForUserByLeaveType(user, leaveTypeIdInt);
+
     if (!rank) {
       // console.log("Debug user: ", user);
       // console.log("Debug rank: ", rank);
@@ -398,7 +400,7 @@ class LeaveRequestService {
     }
 
     if (requestedDays > balance.remainingDays) {
-      return { success: false, mxessage: "วันลาคงเหลือไม่เพียงพอ" };
+      return { success: false, message: "วันลาคงเหลือไม่เพียงพอ" };
     }
 
     return {
