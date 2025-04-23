@@ -10,7 +10,6 @@ const upload = multer();
 const { sendEmail, sendNotification } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 
-
 exports.createLeaveRequest = async (req, res, next) => {
   try {
     const { leaveTypeId, startDate, endDate, reason, contact } = req.body;
@@ -64,7 +63,10 @@ exports.createLeaveRequest = async (req, res, next) => {
       leaveTypeId
     );
 
-    if (requestedDays > leaveBalance.remainingDays || requestedDays > leaveBalance.maxDays) {
+    if (
+      requestedDays > leaveBalance.remainingDays ||
+      requestedDays > leaveBalance.maxDays
+    ) {
       throw createError(400, "วันลาคงเหลือไม่พอ");
     }
 
@@ -95,7 +97,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       req.user.id,
       "Create Request",
       leaveRequest.id,
-      `คำขอถูกสร้าง: ${reason}${contact ? " ติดต่อ: " + contact : ""}`,
+      `คำขอถูกสร้าง: ${reason}${contact ? " ติดต่อ: " + contact : ""}`
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
@@ -138,7 +140,7 @@ exports.createLeaveRequest = async (req, res, next) => {
 
       const attachImages = imgUrlArray.map((imgUrl) => {
         return {
-          fileName: "attachment",
+          type: "EVIDENT",
           filePath: imgUrl,
           leaveRequestId: leaveRequest.id,
         };
@@ -165,17 +167,17 @@ exports.createLeaveRequest = async (req, res, next) => {
   }
 };
 
-exports.createLeaveRequestController = async (req, res) => {
-  try {
-    const result = await LeaveRequestService.createRequest(req.body);
-    res.status(201).json({
-      message: 'สร้างใบลาเรียบร้อยแล้ว',
-      data: result,
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message });
-  }
-};
+// exports.createLeaveRequestController = async (req, res) => {
+//   try {
+//     const result = await LeaveRequestService.createRequest(req.body);
+//     res.status(201).json({
+//       message: 'สร้างใบลาเรียบร้อยแล้ว',
+//       data: result,
+//     });
+//   } catch (error) {
+//     res.status(error.status || 500).json({ error: error.message });
+//   }
+// };
 
 //use (not mail)
 exports.updateLeaveStatus = async (req, res, next) => {
@@ -226,32 +228,6 @@ exports.getLeaveRequest = async (req, res, next) => {
     const requestId = parseInt(req.params.id);
     console.log("Debug requestId11:", requestId);
     const user = req.user;
-    // console.log(user)
-    // console.log("Debug user.departmentId",user.department.id);
-
-    // if (!requestId || isNaN(requestId)) {
-    //   console.log("Debug requestId: ", requestId);
-    //   throw createError(400, "Invalid request ID.");
-    // }
-
-    //const role = req.user.role;
-
-    //const whereCondition = {};
-
-    // if (requestId) {
-    //   whereCondition.id = parseInt(requestId);
-    // }
-    // if (role === "USER" && !requestId) {
-    //   whereCondition.userId = req.user.id;
-    // } else if (role === "APPROVER" && !requestId) {
-    //   whereCondition.ApprovalSteps = {
-    //     some: {
-    //       approverId: req.user.id,
-    //     },
-    //   };
-    // } else if (role === "ADMIN" && userId) {
-    //   whereCondition.userId = parseInt(userId);
-    // }
 
     // const leaveRequests = await LeaveRequestService.getRequests(whereCondition);
     const leaveRequests = await LeaveRequestService.getRequestsById(requestId);
@@ -337,6 +313,10 @@ exports.updateLeaveRequest = async (req, res, next) => {
   }
 };
 
+// ────────────────────────────────
+// 🟢   APPROVED AND REJECTED
+// ────────────────────────────────
+
 exports.approveLeaveRequest = async (req, res, next) => {
   try {
     const leaveRequestId = parseInt(req.params.id);
@@ -393,6 +373,10 @@ exports.deleteLeaveRequest = async (req, res, next) => {
   }
 };
 
+// ────────────────────────────────
+// 🟢 GET REQUEST FOR APPROVER
+// ────────────────────────────────
+
 exports.getLeaveRequestLanding = async (req, res, next) => {
   try {
     const leaveRequest = await LeaveRequestService.getLanding();
@@ -414,5 +398,123 @@ exports.getAllLeaveRequests = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+exports.getLeaveRequestsForFirstApprover = async (req, res) => {
+  try {
+    const headId = req.user.id; // ต้องมี auth middleware ตั้งค่า req.user
+    const leaveRequests =
+      await LeaveRequestService.getPendingRequestsByFirstApprover(headId);
+    res.status(200).json(leaveRequests);
+  } catch (error) {
+    console.error("Error fetching leave requests for head:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getLeaveRequestsForVerifier = async (req, res) => {
+  try {
+    const leaveRequests =
+      await LeaveRequestService.getPendingRequestsByVerifier();
+    res.status(200).json(leaveRequests);
+  } catch (error) {
+    console.error("Error fetching leave requests at step 2:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getLeaveRequestsForReceiver = async (req, res) => {
+  try {
+    const leaveRequests =
+      await LeaveRequestService.getPendingRequestsByReceiver();
+    res.status(200).json(leaveRequests);
+  } catch (error) {
+    console.error("Error fetching leave requests at step 2:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getLeaveRequestsForSecondApprover = async (req, res) => {
+  try {
+    const leaveRequests =
+      await LeaveRequestService.getPendingRequestsBySecondApprover();
+    res.status(200).json(leaveRequests);
+  } catch (error) {
+    console.error("Error fetching leave requests at step 2:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getLeaveRequestsForThirdApprover = async (req, res) => {
+  try {
+    const leaveRequests =
+      await LeaveRequestService.getPendingRequestsByThirdApprover();
+    res.status(200).json(leaveRequests);
+  } catch (error) {
+    console.error("Error fetching leave requests at step 2:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getLeaveRequestsForFourthApprover = async (req, res) => {
+  try {
+    const leaveRequests =
+      await LeaveRequestService.getPendingRequestsByFourthApprover();
+    res.status(200).json(leaveRequests);
+  } catch (error) {
+    console.error("Error fetching leave requests at step 2:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ────────────────────────────────────────────────────────
+// 🟢    APPROVED AND REJECTED (version split)
+// ────────────────────────────────────────────────────────
+
+exports.approveByHead = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+    const result = await LeaveRequestService.approveByHead({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.rejectByHead = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  const { remarks, comment } = req.body;
+  const approverId = req.user.id;
+
+  try {
+    if (typeof id !== "number" || isNaN(id)) {
+      console.log("Debug id: ", id);
+      throw createError(400, "Invalid request ID format");
+    }
+
+    // เรียกใช้ service ในการ reject
+    const result = await LeaveRequestService.rejectByHead({
+      id,
+      approverId,
+      remarks,
+      comment,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
   }
 };

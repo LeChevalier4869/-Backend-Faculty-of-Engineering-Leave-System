@@ -8,7 +8,7 @@ class LeaveBalanceService {
    */
   static async getUserBalance(userId, leaveTypeId) {
     return await prisma.leaveBalance.findFirst({
-      where: { userId, leaveTypeId },
+      where: { userId, leaveTypeId : parseInt(leaveTypeId) },
     });
   }
 
