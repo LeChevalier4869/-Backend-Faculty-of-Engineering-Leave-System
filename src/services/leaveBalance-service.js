@@ -7,8 +7,16 @@ class LeaveBalanceService {
    * Returns null if not found.
    */
   static async getUserBalance(userId, leaveTypeId) {
+    const uid = userId;
+    const ltid = parseInt(leaveTypeId);
+  
+    console.log("🔍 ตรวจสอบ Leave Balance สำหรับผู้ใช้งาน:", { uid, ltid });
+    if (isNaN(uid) || isNaN(ltid)) {
+      throw createError(400, "userId หรือ leaveTypeId ไม่ถูกต้อง");
+    }
+  
     return await prisma.leaveBalance.findFirst({
-      where: { userId: parseInt(userId), leaveTypeId : parseInt(leaveTypeId) },
+      where: { userId: uid, leaveTypeId: ltid },
     });
   }
 
@@ -64,20 +72,24 @@ class LeaveBalanceService {
    * After approval, adjust usedDays and clear pendingDays accordingly.
    */
   static async finalizeLeaveBalance(userId, leaveTypeId, approvedDays) {
-    const balance = await this.getUserBalance(parseInt(userId), parseInt(leaveTypeId));
-
+    const balance = await this.getUserBalance(userId, leaveTypeId);
+  
     if (!balance) {
       throw createError(404, 'ไม่พบข้อมูลสิทธิ์การลาสำหรับผู้ใช้งานนี้ กรุณาติดต่อผู้ดูแลระบบ');
     }
-
+  
+    const newPending = Math.max(balance.pendingDays - approvedDays, 0);
+    const newUsed = balance.usedDays + approvedDays;
+  
     return await prisma.leaveBalance.update({
       where: { id: balance.id },
       data: {
-        pendingDays: balance.pendingDays - approvedDays,
-        usedDays: balance.usedDays + approvedDays,
+        pendingDays: newPending,
+        usedDays: newUsed,
       },
     });
   }
+  
 
   /**
    * If a leave request is rejected, rollback pendingDays and restore remainingDays.

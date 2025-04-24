@@ -1781,10 +1781,23 @@ class LeaveRequestService {
       },
     });
 
-    const request = LeaveRequestService.getRequestsById(
-      updatedDetail.leaveRequestId
-    );
-    LeaveBalanceService.finalizeLeaveBalance(
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: updatedDetail.leaveRequestId },
+      include: {
+        user: true,
+        leaveType: true,
+        leaveRequestDetails: true,
+      },
+    });
+    
+    if (!request) throw createError(404, "ไม่พบคำขอลา");
+
+
+    console.log("request", request);
+    console.log("request", request.userId);
+    console.log("request", request.leaveTypeId);
+    console.log("request", request.thisTimeDays);
+    await LeaveBalanceService.finalizeLeaveBalance(
       request.userId,
       request.leaveTypeId,
       request.thisTimeDays
@@ -1811,7 +1824,6 @@ class LeaveRequestService {
     return {
       message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้รับหนังสือ",
       approvedDetail: updatedDetail,
-      nextStepDetail: newDetail,
     };
   }
 
