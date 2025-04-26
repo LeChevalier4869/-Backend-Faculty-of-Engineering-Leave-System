@@ -22,7 +22,7 @@ enum FileType {
   PAPER
 }
 
-model user {
+model User {
   id                 Int      @id @default(autoincrement())
   departmentId       Int
   personnelTypeId    Int
@@ -40,35 +40,35 @@ model user {
   profilePicturePath String?
 
   // Relations
-  department          department           @relation(fields: [departmentId], references: [id])
-  personnelType       personnelType        @relation(fields: [personnelTypeId], references: [id])
-  auditLogs           auditLog[]
-  notifications       notification[]
-  userRoles           user_Role[]
-  signatures          signature[]
-  leaveBalances       leaveBalance[]
-  leaveRequests       leaveRequest[]
-  leaveRequestDetails leaveRequestDetail[]
-  userRanks           user_Rank[]
-  approveSteps        approveStep[] // สำหรับนโยบายอนุมัติ (ถ้าใช้ผู้อนุมัติที่เป็นผู้ใช้งาน)
+  department          Department           @relation(fields: [departmentId], references: [id])
+  personnelType       PersonnelType        @relation(fields: [personnelTypeId], references: [id])
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  userRoles           UserRole[]
+  signatures          Signature[]
+  leaveBalances       LeaveBalance[]
+  leaveRequests       LeaveRequest[]
+  leaveRequestDetails LeaveRequestDetail[]
+  userRanks           UserRank[]
+  approveSteps        ApproveStep[] // สำหรับนโยบายอนุมัติ (ถ้าใช้ผู้อนุมัติที่เป็นผู้ใช้งาน)
 
-  Department department[] @relation("DepartmentHead")
+  Department Department[] @relation("DepartmentHead")
 
   @@map("user")
 }
 
-model personnelType {
+model PersonnelType {
   id   Int    @id @default(autoincrement())
   name String
 
   // Relations
-  users user[]
-  Rank  rank[]
+  users User[]
+  Rank  Rank[]
 
   @@map("personnelType")
 }
 
-model department {
+model Department {
   id             Int       @id @default(autoincrement())
   headId         Int?
   organizationId Int
@@ -76,25 +76,25 @@ model department {
   appointDate    DateTime?
 
   // Relations
-  head         user?        @relation("DepartmentHead", fields: [headId], references: [id])
-  organization organization @relation(fields: [organizationId], references: [id])
-  users        user[]
+  head         User?        @relation("DepartmentHead", fields: [headId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  users        User[]
 
   @@map("department")
 }
 
-model organization {
+model Organization {
   id   Int    @id @default(autoincrement())
   name String
 
   // Relations
-  departments  department[]
-  approveSteps approveStep[]
+  departments  Department[]
+  approveSteps ApproveStep[]
 
   @@map("organization")
 }
 
-model auditLog {
+model AuditLog {
   id             Int      @id @default(autoincrement())
   userId         Int
   leaveRequestId Int
@@ -103,57 +103,57 @@ model auditLog {
   createdAt      DateTime @default(now())
 
   // Relations
-  user         user         @relation(fields: [userId], references: [id])
-  leaveRequest leaveRequest @relation(fields: [leaveRequestId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
 
   @@map("auditLog")
 }
 
-model notification {
+model Notification {
   id        Int      @id @default(autoincrement())
   userId    Int
   message   String
   createdAt DateTime @default(now())
 
   // Relations
-  user user @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("notification")
 }
 
-model role {
+model Role {
   id   Int    @id @default(autoincrement())
   name String
 
   // Relations
-  userRoles user_Role[]
+  userRoles UserRole[]
 
   @@map("role")
 }
 
-model user_Role {
+model UserRole {
   id     Int @id @default(autoincrement())
   userId Int
   roleId Int
 
-  user user @relation(fields: [userId], references: [id])
-  role role @relation(fields: [roleId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
 
   @@unique([userId, roleId])
   @@map("user_Role")
 }
 
-model signature {
+model Signature {
   id     Int    @id @default(autoincrement())
   userId Int
   file   String
 
-  user user @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("signature")
 }
 
-model approveStep {
+model ApproveStep {
   id             Int       @id @default(autoincrement())
   approveId      Int? // หากมีการอ้างอิงถึงกระบวนการหรือ policy ภายนอก
   userId         Int
@@ -162,13 +162,13 @@ model approveStep {
   appointDate    DateTime?
 
   // Relations
-  user         user         @relation(fields: [userId], references: [id])
-  organization organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 
   @@map("approveStep")
 }
 
-model approver {cd
+model Approver {
   id   Int    @id @default(autoincrement())
   name String
   // อาจมี relation เพิ่มเติมในอนาคต หากต้องการแยกข้อมูลผู้อนุมัติออกจาก User
@@ -176,7 +176,7 @@ model approver {cd
   @@map("approver")
 }
 
-model rank {
+model Rank {
   id              Int      @id @default(autoincrement())
   rank            String
   minHireMonths   Int?
@@ -188,26 +188,26 @@ model rank {
   leaveTypeId     Int // nullable สำหรับความปลอดภัย
 
   // Relations
-  userRanks     user_Rank[]
-  personnelType personnelType @relation(fields: [personnelTypeId], references: [id])
-  leaveType     leaveType     @relation(fields: [leaveTypeId], references: [id])
+  userRanks     UserRank[]
+  personnelType PersonnelType @relation(fields: [personnelTypeId], references: [id])
+  leaveType     LeaveType     @relation(fields: [leaveTypeId], references: [id])
 
   @@map("rank")
 }
 
-model user_Rank {
+model UserRank {
   id     Int @id @default(autoincrement())
   userId Int
   rankId Int
 
-  user user @relation(fields: [userId], references: [id])
-  rank rank @relation(fields: [rankId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  rank Rank @relation(fields: [rankId], references: [id])
 
   @@unique([userId, rankId])
   @@map("user_Rank")
 }
 
-model leaveBalance {
+model LeaveBalance {
   id            Int @id @default(autoincrement())
   userId        Int
   leaveTypeId   Int
@@ -217,26 +217,26 @@ model leaveBalance {
   remainingDays Int
 
   // Relations
-  user      user      @relation(fields: [userId], references: [id])
-  leaveType leaveType @relation(fields: [leaveTypeId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
 
   @@map("leaveBalance")
 }
 
-model leaveType {
+model LeaveType {
   id          Int     @id @default(autoincrement())
   name        String
   isAvailable Boolean @default(true)
 
   // Relations
-  leaveBalances leaveBalance[]
-  leaveRequests leaveRequest[]
-  Rank          rank[]
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
+  Rank          Rank[]
 
   @@map("leaveType")
 }
 
-model leaveRequest {
+model LeaveRequest {
   id                 Int                @id @default(autoincrement())
   userId             Int
   leaveTypeId        Int
@@ -257,16 +257,16 @@ model leaveRequest {
   contact            String?
 
   // Relations
-  user                user                 @relation(fields: [userId], references: [id])
-  leaveType           leaveType            @relation(fields: [leaveTypeId], references: [id])
-  auditLogs           auditLog[]
-  files               file[]
-  leaveRequestDetails leaveRequestDetail[]
+  user                User                 @relation(fields: [userId], references: [id])
+  leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
+  auditLogs           AuditLog[]
+  files               File[]
+  leaveRequestDetails LeaveRequestDetail[]
 
   @@map("leaveRequest")
 }
 
-model file {
+model File {
   id             Int      @id @default(autoincrement())
   leaveRequestId Int
   type           FileType
@@ -274,12 +274,12 @@ model file {
   uploadedAt     DateTime @default(now())
 
   // Relations
-  leaveRequest leaveRequest @relation(fields: [leaveRequestId], references: [id])
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
 
   @@map("file")
 }
 
-model leaveRequestDetail {
+model LeaveRequestDetail {
   id             Int                @id @default(autoincrement())
   approverId     Int
   leaveRequestId Int
@@ -290,15 +290,15 @@ model leaveRequestDetail {
   comment        String?
 
   // Relations
-  approver     user         @relation(fields: [approverId], references: [id])
-  leaveRequest leaveRequest @relation(fields: [leaveRequestId], references: [id])
+  approver     User         @relation(fields: [approverId], references: [id])
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
 
   @@index([approverId])
   @@index([leaveRequestId])
   @@map("leaveRequestDetail")
 }
 
-model holiday {
+model Holiday {
   id          Int      @id @default(autoincrement())
   date        DateTime
   description String
@@ -309,7 +309,7 @@ model holiday {
   @@map("holiday")
 }
 
-model setting {
+model Setting {
   id          Int      @id @default(autoincrement())
   key         String
   type        String
