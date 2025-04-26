@@ -1,7 +1,7 @@
 const prisma = require("../config/prisma.js");
 
 async function checkLeaveEligibility(userId, leaveTypeId, requestedDays) {
-  const user = await prisma.user.findUnique({
+  const user = await prisma.User.findUnique({
     where: { id: userId },
     include: { personnelType: true, leaveBalances: true },
   });
@@ -13,7 +13,7 @@ async function checkLeaveEligibility(userId, leaveTypeId, requestedDays) {
 
   let leaveTypeIdInt = parseInt(leaveTypeId);
 
-  const balance = user.leaveBalances.find(
+  const balance = user.LeaveBalances.find(
     (b) => b.leaveTypeId === leaveTypeIdInt
   );
 

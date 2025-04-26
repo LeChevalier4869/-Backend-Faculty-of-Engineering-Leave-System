@@ -1,50 +1,3 @@
-// const signatureService = require("../services/signature-service");
-
-// exports.createSignature = async (req, res) => {
-//   try {
-//     const signature = await signatureService.createSignature(req.body);
-//     res.json(signature);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-
-// exports.getAllSignature = async (req, res) => {
-//   try {
-//     const signature = await signatureService.getAllSignature();
-//     res.json(signature);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-
-// exports.getSignatureById = async (req, res) => {
-//   try {
-//     const signature = await signatureService.getSignatureById(req.params.id);
-//     res.json(signature);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-
-// exports.updateSignature = async (req, res) => {
-//   try {
-//     const signature = await signatureService.updateSignature(req.params.id, req.body);
-//     res.json(signature);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-
-// exports.deleteSignature = async (req, res) => {
-//   try {
-//     await signatureService.deleteSignature(req.params.id);
-//     res.json({ message: "ลบลายในระบบเสร็จสิ้น" });
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-
 const signatureService = require("../services/signature-service");
 const cloudUpload = require("../utils/cloudUpload");
 
@@ -123,12 +76,10 @@ exports.deleteSignature = async (req, res) => {
   }
 };
 
-//err
 exports.getSignatureIsMine = async (req, res) => {
   try {
     const userId = req.user.id; // ต้องใช้ middleware auth เพื่อให้ req.user มีข้อมูล
 
-    console.log(userId)
     const signature = await signatureService.getSignatureIsMine(userId);
     res.json(signature);
   } catch (err) {

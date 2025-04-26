@@ -11,7 +11,7 @@ class AuditLogService {
     console.log(leaveRequestId);
     console.log(details);
     try {
-      return await prisma.auditLog.create({
+      return await prisma.AuditLog.create({ // แก้เป็น PascalCase
         data: {
           userId,
           leaveRequestId,
@@ -25,7 +25,7 @@ class AuditLogService {
   }
   //ดึง Log ทั้งหมดของคำขอลานี้
   static async getLogsByLeaveRequestId(leaveRequestId) {
-    return await prisma.auditLog.findMany({
+    return await prisma.AuditLog.findMany({ // แก้เป็น PascalCase
       where: { leaveRequestId },
       orderBy: { createdAt: "asc" },
       include: {

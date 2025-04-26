@@ -19,7 +19,7 @@ class UserService {
       }
 
       // ตรวจสอบว่า departmentId และ organizationId มีอยู่จริง
-      const departmentExists = await prisma.department.findUnique({
+      const departmentExists = await prisma.Department.findUnique({
         where: { id: parseInt(data.departmentId) },
       });
       if (!departmentExists) {
@@ -29,7 +29,7 @@ class UserService {
         );
       }
 
-      const newUser = await prisma.user.create({
+      const newUser = await prisma.User.create({
         data,
       });
       return newUser;
@@ -42,7 +42,7 @@ class UserService {
   }
 
   static async getUserInfoById(userId) {
-    return await prisma.user.findUnique({
+    return await prisma.User.findUnique({
       where: { id: userId },
       include: {
         userRoles: {
@@ -61,8 +61,9 @@ class UserService {
       },
     });
   }
+
   static async getUserByIdWithRoles(id) {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.User.findUnique({
       where: { id },
       include: {
         userRoles: {
@@ -89,7 +90,7 @@ class UserService {
   }
 
   static async getUserByEmail(email) {
-    return await prisma.user.findUnique({
+    return await prisma.User.findUnique({
       where: { email },
       include: {
         personnelType: true,
@@ -101,8 +102,9 @@ class UserService {
       },
     });
   }
+
   static async getUserByRole(roleName) {
-    return await prisma.user.findMany({
+    return await prisma.User.findMany({
       where: {
         userRoles: {
           some: {
@@ -114,21 +116,23 @@ class UserService {
       },
     });
   }
+
   static async deleteUserById(id) {
-    return await prisma.user.delete({
+    return await prisma.User.delete({
       where: { id },
     });
   }
+
   static async updateUser(userEmail, data) {
     try {
-      const userExists = await prisma.user.findUnique({
+      const userExists = await prisma.User.findUnique({
         where: { email: userEmail },
       });
       if (!userExists) {
         createError(404, "User not found");
       }
 
-      const updatedUser = await prisma.user.update({
+      const updatedUser = await prisma.User.update({
         where: { email: userEmail },
         data,
       });
@@ -139,10 +143,9 @@ class UserService {
     }
   }
 
-  //update
   static async updateUserById(userId, data) {
     try {
-      const user = await prisma.user.findUnique({
+      const user = await prisma.User.findUnique({
         where: { id: userId },
       });
 
@@ -150,7 +153,7 @@ class UserService {
         throw createError(404, "User not found");
       }
 
-      const updatedUser = await prisma.user.update({
+      const updatedUser = await prisma.User.update({
         where: { id: userId },
         data: {
           ...data,
@@ -167,9 +170,10 @@ class UserService {
       throw err;
     }
   }
+
   static async updateUserStatusById(userId, status) {
     try {
-      const user = await prisma.user.findUnique({
+      const user = await prisma.User.findUnique({
         where: { id: userId },
       });
 
@@ -177,7 +181,7 @@ class UserService {
         throw createError(404, "User not found");
       }
 
-      const updateUserStatus = await prisma.user.update({
+      const updateUserStatus = await prisma.User.update({
         where: { id: userId },
         data: { inActive: status },
       });
@@ -187,9 +191,10 @@ class UserService {
       throw err;
     }
   }
+
   static async getUserLanding() {
     try {
-      const user = await prisma.user.findMany({
+      const user = await prisma.User.findMany({
         include: {
           personnelType: true,
           userRoles: {
@@ -211,30 +216,32 @@ class UserService {
       throw new Error("Error while fetching user data");
     }
   }
+
   static async updateUserRole(userId, roleIds) {
     try {
-      await prisma.user_Role.deleteMany({
+      await prisma.UserRole.deleteMany({
         where: { userId },
       });
       const userRoles = roleIds.map((roleId) => ({
         userId,
         roleId,
       }));
-      return await prisma.user_Role.createMany({
+      return await prisma.UserRole.createMany({
         data: userRoles,
       });
     } catch (err) {
       throw new Error("Failed to update user roles");
     }
   }
+
   static async getRolesByNames(roleNames) {
-    return await prisma.role.findMany({
+    return await prisma.Role.findMany({
       where: { name: { in: roleNames } },
     });
   }
 
   static async createUserProfile(userId, imgUrl) {
-    return await prisma.user.update({
+    return await prisma.User.update({
       where: {
         id: userId,
       },
@@ -249,13 +256,13 @@ class UserService {
       userId,
       roleId,
     }));
-    return await prisma.user_Role.createMany({
+    return await prisma.UserRole.createMany({
       data: userRoles,
     });
   }
 
   static async deleteUserRole(userId, roleId) {
-    return await prisma.user_Role.deleteMany({
+    return await prisma.UserRole.deleteMany({
       where: {
         userId,
         roleId,
@@ -264,14 +271,14 @@ class UserService {
   }
 
   static async getHeadIdByDepartmentId(departmentId) {
-    return await prisma.department.findUnique({
+    return await prisma.Department.findUnique({
       where: { id: departmentId },
       select: { headId: true },
     });
   }
 
   static async getDepartment(userId) {
-    const departments = await prisma.user.findUnique({
+    const departments = await prisma.User.findUnique({
       where: { id: userId },
       select: {
         department: {
@@ -286,29 +293,14 @@ class UserService {
     });
     return departments ? departments.department : null;
   }
-  // static async getOrganization(userId) {
-  //   const organizations = await prisma.user.findUnique({
-  //     where: { id: userId },
-  //     select: {
-  //       organization: {
-  //         select: {
-  //           id: true,
-  //           name: true,
-  //         },
-  //       },
-  //     },
-  //   });
-  //   return organizations ? organizations.organization : null;
-  // }
+
   static async getOrganization(userId) {
-    const organizations = await prisma.user.findUnique({
+    const organizations = await prisma.User.findUnique({
       where: { id: userId },
       select: {
         department: {
-          // เรียก `department` ก่อน
           select: {
             organization: {
-              // จากนั้นเลือก `organization` ของแผนกนั้น
               select: {
                 id: true,
                 name: true,
@@ -322,7 +314,7 @@ class UserService {
   }
 
   static async getPersonnelType(userId) {
-    const personnelType = await prisma.user.findUnique({
+    const personnelType = await prisma.User.findUnique({
       where: { id: userId },
       select: {
         personnelType: {
@@ -336,12 +328,8 @@ class UserService {
     return personnelType ? personnelType.personnelType : null;
   }
 
-  // ────────────────────────────────
-  // 🟢        GET APPROVER
-  // ────────────────────────────────
-
   static async getVerifier() {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.User.findFirst({
       where: {
         userRoles: {
           some: {
@@ -351,7 +339,6 @@ class UserService {
           },
         },
       },
-      // orderBy: { createdAt: "desc" },
       include: { userRoles: { include: { role: true } } },
     });
 
@@ -359,8 +346,9 @@ class UserService {
 
     return user;
   }
+
   static async getReceiver() {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.User.findFirst({
       where: {
         userRoles: {
           some: {
@@ -370,7 +358,6 @@ class UserService {
           },
         },
       },
-      // orderBy: { createdAt: "desc" },
       include: { userRoles: { include: { role: true } } },
     });
 
@@ -378,6 +365,7 @@ class UserService {
 
     return user;
   }
+
   static async getHeadOfDepartment(departmentId) {
     if (!departmentId || isNaN(departmentId)) {
       console.error("Invalid departmentId:", departmentId);
@@ -386,9 +374,9 @@ class UserService {
     departmentId = Number(departmentId);
     console.log("Debug department id: ", departmentId);
 
-    const department = await prisma.department.findUnique({
+    const department = await prisma.Department.findUnique({
       where: { id: departmentId },
-      select: { isHeadId: true },
+      select: { headId: true },
     });
 
     if (!department) {
@@ -399,7 +387,7 @@ class UserService {
   }
 
   static async getApprover2() {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.User.findFirst({
       where: {
         userRoles: {
           some: {
@@ -409,7 +397,6 @@ class UserService {
           },
         },
       },
-      // orderBy: { createdAt: "desc" },
       include: { userRoles: { include: { role: true } } },
     });
     if (!user) throw createError(404, "ไม่พบผู้อนุมัติ (Approver 2)");
@@ -417,7 +404,7 @@ class UserService {
   }
 
   static async getApprover3() {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.User.findFirst({
       where: {
         userRoles: {
           some: {
@@ -427,7 +414,6 @@ class UserService {
           },
         },
       },
-      // orderBy: { createdAt: "desc" },
       include: { userRoles: { include: { role: true } } },
     });
     if (!user) throw createError(404, "ไม่พบผู้อนุมัติ (Approver 3)");
@@ -435,7 +421,7 @@ class UserService {
   }
 
   static async getApprover4() {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.User.findFirst({
       where: {
         userRoles: {
           some: {
@@ -445,17 +431,14 @@ class UserService {
           },
         },
       },
-      // orderBy: { createdAt: "desc" },
       include: { userRoles: { include: { role: true } } },
     });
     if (!user) throw createError(404, "ไม่พบผู้อนุมัติ (Approver 4)");
     return user;
   }
 
-  //________________________________________________________________________
-
   static async addUserRoles(userId, roleIds) {
-    const existingRoles = await prisma.user_Role.findMany({
+    const existingRoles = await prisma.UserRole.findMany({
       where: { userId },
       select: { roleId: true },
     });
@@ -467,30 +450,32 @@ class UserService {
 
     if (newRoles.length === 0) return existingRoles;
 
-    await prisma.user_Role.createMany({
+    await prisma.UserRole.createMany({
       data: newRoles.map((roleId) => ({ userId, roleId })),
     });
 
-    return await prisma.user_Role.findMany({
+    return await prisma.UserRole.findMany({
       where: { userId },
       include: { roles: true },
     });
   }
+
   static async removeUserRoles(userId, roleIds) {
-    await prisma.user_Role.deleteMany({
+    await prisma.UserRole.deleteMany({
       where: {
         userId,
         roleId: { in: roleIds },
       },
     });
 
-    return await prisma.user_Role.findMany({
+    return await prisma.UserRole.findMany({
       where: { userId },
       include: { roles: true },
     });
   }
+
   static async getUserRoles(userId) {
-    const roles = await prisma.user_Role.findMany({
+    const roles = await prisma.UserRole.findMany({
       where: { userId },
       include: { roles: true },
     });
@@ -498,18 +483,15 @@ class UserService {
     return roles.map((role) => role.roles.name);
   }
 
-  //------reset pass
-
-  //ใช้เมื่อผู้ใช้ ล็อกอินอยู่แล้ว และต้องการเปลี่ยนรหัสผ่านของตัวเอง
   static async changePassword({ email, oldPassword, newPassword }) {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.User.findUnique({ where: { email } });
     if (!user) throw new Error("ไม่พบผู้ใช้");
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) throw new Error("รหัสผ่านเดิมไม่ถูกต้อง");
 
     const hashed = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
+    await prisma.User.update({
       where: { id: user.id },
       data: { password: hashed },
     });
@@ -517,11 +499,10 @@ class UserService {
     return "เปลี่ยนรหัสผ่านสำเร็จ";
   }
 
-  //ใช้เมื่อผู้ใช้ ลืมรหัสผ่านและยังไม่ได้ล็อกอิน
   static async forgotPassword(email) {
     if (!email) throw new Error("กรุณาระบุอีเมล");
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.User.findUnique({ where: { email } });
     if (!user) throw new Error("ไม่พบผู้ใช้");
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
@@ -553,13 +534,12 @@ class UserService {
     return "ส่งอีเมลรีเซ็ตรหัสผ่านแล้ว";
   }
 
-  //ใช้เมื่อผู้ใช้ ได้รับลิงก์รีเซ็ตรหัสผ่าน จาก forgot-password แล้วคลิกเข้ามาในหน้า reset
   static async resetPassword({ token, newPassword }) {
     try {
       const payload = jwt.verify(token, JWT_SECRET);
       const hashed = await bcrypt.hash(newPassword, 10);
 
-      await prisma.user.update({
+      await prisma.User.update({
         where: { id: payload.userId },
         data: { password: hashed },
       });
@@ -578,7 +558,7 @@ class UserService {
       (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
       (currentDate.getMonth() - hireDate.getMonth());
 
-    const allRanks = await prisma.rank.findMany({
+    const allRanks = await prisma.Rank.findMany({
       where: {
         personnelTypeId: parseInt(personnelTypeId),
       },
@@ -593,7 +573,7 @@ class UserService {
 
       // เงื่อนไขต้องผ่านทั้งคู่ และต้องมี leaveTypeId
       if (minPass && maxPass && leaveTypeId !== null) {
-        await prisma.user_Rank.create({
+        await prisma.UserRank.create({
           data: {
             userId,
             rankId,
@@ -604,7 +584,7 @@ class UserService {
   }
 
   static async assignLeaveBalanceFromRanks(userId) {
-    const userRanks = await prisma.user_Rank.findMany({
+    const userRanks = await prisma.UserRank.findMany({
       where: { userId },
       include: {
         rank: true,
@@ -617,7 +597,7 @@ class UserService {
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
-      await prisma.leaveBalance.create({
+      await prisma.LeaveBalance.create({
         data: {
           userId,
           leaveTypeId,
@@ -631,7 +611,7 @@ class UserService {
   }
 
   static async assignLeaveBalanceFromRanksForReset(userId, carryOverDays) {
-    const userRanks = await prisma.user_Rank.findMany({
+    const userRanks = await prisma.UserRank.findMany({
       where: { userId },
       include: {
         rank: true,
@@ -644,7 +624,7 @@ class UserService {
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
-      await prisma.leaveBalance.create({
+      await prisma.LeaveBalance.create({
         data: {
           userId,
           leaveTypeId,

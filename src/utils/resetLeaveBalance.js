@@ -43,7 +43,7 @@ async function resetLeaveBalance() {
   console.log("🔄 กำลังรีเซ็ตข้อมูล Leave Balance");
 
   // 🟡 ดึง LeaveBalance เดิมก่อนลบ
-  const oldLeaveBalances = await prisma.leaveBalance.findMany();
+  const oldLeaveBalances = await prisma.LeaveBalance.findMany();
   const remainingMap = {};
   for (const lb of oldLeaveBalances) {
     const key = `${lb.userId}-${lb.leaveTypeId}`;
@@ -51,15 +51,15 @@ async function resetLeaveBalance() {
   }
 
   // 1. ลบข้อมูล user_Rank ทั้งหมด
-  await prisma.user_Rank.deleteMany({});
+  await prisma.UserRank.deleteMany({});
   console.log("🧹 ลบข้อมูล user_Rank เรียบร้อย");
 
   // 2. ลบ LeaveBalance ทั้งหมด
-  await prisma.leaveBalance.deleteMany({});
+  await prisma.LeaveBalance.deleteMany({});
   console.log("🧹 ลบข้อมูล leaveBalance เรียบร้อย");
 
   // 3. ดึงผู้ใช้งานทั้งหมดพร้อม personnelType และ hireDate
-  const users = await prisma.user.findMany({
+  const users = await prisma.User.findMany({
     select: {
       id: true,
       personnelTypeId: true,
@@ -78,7 +78,7 @@ async function resetLeaveBalance() {
     await UserService.assignLeaveBalanceFromRanks(id);
 
     // 🟡 อัปเดต remainingDays โดยใช้ของเก่ามาบวก
-    const newBalances = await prisma.leaveBalance.findMany({
+    const newBalances = await prisma.LeaveBalance.findMany({
       where: { userId: id },
     });
 
@@ -91,7 +91,7 @@ async function resetLeaveBalance() {
         newRemaining = newLb.maxDays;
       }
 
-      await prisma.leaveBalance.update({
+      await prisma.LeaveBalance.update({
         where: { id: newLb.id },
         data: { remainingDays: newRemaining },
       });

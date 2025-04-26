@@ -140,7 +140,7 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [id])
 
   @@unique([userId, roleId])
-  @@map("user_Role")
+  @@map("userRole")
 }
 
 model Signature {
@@ -204,7 +204,7 @@ model UserRank {
   rank Rank @relation(fields: [rankId], references: [id])
 
   @@unique([userId, rankId])
-  @@map("user_Rank")
+  @@map("userRank")
 }
 
 model LeaveBalance {

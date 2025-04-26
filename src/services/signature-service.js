@@ -1,75 +1,8 @@
-// const prisma = require("../config/prisma");
-
-// exports.createSignature = async (data) => {
-//     const existing = await prisma.signature.findFirst({
-//       where: { key: data.key },
-//     });
-
-//     if (existing) {
-//       const error = new Error("Key นี้มีอยู่ในระบบแล้ว");
-//       error.status = 409;
-//       throw error;
-//     }
-
-//     return await prisma.signature.create({ data });
-//   };
-
-// exports.getAllSignature = async () => {
-//   return await prisma.signature.findMany();
-// };
-
-// exports.getSignatureById = async (id) => {
-//   const existing = await prisma.signature.findUnique({
-//     where: { id: parseInt(id) },
-//   });
-
-//   if (!existing) {
-//     const error = new Error("ID ไม่ถูกต้อง");
-//     error.status = 404;
-//     throw error;
-//   }
-
-//   return await prisma.signature.findUnique({ where: { id: parseInt(id) } });
-// };
-
-// exports.updateSignature = async (id, data) => {
-//   const existing = await prisma.signature.findUnique({
-//     where: { id: parseInt(id) },
-//   });
-
-//   if (!existing) {
-//     const error = new Error("ID ไม่ถูกต้อง");
-//     error.status = 404;
-//     throw error;
-//   }
-
-//   return await prisma.signature.update({
-//     where: { id: parseInt(id) },
-//     data,
-//   });
-// };
-
-// exports.deleteSignature = async (id) => {
-//   const existing = await prisma.signature.findUnique({
-//     where: { id: parseInt(id) },
-//   });
-
-//   if (!existing) {
-//     const error = new Error("ID ไม่ถูกต้อง");
-//     error.status = 404;
-//     throw error;
-//   }
-
-//   return await prisma.signature.delete({
-//     where: { id: parseInt(id) },
-//   });
-// };
-
 const prisma = require("../config/prisma");
 
 exports.createSignature = async (userId, imgUrl) => {
   // ตรวจสอบว่าผู้ใช้มีอยู่จริงหรือไม่
-  const user = await prisma.user.findUnique({
+  const user = await prisma.User.findUnique({
     where: { id: userId },
   });
 
@@ -80,8 +13,8 @@ exports.createSignature = async (userId, imgUrl) => {
   }
 
   // ตรวจสอบว่าผู้ใช้มี signature อยู่แล้วหรือไม่
-  const existing = await prisma.signature.findFirst({
-    where: { userId: userId },
+  const existing = await prisma.Signature.findFirst({
+    where: { userId },
   });
 
   if (existing) {
@@ -90,16 +23,16 @@ exports.createSignature = async (userId, imgUrl) => {
     throw error;
   }
 
-  return await prisma.signature.create({
+  return await prisma.Signature.create({
     data: {
-      userId: userId,
+      userId,
       file: imgUrl,
     },
   });
 };
 
 exports.getAllSignature = async () => {
-  return await prisma.signature.findMany({
+  return await prisma.Signature.findMany({
     include: {
       user: true, // รวมข้อมูลผู้ใช้ด้วย
     },
@@ -107,7 +40,7 @@ exports.getAllSignature = async () => {
 };
 
 exports.getSignatureById = async (id) => {
-  const signature = await prisma.signature.findUnique({
+  const signature = await prisma.Signature.findUnique({
     where: { id: parseInt(id) },
     include: { user: true },
   });
@@ -125,7 +58,7 @@ exports.updateSignature = async (id, data) => {
   const signatureId = parseInt(id);
 
   // ตรวจสอบว่า signature ที่จะอัปเดตมีอยู่จริงหรือไม่
-  const existing = await prisma.signature.findUnique({
+  const existing = await prisma.Signature.findUnique({
     where: { id: signatureId },
   });
 
@@ -137,7 +70,7 @@ exports.updateSignature = async (id, data) => {
 
   // ถ้ามีการส่ง userId มาใหม่ ให้ตรวจสอบว่าผู้ใช้นั้นมีอยู่จริงหรือไม่
   if (data.userId) {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.User.findUnique({
       where: { id: parseInt(data.userId) },
     });
 
@@ -148,7 +81,7 @@ exports.updateSignature = async (id, data) => {
     }
   }
 
-  return await prisma.signature.update({
+  return await prisma.Signature.update({
     where: { id: signatureId },
     data,
   });
@@ -158,7 +91,7 @@ exports.deleteSignature = async (id) => {
   const signatureId = parseInt(id);
 
   // ตรวจสอบว่ามีลายเซ็นนี้อยู่หรือไม่
-  const existing = await prisma.signature.findUnique({
+  const existing = await prisma.Signature.findUnique({
     where: { id: signatureId },
   });
 
@@ -168,13 +101,13 @@ exports.deleteSignature = async (id) => {
     throw error;
   }
 
-  return await prisma.signature.delete({
+  return await prisma.Signature.delete({
     where: { id: signatureId },
   });
 };
-//ยัง err อยู่
+
 exports.getSignatureIsMine = async (userId) => {
-  const signature = await prisma.signature.findFirst({
+  const signature = await prisma.Signature.findFirst({
     where: { userId },
   });
 

@@ -2,18 +2,15 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 
 class RankService {
-  // ดึง rank ที่ตรงกับเงื่อนไขอายุงาน และ personnelType ของ user
+  // ดึง Rank ที่ตรงกับเงื่อนไขอายุงาน และ PersonnelType ของ user
   static async getRankForUser(user, leaveTypeId) {
-    // console.log("Debug user.hireDate: ", user.hireDate);
-    // console.log("Debug user.personnelTypeId: ", user.personnelTypeId);
-    // console.log("Debug leaveTypeId: ", leaveTypeId);
     if (!user.hireDate || !user.personnelTypeId || !leaveTypeId) {
       return null;
     }
 
     const months = calculateMonths(user.hireDate);
 
-    const rank = await prisma.rank.findFirst({
+    const rank = await prisma.Rank.findFirst({
       where: {
         personnelTypeId: user.personnelTypeId,
         leaveTypeId: leaveTypeId,
@@ -25,48 +22,48 @@ class RankService {
     return rank;
   }
 
-  // ดึง rank ทั้งหมด (admin)
+  // ดึง Rank ทั้งหมด (admin)
   static async getAllRanks() {
-    return await prisma.rank.findMany({
-      include: { personnelType: true },
+    return await prisma.Rank.findMany({
+      include: { PersonnelType: true }, // เปลี่ยน personnelType เป็น PersonnelType
       orderBy: { minHireMonths: "asc" },
     });
   }
 
-  // ดึง rank by id
+  // ดึง Rank by id
   static async getRankById(id) {
-    return await prisma.rank.findUnique({
+    return await prisma.Rank.findUnique({
       where: { id },
-      include: { personnelType: true },
+      include: { PersonnelType: true }, // เปลี่ยน personnelType เป็น PersonnelType
     });
   }
 
-  // create new rank
+  // create new Rank
   static async createRank(data) {
-    return await prisma.rank.create({ data });
+    return await prisma.Rank.create({ data });
   }
 
-  // update rank
+  // update Rank
   static async updateRank(id, data) {
-    const exists = await prisma.rank.findUnique({ where: { id } });
-    if (!exists) throw createError(404, `ไม่พบ rank id ${id}`);
+    const exists = await prisma.Rank.findUnique({ where: { id } });
+    if (!exists) throw createError(404, `ไม่พบ Rank id ${id}`);
 
-    return await prisma.rank.update({
+    return await prisma.Rank.update({
       where: { id },
       data,
     });
   }
 
-  // delete rank
+  // delete Rank
   static async deleteRank(id) {
-    return await prisma.rank.delete({
+    return await prisma.Rank.delete({
       where: { id },
     });
   }
 
   static async getRankForUserByLeaveType(user, leaveTypeId) {
-    console.log("ttttttttttttt",user.id)
-    const userRank = await prisma.user_Rank.findFirst({
+    console.log("Debug user.id:", user.id);
+    const userRank = await prisma.UserRank.findFirst({
       where: {
         userId: user.id,
         rank: {

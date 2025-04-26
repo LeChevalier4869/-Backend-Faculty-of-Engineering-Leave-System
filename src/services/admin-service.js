@@ -9,7 +9,7 @@ const cloudUpload = require("../utils/cloudUpload");
 class AdminService {
   // ✅ ดึงรายชื่อผู้ใช้งานที่มี role ADMIN
   static async getAdminList() {
-    return await prisma.user.findMany({
+    return await prisma.User.findMany({
       where: {
         userRoles: {
           some: {
@@ -60,7 +60,7 @@ class AdminService {
     );
     if (!eligibility.success) throw createError(400, eligibility.message);
 
-    const leaveRequest = await prisma.leaveRequest.create({
+    const leaveRequest = await prisma.LeaveRequest.create({
       data: {
         userId,
         leaveTypeId,
@@ -87,7 +87,7 @@ class AdminService {
       requestedDays
     );
 
-    await prisma.leaveRequestDetail.create({
+    await prisma.LeaveRequestDetail.create({
       data: {
         leaveRequestId: leaveRequest.id,
         approverId: adminId || 0,
@@ -117,7 +117,7 @@ class AdminService {
     isRecurring = false,
     holidayType,
   }) {
-    return await prisma.holiday.create({
+    return await prisma.Holiday.create({
       data: {
         date: new Date(date),
         description,
@@ -128,12 +128,12 @@ class AdminService {
     });
   }
   static async getHoliday() {
-    return await prisma.holiday.findMany({
+    return await prisma.Holiday.findMany({
       orderBy: { date: "asc" },
     });
   }
   static async updateHolidayById(holidayId, updateData) {
-    const existingHoliday = await prisma.holiday.findUnique({
+    const existingHoliday = await prisma.Holiday.findUnique({
       where: { id: holidayId },
     });
 
@@ -141,33 +141,33 @@ class AdminService {
       throw createError(404, "Holiday not found");
     }
 
-    return await prisma.holiday.update({
+    return await prisma.Holiday.update({
       where: { id: holidayId },
       data: updateData,
     });
   }
   static async deleteHoliday(holidayId) {
-    const existingHoliday = await prisma.holiday.findUnique({
+    const existingHoliday = await prisma.Holiday.findUnique({
       where: { id: holidayId },
     });
 
     if (!existingHoliday) {
       throw createError(404, "Holiday not found");
     }
-    return await prisma.holiday.delete({
+    return await prisma.Holiday.delete({
       where: { id: holidayId },
     });
   }
 
   //---------------------- Approver -------------
   static async approverList() {
-    return await prisma.approver.findMany();
+    return await prisma.Approver.findMany();
   }
   static async createApprover(name) {
-    return await prisma.approver.create({ data: { name } });
+    return await prisma.Approver.create({ data: { name } });
   }
   static async updateApprover(id, name) {
-    return await prisma.approver.update({
+    return await prisma.Approver.update({
       where: { id },
       data: {
         name: name,
@@ -175,41 +175,41 @@ class AdminService {
     });
   }
   static async deleteApprover(id) {
-    return await prisma.approver.delete({
+    return await prisma.Approver.delete({
       where: { id },
     });
   }
 
   //------------------------ Department -------------
   static async departmentList() {
-    return await prisma.department.findMany();
+    return await prisma.Department.findMany();
   }
   static async createDepartment(data) {
-    return await prisma.department.create({ data });
+    return await prisma.Department.create({ data });
   }
   static async updateDepartment(data) {
     const { id, name, organizationId, appointDate, headId } = data;
-    return await prisma.department.update({
+    return await prisma.Department.update({
       where: { id },
       data: { name, organizationId, appointDate, headId },
     });
   }
 
   static async deleteDepartment(id) {
-    return await prisma.department.delete({
+    return await prisma.Department.delete({
       where: { id },
     });
   }
 
   //------------------------ Organization -----------
   static async organizationList() {
-    return await prisma.organization.findMany();
+    return await prisma.Organization.findMany();
   }
   static async createOrganization(name) {
-    return await prisma.organization.create({ data: { name } });
+    return await prisma.Organization.create({ data: { name } });
   }
   static async updateOrganization(id, name) {
-    return await prisma.organization.update({
+    return await prisma.Organization.update({
       where: { id },
       data: {
         name,
@@ -217,25 +217,25 @@ class AdminService {
     });
   }
   static async deleteOrganization(id) {
-    return await prisma.organization.delete({
+    return await prisma.Organization.delete({
       where: { id },
     });
   }
   static async getOrganizationById(id) {
-    return await prisma.organization.findUnique({
+    return await prisma.Organization.findUnique({
       where: { id },
     });
   }
 
   //------------------------ Role -----------
   static async roleList() {
-    return await prisma.role.findMany();
+    return await prisma.Role.findMany();
   }
   static async createRole(name) {
-    return await prisma.role.create({ data: { name } });
+    return await prisma.Role.create({ data: { name } });
   }
   static async updateRole(id, name) {
-    return await prisma.role.update({
+    return await prisma.Role.update({
       where: { id },
       data: {
         name,
@@ -243,28 +243,28 @@ class AdminService {
     });
   }
   static async deleteRole(id) {
-    return await prisma.role.delete({
+    return await prisma.Role.delete({
       where: { id },
     });
   }
   static async getRoleById(id) {
-    return await prisma.role.findUnique({
+    return await prisma.Role.findUnique({
       where: { id },
     });
   }
 
   static async assignHead(departmentId, headId) {
-    const department = await prisma.department.findUnique({
+    const department = await prisma.Department.findUnique({
       where: { id: departmentId },
     });
     if (!department) throw createError(404, "Department not found");
   
-    const user = await prisma.user.findUnique({
+    const user = await prisma.User.findUnique({
       where: { id: headId },
     });
     if (!user) throw createError(404, "User not found");
   
-    const updated = await prisma.department.update({
+    const updated = await prisma.Department.update({
       where: { id: departmentId },
       data: {
         headId,
@@ -301,7 +301,7 @@ class AdminService {
 
   //------------ Manage User -----------
   static async getUserById(id) {
-    return await prisma.user.findUnique({
+    return await prisma.User.findUnique({
       where: { id },
       select: {
         id: true,
@@ -340,7 +340,7 @@ class AdminService {
 
     const hashedPassword = await require("bcryptjs").hash(password, 10);
 
-    const newUser = await prisma.user.create({
+    const newUser = await prisma.User.create({
       data: {
         prefixName,
         firstName,
@@ -363,7 +363,7 @@ class AdminService {
 
     if (file) {
       const imgUrl = await cloudUpload(file.path);
-      await prisma.user.update({
+      await prisma.User.update({
         where: { id: newUser.id },
         data: { profilePicturePath: imgUrl },
       });
@@ -374,12 +374,12 @@ class AdminService {
   }
 
   static async updateUserById(userId, updateData) {
-    const existing = await prisma.user.findUnique({
+    const existing = await prisma.User.findUnique({
       where: { id: Number(userId) },
     });
     if (!existing) throw createError(404, "ไม่พบผู้ใช้งาน");
   
-    const updated = await prisma.user.update({
+    const updated = await prisma.User.update({
       where: { id: Number(userId) },
       data: {
         prefixName:      updateData.prefixName,
@@ -404,22 +404,22 @@ class AdminService {
 
   static async deleteUserById(userId) {
     const id = Number(userId);
-    const existing = await prisma.user.findUnique({ where: { id } });
+    const existing = await prisma.User.findUnique({ where: { id } });
     if (!existing) throw createError(404, "User not found");
 
     // Remove dependent records to satisfy FK constraints
-    await prisma.user_Role.deleteMany({ where: { userId: id } });
-    await prisma.auditLog.deleteMany({ where: { userId: id } });
-    await prisma.notification.deleteMany({ where: { userId: id } });
-    await prisma.signature.deleteMany({ where: { userId: id } });
-    await prisma.leaveRequestDetail.deleteMany({ where: { approverId: id } });
-    await prisma.leaveRequest.deleteMany({ where: { userId: id } });
-    await prisma.leaveBalance.deleteMany({ where: { userId: id } });
-    await prisma.user_Rank.deleteMany({ where: { userId: id } });
-    await prisma.approveStep.deleteMany({ where: { userId: id } });
+    await prisma.UserRole.deleteMany({ where: { userId: id } });
+    await prisma.AuditLog.deleteMany({ where: { userId: id } });
+    await prisma.Notification.deleteMany({ where: { userId: id } });
+    await prisma.Signature.deleteMany({ where: { userId: id } });
+    await prisma.LeaveRequestDetail.deleteMany({ where: { approverId: id } });
+    await prisma.LeaveRequest.deleteMany({ where: { userId: id } });
+    await prisma.LeaveBalance.deleteMany({ where: { userId: id } });
+    await prisma.UserRank.deleteMany({ where: { userId: id } });
+    await prisma.ApproveStep.deleteMany({ where: { userId: id } });
 
     // Finally delete user
-    await prisma.user.delete({ where: { id } });
+    await prisma.User.delete({ where: { id } });
     return { message: "User deleted successfully" };
   }
 }
