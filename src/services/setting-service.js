@@ -2,7 +2,7 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 
 exports.createSetting = async (data) => {
-  const existing = await prisma.Setting.findFirst({
+  const existing = await prisma.setting.findFirst({
     where: { key: data.key },
   });
 
@@ -12,15 +12,15 @@ exports.createSetting = async (data) => {
     throw error;
   }
 
-  return await prisma.Setting.create({ data });
+  return await prisma.setting.create({ data });
 };
 
 exports.getAllSettings = async () => {
-  return await prisma.Setting.findMany();
+  return await prisma.setting.findMany();
 };
 
 exports.getSettingById = async (id) => {
-  const existing = await prisma.Setting.findUnique({
+  const existing = await prisma.setting.findUnique({
     where: { id: parseInt(id) },
   });
 
@@ -30,11 +30,11 @@ exports.getSettingById = async (id) => {
     throw error;
   }
 
-  return await prisma.Setting.findUnique({ where: { id: parseInt(id) } });
+  return await prisma.setting.findUnique({ where: { id: parseInt(id) } });
 };
 
 exports.updateSetting = async (id, data) => {
-  const existing = await prisma.Setting.findUnique({
+  const existing = await prisma.setting.findUnique({
     where: { id: parseInt(id) },
   });
 
@@ -44,14 +44,14 @@ exports.updateSetting = async (id, data) => {
     throw error;
   }
 
-  return await prisma.Setting.update({
+  return await prisma.setting.update({
     where: { id: parseInt(id) },
     data,
   });
 };
 
 exports.deleteSetting = async (id) => {
-  const existing = await prisma.Setting.findUnique({
+  const existing = await prisma.setting.findUnique({
     where: { id: parseInt(id) },
   });
 
@@ -61,7 +61,7 @@ exports.deleteSetting = async (id) => {
     throw error;
   }
 
-  return await prisma.Setting.delete({
+  return await prisma.setting.delete({
     where: { id: parseInt(id) },
   });
 };

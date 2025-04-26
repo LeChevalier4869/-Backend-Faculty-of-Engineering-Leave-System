@@ -15,7 +15,7 @@ class LeaveBalanceService {
       throw createError(400, "userId หรือ leaveTypeId ไม่ถูกต้อง");
     }
   
-    return await prisma.LeaveBalance.findFirst({
+    return await prisma.leaveBalance.findFirst({
       where: { userId: uid, leaveTypeId: ltid },
     });
   }
@@ -24,7 +24,7 @@ class LeaveBalanceService {
    * Get all leave balances for a user, including leave type details.
    */
   static async getAllBalancesForUser(userId) {
-    return await prisma.LeaveBalance.findMany({
+    return await prisma.leaveBalance.findMany({
       where: { userId },
       include: { leaveType: { select: { name: true, isAvailable: true } } },
       orderBy: { leaveTypeId: "asc" },
@@ -58,7 +58,7 @@ class LeaveBalanceService {
       throw createError(400, "ค่าที่ใช้คำนวณ leave balance ไม่ถูกต้อง");
     }
   
-    return await prisma.LeaveBalance.update({
+    return await prisma.leaveBalance.update({
       where: { id: balance.id },
       data: {
         pendingDays: pending,
@@ -81,7 +81,7 @@ class LeaveBalanceService {
     const newPending = Math.max(balance.pendingDays - approvedDays, 0);
     const newUsed = balance.usedDays + approvedDays;
   
-    return await prisma.LeaveBalance.update({
+    return await prisma.leaveBalance.update({
       where: { id: balance.id },
       data: {
         pendingDays: newPending,
@@ -101,7 +101,7 @@ class LeaveBalanceService {
       balance = await this.initializeLeaveBalance(userId, parseInt(leaveTypeId, 10), 10);
     }
 
-    return await prisma.LeaveBalance.update({
+    return await prisma.leaveBalance.update({
       where: { id: balance.id },
       data: {
         pendingDays: balance.pendingDays - rollbackDays,
@@ -114,7 +114,7 @@ class LeaveBalanceService {
    * Create a new leaveBalance record with specified maxDays.
    */
   static async initializeLeaveBalance(userId, leaveTypeId, maxDays) {
-    return await prisma.LeaveBalance.create({
+    return await prisma.leaveBalance.create({
       data: {
         userId,
         leaveTypeId,
@@ -130,7 +130,7 @@ class LeaveBalanceService {
    * Get a balance record by its ID (rarely needed).
    */
   static async getBalanceById(balanceId) {
-    const balance = await prisma.LeaveBalance.findUnique({
+    const balance = await prisma.leaveBalance.findUnique({
       where: { id: balanceId },
     });
     if (!balance) {

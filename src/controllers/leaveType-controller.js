@@ -3,10 +3,11 @@ const createError = require("../utils/createError");
 
 exports.createLeaveType = async (req, res, next) => {
   try {
-    const { name, conditions } = req.body;
+    const name = req.body;
     if (!name) throw createError(400, "กรุณาระบุชื่อประเภทการลา");
 
-    const leaveType = await LeaveTypeService.createLeaveType(name, conditions);
+    console.log("🔍 สร้างประเภทการลา:", { name });
+    const leaveType = await LeaveTypeService.createLeaveType(name);
     res
       .status(201)
       .json({ message: "สร้างประเภทการลาเรียบร้อยแล้ว", data: leaveType });
@@ -54,7 +55,7 @@ exports.deleteLeaveType = async (req, res, next) => {
 
 exports.getAllLeaveType = async (req, res, next) => {
   try {
-    const leaveType = await LeaveTypeService.getAllLeaveTypes();
+    const leaveType = await LeaveTypeService.getAllLeaveType();
     res
       .status(200)
       .json({ message: "ดึงข้อมูลประเภทการลาทั้งหมดแล้ว", data: leaveType });

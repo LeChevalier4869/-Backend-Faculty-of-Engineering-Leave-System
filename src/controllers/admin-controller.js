@@ -11,6 +11,7 @@ const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const UserService = require("../services/user-service");
 const cloudUpload = require("../utils/cloudUpload");
+const prisma = require("../config/prisma");
 
 exports.adminList = async (req, res, next) => {
   try {

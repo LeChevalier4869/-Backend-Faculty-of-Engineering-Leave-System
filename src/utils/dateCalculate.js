@@ -6,7 +6,7 @@ async function isHoliday(date) {
   }
 
   
-  const holiday = await prisma.Holiday.findFirst({
+  const holiday = await prisma.holiday.findFirst({
     where: {
       date: new Date(date),
     },
@@ -21,7 +21,7 @@ async function calculateWorkingDays(startDate, endDate) {
   const end   = new Date(endDate);
 
   // ดึงวันหยุดในช่วงเดียวครั้งเดียว
-  const holidays = await prisma.Holiday.findMany({
+  const holidays = await prisma.holiday.findMany({
     where: { date: { gte: start, lte: end } },
     select: { date: true },
   });

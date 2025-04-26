@@ -5,35 +5,35 @@ const createError = require("../utils/createError");
 class OrgAndDeptService {
   // Organization -----------------------------------
   static async getAllOrganizations() {
-    return await prisma.Organization.findMany();
+    return await prisma.organization.findMany();
   }
 
   static async getOrganizationById(id) {
-    return await prisma.Organization.findUnique({
+    return await prisma.organization.findUnique({
       where: { id: parseInt(id) },
     });
   }
 
   static async createOrganization(name) {
-    return await prisma.Organization.create({ data: { name } });
+    return await prisma.organization.create({ data: { name } });
   }
 
   static async updateOrganization(id, name) {
-    return await prisma.Organization.update({
+    return await prisma.organization.update({
       where: { id: parseInt(id) },
       data: { name },
     });
   }
 
   static async deleteOrganization(id) {
-    return await prisma.Organization.delete({
+    return await prisma.organization.delete({
       where: { id: parseInt(id) },
     });
   }
 
   // Department --------------------------------------
   static async getAllDepartments() {
-    return await prisma.Department.findMany({
+    return await prisma.department.findMany({
       include: {
         head: {
           select: {
@@ -48,7 +48,7 @@ class OrgAndDeptService {
   }
 
   static async getDepartmentById(id) {
-    return await prisma.Department.findUnique({
+    return await prisma.department.findUnique({
       where: { id: parseInt(id) }, // ตรวจสอบให้แน่ใจว่า id เป็น Int
       include: {
         head: {
@@ -64,49 +64,54 @@ class OrgAndDeptService {
   }
 
   static async createDepartment(data) {
-    return await prisma.Department.create({
+    return await prisma.department.create({
       data,
     });
   }
 
   static async updateDepartment(id, data) {
     if (data.headId) {
-      const headExists = await prisma.User.findUnique({
+      const headExists = await prisma.user.findUnique({
         where: { id: data.headId },
       });
       if (!headExists) {
         throw createError(400, "ไม่พบผู้ใช้งานที่เป็นหัวหน้าของแผนก");
       }
     }
-    return await prisma.Department.update({
+    return await prisma.department.update({
       where: { id: parseInt(id) }, // ตรวจสอบให้แน่ใจว่า id เป็น Int
       data,
     });
   }
 
   static async deleteDepartment(id) {
-    return await prisma.Department.delete({
+    return await prisma.department.delete({
       where: { id: parseInt(id) }, // ตรวจสอบให้แน่ใจว่า id เป็น Int
     });
   }
 
   // PersonnelType ------------------------------------
   static async getAllPersonnelTypes() {
-    return await prisma.PersonnelType.findMany();
+    return await prisma.personnelType.findMany();
   }
 
   static async getPersonnelTypeById(id) {
-    return await prisma.PersonnelType.findUnique({
+    return await prisma.personnelType.findUnique({
       where: { id },
     });
   }
 
   static async createPersonnelType(name) {
-    return await prisma.PersonnelType.create({ data: { name } });
+    console.log("Creating PersonnelType with name:", name.name);
+    return await prisma.personnelType.create({
+      data: {
+        name: name, // หรือเขียน name เฉยๆ ก็ได้ถ้าชื่อ parameter ตรงกัน
+      },
+    });
   }
 
   static async updatePersonnelType(id, name) {
-    return await prisma.PersonnelType.update({
+    return await prisma.personnelType.update({
       where: { id },
       data: {
         name,
@@ -115,7 +120,7 @@ class OrgAndDeptService {
   }
 
   static async deletePersonnelType(id) {
-    return await prisma.PersonnelType.delete({
+    return await prisma.personnelType.delete({
       where: { id },
     });
   }
