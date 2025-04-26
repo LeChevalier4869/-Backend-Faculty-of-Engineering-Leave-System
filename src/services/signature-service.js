@@ -2,7 +2,7 @@ const prisma = require("../config/prisma");
 
 exports.createSignature = async (userId, imgUrl) => {
   // ตรวจสอบว่าผู้ใช้มีอยู่จริงหรือไม่
-  const user = await prisma.User.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
   });
 
@@ -13,7 +13,7 @@ exports.createSignature = async (userId, imgUrl) => {
   }
 
   // ตรวจสอบว่าผู้ใช้มี signature อยู่แล้วหรือไม่
-  const existing = await prisma.Signature.findFirst({
+  const existing = await prisma.signature.findFirst({
     where: { userId },
   });
 
@@ -23,7 +23,7 @@ exports.createSignature = async (userId, imgUrl) => {
     throw error;
   }
 
-  return await prisma.Signature.create({
+  return await prisma.signature.create({
     data: {
       userId,
       file: imgUrl,
@@ -32,7 +32,7 @@ exports.createSignature = async (userId, imgUrl) => {
 };
 
 exports.getAllSignature = async () => {
-  return await prisma.Signature.findMany({
+  return await prisma.signature.findMany({
     include: {
       user: true, // รวมข้อมูลผู้ใช้ด้วย
     },
@@ -40,7 +40,7 @@ exports.getAllSignature = async () => {
 };
 
 exports.getSignatureById = async (id) => {
-  const signature = await prisma.Signature.findUnique({
+  const signature = await prisma.signature.findUnique({
     where: { id: parseInt(id) },
     include: { user: true },
   });
@@ -58,7 +58,7 @@ exports.updateSignature = async (id, data) => {
   const signatureId = parseInt(id);
 
   // ตรวจสอบว่า signature ที่จะอัปเดตมีอยู่จริงหรือไม่
-  const existing = await prisma.Signature.findUnique({
+  const existing = await prisma.signature.findUnique({
     where: { id: signatureId },
   });
 
@@ -70,7 +70,7 @@ exports.updateSignature = async (id, data) => {
 
   // ถ้ามีการส่ง userId มาใหม่ ให้ตรวจสอบว่าผู้ใช้นั้นมีอยู่จริงหรือไม่
   if (data.userId) {
-    const user = await prisma.User.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: parseInt(data.userId) },
     });
 
@@ -81,7 +81,7 @@ exports.updateSignature = async (id, data) => {
     }
   }
 
-  return await prisma.Signature.update({
+  return await prisma.signature.update({
     where: { id: signatureId },
     data,
   });
@@ -91,7 +91,7 @@ exports.deleteSignature = async (id) => {
   const signatureId = parseInt(id);
 
   // ตรวจสอบว่ามีลายเซ็นนี้อยู่หรือไม่
-  const existing = await prisma.Signature.findUnique({
+  const existing = await prisma.signature.findUnique({
     where: { id: signatureId },
   });
 
@@ -101,13 +101,13 @@ exports.deleteSignature = async (id) => {
     throw error;
   }
 
-  return await prisma.Signature.delete({
+  return await prisma.signature.delete({
     where: { id: signatureId },
   });
 };
 
 exports.getSignatureIsMine = async (userId) => {
-  const signature = await prisma.Signature.findFirst({
+  const signature = await prisma.signature.findFirst({
     where: { userId },
   });
 
