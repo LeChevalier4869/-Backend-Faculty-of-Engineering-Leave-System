@@ -54,7 +54,7 @@ model User {
 
   Department Department[] @relation("DepartmentHead")
 
-  @@map("user")
+  @@map("User")
 }
 
 model PersonnelType {
@@ -65,7 +65,7 @@ model PersonnelType {
   users User[]
   Rank  Rank[]
 
-  @@map("personnelType")
+  @@map("PersonnelType")
 }
 
 model Department {
@@ -80,7 +80,7 @@ model Department {
   organization Organization @relation(fields: [organizationId], references: [id])
   users        User[]
 
-  @@map("department")
+  @@map("Department")
 }
 
 model Organization {
@@ -91,7 +91,7 @@ model Organization {
   departments  Department[]
   approveSteps ApproveStep[]
 
-  @@map("organization")
+  @@map("Organization")
 }
 
 model AuditLog {
@@ -106,7 +106,7 @@ model AuditLog {
   user         User         @relation(fields: [userId], references: [id])
   leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
 
-  @@map("auditLog")
+  @@map("AuditLog")
 }
 
 model Notification {
@@ -118,7 +118,7 @@ model Notification {
   // Relations
   user User @relation(fields: [userId], references: [id])
 
-  @@map("notification")
+  @@map("Notification")
 }
 
 model Role {
@@ -128,7 +128,7 @@ model Role {
   // Relations
   userRoles UserRole[]
 
-  @@map("role")
+  @@map("Role")
 }
 
 model UserRole {
@@ -140,7 +140,7 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [id])
 
   @@unique([userId, roleId])
-  @@map("userRole")
+  @@map("UserRole")
 }
 
 model Signature {
@@ -150,7 +150,7 @@ model Signature {
 
   user User @relation(fields: [userId], references: [id])
 
-  @@map("signature")
+  @@map("Signature")
 }
 
 model ApproveStep {
@@ -165,7 +165,7 @@ model ApproveStep {
   user         User         @relation(fields: [userId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
 
-  @@map("approveStep")
+  @@map("ApproveStep")
 }
 
 model Approver {
@@ -173,7 +173,7 @@ model Approver {
   name String
   // อาจมี relation เพิ่มเติมในอนาคต หากต้องการแยกข้อมูลผู้อนุมัติออกจาก User
 
-  @@map("approver")
+  @@map("Approver")
 }
 
 model Rank {
@@ -192,7 +192,7 @@ model Rank {
   personnelType PersonnelType @relation(fields: [personnelTypeId], references: [id])
   leaveType     LeaveType     @relation(fields: [leaveTypeId], references: [id])
 
-  @@map("rank")
+  @@map("Rank")
 }
 
 model UserRank {
@@ -204,7 +204,7 @@ model UserRank {
   rank Rank @relation(fields: [rankId], references: [id])
 
   @@unique([userId, rankId])
-  @@map("userRank")
+  @@map("UserRank")
 }
 
 model LeaveBalance {
@@ -220,7 +220,7 @@ model LeaveBalance {
   user      User      @relation(fields: [userId], references: [id])
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
 
-  @@map("leaveBalance")
+  @@map("LeaveBalance")
 }
 
 model LeaveType {
@@ -233,7 +233,7 @@ model LeaveType {
   leaveRequests LeaveRequest[]
   Rank          Rank[]
 
-  @@map("leaveType")
+  @@map("LeaveType")
 }
 
 model LeaveRequest {
@@ -263,7 +263,7 @@ model LeaveRequest {
   files               File[]
   leaveRequestDetails LeaveRequestDetail[]
 
-  @@map("leaveRequest")
+  @@map("LeaveRequest")
 }
 
 model File {
@@ -276,7 +276,7 @@ model File {
   // Relations
   leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
 
-  @@map("file")
+  @@map("File")
 }
 
 model LeaveRequestDetail {
@@ -295,7 +295,7 @@ model LeaveRequestDetail {
 
   @@index([approverId])
   @@index([leaveRequestId])
-  @@map("leaveRequestDetail")
+  @@map("LeaveRequestDetail")
 }
 
 model Holiday {
@@ -306,7 +306,7 @@ model Holiday {
   isRecurring Boolean  @default(false)
   holidayType String?
 
-  @@map("holiday")
+  @@map("Holiday")
 }
 
 model Setting {
@@ -318,5 +318,5 @@ model Setting {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@map("setting")
+  @@map("Setting")
 }
