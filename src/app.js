@@ -26,6 +26,8 @@ const adminUserRoute       = require("./routes/admin-user-route");
 // Initialize app
 const app = express();
 
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(
