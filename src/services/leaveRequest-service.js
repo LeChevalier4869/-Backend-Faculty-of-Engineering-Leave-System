@@ -867,6 +867,13 @@ class LeaveRequestService {
       },
     });
 
+    await prisma.LeaveRequest.update({
+      where: { id: updatedDetail.leaveRequestId },
+      data: {
+        status: "REJECTED",
+      },
+    });
+
     // บันทึก log การทำงาน
     await AuditLogService.createLog(
       approverId,
@@ -1040,6 +1047,13 @@ class LeaveRequestService {
       },
       include: {
         leaveRequest: true,
+      },
+    });
+
+    await prisma.LeaveRequest.update({
+      where: { id: updatedDetail.leaveRequestId },
+      data: {
+        status: "REJECTED",
       },
     });
 
@@ -1411,6 +1425,13 @@ class LeaveRequestService {
       },
     });
 
+    await prisma.LeaveRequest.update({
+      where: { id: updatedDetail.leaveRequestId },
+      data: {
+        status: "REJECTED",
+      },
+    });
+
     // บันทึก log การทำงาน
     await AuditLogService.createLog(
       approverId,
@@ -1584,6 +1605,13 @@ class LeaveRequestService {
       },
       include: {
         leaveRequest: true,
+      },
+    });
+
+    await prisma.LeaveRequest.update({
+      where: { id: updatedDetail.leaveRequestId },
+      data: {
+        status: "REJECTED",
       },
     });
 
