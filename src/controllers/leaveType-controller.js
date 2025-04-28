@@ -86,3 +86,19 @@ exports.getLeaveTypeById = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getAvailableLeaveTypes = async (req, res) =>{
+  try {
+    const leaveTypes = await LeaveTypeService.getAvailableLeaveTypes();
+    res.status(200).json({
+      success: true,
+      data: leaveTypes,
+    });
+  } catch (error) {
+    console.error('Error in getAvailableLeaveTypes controller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
+}

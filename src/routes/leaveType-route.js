@@ -6,8 +6,8 @@ router.post('/', LeaveTypeController.createLeaveType);
 router.put('/:id', LeaveTypeController.updateLeaveType);
 router.delete('/:id', LeaveTypeController.deleteLeaveType);
 router.get('/', LeaveTypeController.getAllLeaveType);
-router.get('/:id', LeaveTypeController.getLeaveTypeById);
-
+router.get('/type/:id', LeaveTypeController.getLeaveTypeById);
+router.get('/available', LeaveTypeController.getAvailableLeaveTypes);
 // module.exports = router;
 
 

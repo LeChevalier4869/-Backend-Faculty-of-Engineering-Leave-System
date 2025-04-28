@@ -13,7 +13,7 @@ const { calculateWorkingDays } = require("../utils/dateCalculate");
 exports.createLeaveRequest = async (req, res, next) => {
   try {
     const { leaveTypeId, startDate, endDate, reason, contact } = req.body;
-    // console.log("req.user.id = ", req.user.id);
+    console.log("req.user.id = ", req.user);
     // console.log("Debug leaveTypeId con: ", leaveTypeId);
     // console.log("Debug req.user.id con: ", req.user.id);
 

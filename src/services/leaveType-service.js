@@ -51,6 +51,22 @@ class LeaveTypeService {
       where: { id },
     });
   }
+
+  
+  // ดึงประเภทการลาที่ลาในระบบได้
+  static async getAvailableLeaveTypes() {
+    try {
+      return await prisma.LeaveType.findMany({
+        where: {
+          isAvailable: true,
+        },
+      });
+    } catch (error) {
+      console.error('Error in getAvailableLeaveTypes:', error);
+      throw error;
+    }
+  }
+
 }
 
 module.exports = LeaveTypeService;
