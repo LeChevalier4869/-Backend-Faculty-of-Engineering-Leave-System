@@ -30,96 +30,65 @@ exports.adminList = async (req, res, next) => {
 
 exports.createRequestByAdmin = async (req, res, next) => {
   try {
-    const { leaveTypeId, startDate, endDate, reason, isEmergency, status } =
-      req.body;
-    // console.log("req.user.id = ", req.user.id);
-    // console.log("Debug leaveTypeId con: ", leaveTypeId);
-    // console.log("Debug req.user.id con: ", req.user.id);
+    const { leaveTypeId, startDate, endDate, reason, isEmergency, status } = req.body;
+    const userId = req.user.id;           // ← ประกาศ userId มาจาก req.user
 
     if (!leaveTypeId || !startDate || !endDate || !status) {
-      console.log(
-        "Debug createRequest leaveType, start, end",
-        leaveTypeId,
-        startDate,
-        endDate,
-        status
-      );
-      throw createError(
-        400,
-        "กรุณาเลือกวันที่เริ่มและวันที่สิ้นสุดและ leave type"
-      );
+      throw createError(400, "กรุณาเลือกวันที่เริ่ม, วันที่สิ้นสุด และ leave type");
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-
-    // Validation: startDate ต้องไม่มากกว่า endDate
     if (start > end) {
       throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
     }
 
     const requestedDays = await calculateWorkingDays(start, end);
-
-    const leaveBalance = await LeaveBalanceService.getUserBalance(
-      req.user.id,
-      leaveTypeId
-    );
-
-    // const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
     if (requestedDays <= 0) {
       throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
     }
-    if (requestedDays > leaveBalance.maxDays - leaveBalance.usedDays) {
-      return createError(400, "Leave balance is not enough");
-    }
 
+    const leaveBalance = await LeaveBalanceService.getUserBalance(userId, leaveTypeId);
     if (!leaveBalance) {
-      throw createError(404, `Leave balance not found`);
+      throw createError(404, "ไม่พบ Leave balance");
+    }
+    if (requestedDays > leaveBalance.maxDays - leaveBalance.usedDays) {
+      throw createError(400, "Leave balance ไม่เพียงพอ");
     }
 
-    //not complete
-    await LeaveBalanceService.updatePendingLeaveBalance(
-      req.user.id,
-      leaveTypeId,
-      requestedDays
-    );
+    await LeaveBalanceService.updatePendingLeaveBalance(userId, leaveTypeId, requestedDays);
 
-    const leaveRequest = await AdminService.createLeaveRequestForUser(
+    // ← ส่ง object ให้ตรงกับที่ service คาดหวัง
+    const leaveRequest = await AdminService.createLeaveRequestForUser({
       userId,
       leaveTypeId,
-      startDate,
-      endDate,
+      startDate: start,
+      endDate: end,
       reason,
-      isEmergency,
-      status.trim().toUpperCase()
-    );
+      isEmergency: Boolean(isEmergency),
+      status: status.trim().toUpperCase()
+    }, req.user.id /* ถ้า service ต้องการ adminId เพิ่ม */);
 
-    const file = req.files;
-    if (file && file.length > 0) {
-      const imagesPromiseArray = file.map((file) => {
-        return cloudUpload(file.path);
-      });
-
-      const imgUrlArray = await Promise.all(imagesPromiseArray);
-
-      const attachImages = imgUrlArray.map((imgUrl) => {
-        return {
-          fileName: "attachment",
-          filePath: imgUrl,
-          leaveRequestId: leaveRequest.id,
-        };
-      });
-
-      LeaveRequestService.attachImages(attachImages);
+    // แนบไฟล์ถ้ามี
+    if (req.files && req.files.length) {
+      const imgUrls = await Promise.all(req.files.map(f => cloudUpload(f.path)));
+      const attachData = imgUrls.map(url => ({
+        fileName: "attachment",
+        filePath: url,
+        leaveRequestId: leaveRequest.id
+      }));
+      await LeaveRequestService.attachImages(attachData);
     }
 
-    res
-      .status(201)
-      .json({ message: "Leave request created", LeaveRequest: leaveRequest });
+    return res.status(201).json({
+      message: "สร้างคำขอลาเรียบร้อย",
+      data: leaveRequest
+    });
   } catch (err) {
     next(err);
   }
 };
+
 
 //--------------------- Holiday --------------------
 exports.getHoliday = async (req, res, next) => {
@@ -711,6 +680,41 @@ exports.organizationList = async (req, res, next) => {
 // --------------------
 //     manageUser
 // --------------------
+exports.getAllUsers = async (req, res) => {
+  try {
+    const { organizationId } = req.query;
+    const where = {};
+    if (organizationId) {
+      where.department = { organizationId: Number(organizationId) };
+    }
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+      orderBy: { firstName: 'asc' },
+    });
+
+    // สร้าง fullName ในโค้ดฝั่ง server
+    const data = users.map(u => ({
+      id: u.id,
+      fullName: `${u.firstName} ${u.lastName}`,
+      email: u.email,
+    }));
+
+    return res.status(200).json({
+      message: 'ดึงข้อมูลผู้ใช้สำเร็จ',
+      data,
+    });
+  } catch (error) {
+    console.error('[getAllUsers]', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
 exports.getUserById = async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
@@ -789,7 +793,7 @@ exports.createUserByAdmin = async (req, res, next) => {
     if (req.file) {
       const imgUrl = await cloudUpload(req.file.path);
       await UserService.createUserProfile(user.id, imgUrl);
-      fs.unlink(req.file.path, () => {});
+      fs.unlink(req.file.path, () => { });
     }
 
     // ✅ Default Role = USER

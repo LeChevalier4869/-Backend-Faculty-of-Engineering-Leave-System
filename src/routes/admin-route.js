@@ -50,6 +50,12 @@ router.put('/approver/:id', adminController.updateApprover);
 router.delete('/approver/:id', adminController.deleteApprover);
 
 //------------------------------------ Manage user -----------------
+router.get(
+  '/users',
+  authenticate,
+  authorize(['ADMIN']),
+  adminController.getAllUsers
+);
 router.get('/users/:id', authenticate, authorize(["ADMIN"]), adminController.getUserById);
 router.post("/create-user", authenticate, authorize(["ADMIN"]), upload.single("profilePicture"), adminController.createUserByAdmin);
 router.put('/users/:id', authenticate, authorize(['ADMIN']), adminController.updateUserById);
