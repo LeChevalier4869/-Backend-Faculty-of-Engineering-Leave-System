@@ -397,6 +397,12 @@ exports.updateUser = async (req, res, next) => {
     // }
 
     //console.log(sex,email)
+    console.log(sex)
+    console.log(email)
+    console.log(hireDate)
+    console.log(inActive)
+    console.log(personnelTypeId)
+    console.log(employmentType)
     if (
       !sex ||
       !email ||

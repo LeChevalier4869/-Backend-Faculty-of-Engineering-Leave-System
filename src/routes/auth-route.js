@@ -31,7 +31,7 @@ router.post('/reset-password', authController.resetPassword);
 // ==============================
 
 router.post('/update-role/:id', authenticate, authorize(['ADMIN']), authController.updateUserRole);
-router.put('/users', authenticate, upload.single('images'), authController.updateUser);
+router.put('/users/:is', authenticate, upload.single('images'), authController.updateUser);
 router.put('/user-status/:id', authenticate, authController.updateUserStatus);
 router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('profilePicturePath'), authController.updateProfile);
 
