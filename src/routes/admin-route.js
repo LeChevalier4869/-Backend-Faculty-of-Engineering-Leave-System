@@ -76,10 +76,10 @@ router.delete('/rank/:id', adminController.deleteRank);
 
 //---------------------------------- personnelType -----------------------
 router.get('/personnel-types', adminController.getAllPersonnelType);
-router.get('/personnelType/:id', adminController.getPersonnelTypeById);
-router.post('/personnelType', adminController.createPersonnelType);
-router.put('/personnelType/:id', adminController.updatePersonnelType);
-router.delete('/personnelType/:id', adminController.deletePersonnelType);
+router.get('/personnel-type/:id', adminController.getPersonnelTypeById);
+router.post('/personnel-type', adminController.createPersonnelType);
+router.put('/personnel-type/:id', adminController.updatePersonnelType);
+router.delete('/personnel-type/:id', adminController.deletePersonnelType);
 
 //---------------------------------- department -----------------------
 router.get('/departmentsList', adminController.departmentList);
