@@ -157,6 +157,24 @@ class LeaveRequestService {
     });
   }
 
+  static async findByUserId(userId) {
+    return await prisma.leaveRequest.findMany({
+      where: { userId: Number(userId) },
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        leaveType: true,
+        files: true,
+      },
+    });
+  }
+
   static async getLanding() {
     return await prisma.leaveRequest.findMany({
       where: { status: "PENDING" },

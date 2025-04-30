@@ -373,6 +373,20 @@ exports.deleteLeaveRequest = async (req, res, next) => {
   }
 };
 
+
+
+exports.getLeaveRequestsByUserId = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const leaveRequests = await LeaveRequestService.findByUserId(userId);
+    res.status(200).json({ data: leaveRequests });
+  } catch (error) {
+    console.error("Error getting leave requests by userId:", error);
+    res.status(500).json({ message: "ไม่สามารถดึงข้อมูลการลาของผู้ใช้งานได้" });
+  }
+};
+
 // ────────────────────────────────
 // 🟢 GET REQUEST FOR APPROVER
 // ────────────────────────────────
