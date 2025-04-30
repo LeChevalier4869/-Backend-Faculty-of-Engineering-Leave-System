@@ -159,7 +159,7 @@ class UserService {
         throw createError(404, "User not found");
       }
 
-      const updatedUser = await prisma.User.update({
+      const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
           ...data,
