@@ -158,6 +158,7 @@ class LeaveRequestService {
   }
 
   static async findByUserId(userId) {
+    console.log("Received userId:", userId); // ช่วย debug
     return await prisma.leaveRequest.findMany({
       where: { userId: Number(userId) },
       orderBy: { createdAt: "desc" },

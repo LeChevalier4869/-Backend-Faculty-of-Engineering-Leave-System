@@ -376,7 +376,11 @@ exports.deleteLeaveRequest = async (req, res, next) => {
 
 
 exports.getLeaveRequestsByUserId = async (req, res) => {
-  const { userId } = req.params;
+  const userId = req.params.userId || req.params.id;
+
+  if (!userId) {
+    return res.status(400).json({ message: "ไม่พบ userId ที่ส่งมา" });
+  }
 
   try {
     const leaveRequests = await LeaveRequestService.findByUserId(userId);
