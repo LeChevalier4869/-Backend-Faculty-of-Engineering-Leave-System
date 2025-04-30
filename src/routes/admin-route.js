@@ -110,4 +110,11 @@ router.delete('/organizations/:id', authController.deleteOrganization);
 router.get('/organizations', adminController.organizationList);
 router.post("/create-user", upload.single("profilePicture"), adminController.createUserByAdmin);
 
+ //---------------------------------- setting -----------------------
+router.post('/setting', adminController.createSetting);
+router.get('/setting', adminController.getAllSetting);
+router.get('/setting/:id', adminController.getSettingById);
+router.put('/setting/:id', adminController.updateSetting);
+router.delete('/setting/:id', adminController.deleteSetting);
+
 module.exports = router;
