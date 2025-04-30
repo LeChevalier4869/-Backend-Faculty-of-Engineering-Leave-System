@@ -125,26 +125,29 @@ class UserService {
       where: { id },
     });
   }
-
+  
   static async updateUser(userEmail, data) {
     try {
       const userExists = await prisma.user.findUnique({
         where: { email: userEmail },
       });
+  
       if (!userExists) {
-        createError(404, "User not found");
+        throw createError(404, "User not found");
       }
-
+  
       const updatedUser = await prisma.user.update({
         where: { email: userEmail },
         data,
       });
-
+  
       return updatedUser;
-    } catch {
-      createError(400, "Failed to update");
+    } catch (error) {
+      console.error(error);
+      throw createError(400, "Failed to update");
     }
   }
+  
 
   static async updateUserById(userId, data) {
     try {

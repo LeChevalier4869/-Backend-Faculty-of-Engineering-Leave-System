@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin-controller');
 const upload = require('../middlewares/upload');
+const authController = require('../controllers/auth-controller');
 const { authenticate , authorize } = require('../middlewares/auth');
 
 /**
@@ -81,10 +82,10 @@ router.delete('/rank/:id', adminController.deleteRank);
 
 //---------------------------------- personnelType -----------------------
 router.get('/personnel-types', adminController.getAllPersonnelType);
-router.get('/personnelType/:id', adminController.getPersonnelTypeById);
-router.post('/personnelType', adminController.createPersonnelType);
-router.put('/personnelType/:id', adminController.updatePersonnelType);
-router.delete('/personnelType/:id', adminController.deletePersonnelType);
+router.get('/personnel-type/:id', adminController.getPersonnelTypeById);
+router.post('/personnel-type', adminController.createPersonnelType);
+router.put('/personnel-type/:id', adminController.updatePersonnelType);
+router.delete('/personnel-type/:id', adminController.deletePersonnelType);
 
 //---------------------------------- department -----------------------
 router.get('/departmentsList', adminController.departmentList);
@@ -98,7 +99,14 @@ router
   .put(authenticate, authorize(["ADMIN"]), adminController.departmentUpdate)
   .delete(authenticate, authorize(["ADMIN"]), adminController.departmentDelete);
 
-//---------------------------------- employmentType -----------------------
+//---------------------------------- organization -----------------------
+router.get('/organizations', authController.getAllOrganizations);
+router.get('/organizations/:id', authController.getOrganizationById);
+router.post('/organizations', authController.createOrganization);
+router.put('/organizations/:id', authController.updateOrganization);
+router.delete('/organizations/:id', authController.deleteOrganization);
+
+  //---------------------------------- employmentType -----------------------
 router.get('/organizations', adminController.organizationList);
 router.post("/create-user", upload.single("profilePicture"), adminController.createUserByAdmin);
 

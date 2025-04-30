@@ -316,8 +316,14 @@ exports.updateUserRole = async (req, res, next) => {
 
 exports.updateUser = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    // * admin can update only
+    const { id } = req.params; // จาก URL path /users/:id
+    const user = req.user;
+    const userIdToUpdate = user.role.includes('ADMIN') ? parseInt(id) : user.id; // ADMIN update ใครก็ได้, USER update ตัวเองเท่านั้น
+
+    if (!userIdToUpdate || isNaN(userIdToUpdate)) {
+      return next(createError(400, "Invalid user ID"));
+    }
+
     const {
       prefixName,
       firstName,
@@ -325,61 +331,41 @@ exports.updateUser = async (req, res, next) => {
       sex,
       email,
       phone,
-      hireDate, // *
-      inActive, // *
-      employmentType, // *
-      personnelTypeId, // *
-      departmentId, // *
-      organizationId, // *
+      hireDate,
+      inActive,
+      employmentType,
+      personnelTypeId,
+      departmentId,
+      organizationId,
     } = req.body;
-
-    if (!userId || isNaN(userId)) {
-      return createError(400, "Invalid user ID");
-    }
-
-    //const file = req.file;
-
-    const user = req.user;
-    console.log("Debug role: ", user.role);
-
-    const userRole = Array.isArray(user.role) ? user.role : [user.role];
-
-    let updateData = {};
 
     validatePhone(phone);
 
-    if (userRole.includes("ADMIN")) {
-      updateData = {
-        prefixName,
-        firstName,
-        lastName,
-        sex,
-        email,
-        phone,
+    let updateData = {
+      prefixName,
+      firstName,
+      lastName,
+      sex,
+      email,
+      phone,
+    };
+
+    if (user.role.includes("ADMIN")) {
+      if (!sex || !email || !hireDate || inActive === undefined || !personnelTypeId || !employmentType || !departmentId) {
+        return next(createError(400, "Required fields are missing"));
+      }
+
+      Object.assign(updateData, {
         hireDate: new Date(hireDate),
         inActive: Boolean(inActive),
         employmentType,
-        personnelType: {
-          connect: { id: parseInt(personnelTypeId) }, // เชื่อมโยง personnelType
-        },
-        department: {
-          connect: { id: parseInt(departmentId) }, // เชื่อมโยง personnelType
-        },
-        // organization: {  // เชื่อมโยง organization แทน organizationId
-        //   connect: { id: parseInt(organizationId) },
-        // },
-      };
-    } else if (userRole.includes("USER")) {
-      updateData = {
-        prefixName,
-        firstName,
-        lastName,
-        sex,
-        email,
-        phone,
-      };
-    } else {
-      return createError(403, "Permission denied");
+        personnelType: { connect: { id: parseInt(personnelTypeId) } },
+        department: { connect: { id: parseInt(departmentId) } },
+      });
+
+      if (organizationId) {
+        updateData.organization = { connect: { id: parseInt(organizationId) } };
+      }
     }
 
     if (req.file) {
@@ -387,39 +373,14 @@ exports.updateUser = async (req, res, next) => {
       updateData.profilePicturePath = fileUrl;
     }
 
-    if (!departmentId) {
-      console.log("Debug dep, org id: ", departmentId);
-      return createError(400, "Required department field");
-    }
-    // if (!departmentId || !organizationId) {
-    //   console.log("Debug dep, org id: ", departmentId, organizationId);
-    //   return createError(400, "Required department or organization ID field");
-    // }
+    const updatedUser = await UserService.updateUserById(userIdToUpdate, updateData);
 
-    //console.log(sex,email)
-    if (
-      !sex ||
-      !email ||
-      !hireDate ||
-      !inActive ||
-      !personnelTypeId ||
-      !employmentType
-    ) {
-      return createError(400, "Required fields are missing");
-    }
-
-    const updateUser = await UserService.updateUserById(
-      userId,
-      updateData,
-      departmentId,
-      organizationId
-    );
-
-    res.status(200).json({ message: "User updated", user: updateUser });
+    res.status(200).json({ message: "User updated", user: updatedUser });
   } catch (err) {
     next(err);
   }
 };
+
 
 exports.updateUserStatus = async (req, res, next) => {
   try {
