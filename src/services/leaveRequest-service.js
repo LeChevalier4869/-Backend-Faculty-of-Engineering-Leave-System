@@ -143,6 +143,13 @@ class LeaveRequestService {
                 },
               },
             },
+            personnelType: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            employmentType: true, // เพิ่ม employmentType ที่นี่
           },
         },
         leaveType: true,
