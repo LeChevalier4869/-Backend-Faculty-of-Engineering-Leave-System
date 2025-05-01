@@ -130,6 +130,7 @@ class LeaveRequestService {
             prefixName: true,
             firstName: true,
             lastName: true,
+            position: true,
           },
         },
         leaveType: true,
