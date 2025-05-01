@@ -131,6 +131,18 @@ class LeaveRequestService {
             firstName: true,
             lastName: true,
             position: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+                organization: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         },
         leaveType: true,
