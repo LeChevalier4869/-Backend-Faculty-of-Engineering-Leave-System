@@ -515,7 +515,7 @@ class UserService {
       expiresIn: RESET_TOKEN_EXPIRY || "1h",
     });
 
-    const resetUrl = `https://backend-faculty-of-engineering-leave.onrender.com/reset-password?token=${token}`;
+    const resetUrl = `https://frontend-faculty-of-engine-git-c919d8-lechevalier4869s-projects.vercel.app/reset-password?token=${token}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
