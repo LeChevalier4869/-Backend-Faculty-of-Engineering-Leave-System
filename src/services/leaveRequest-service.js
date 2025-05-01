@@ -150,6 +150,7 @@ class LeaveRequestService {
               },
             },
             employmentType: true, // เพิ่ม employmentType ที่นี่
+            phone: true,
           },
         },
         leaveType: true,
