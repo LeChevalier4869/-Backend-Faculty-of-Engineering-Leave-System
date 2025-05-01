@@ -13,9 +13,14 @@ router.post(
   leaveRequestLimiter,
   upload.array("images", 5),
   leaveRequestController.createLeaveRequest
-); 
+);
 
-router.get("/", authenticate, authorize(["ADMIN"]), leaveRequestController.getAllLeaveRequests);
+router.get(
+  "/",
+  authenticate,
+  authorize(["ADMIN"]),
+  leaveRequestController.getAllLeaveRequests
+);
 
 router.get(
   "/",
@@ -98,6 +103,8 @@ router.get(
   authenticate,
   leaveRequestController.getLeaveRequestLanding
 );
+
+router.get("/user/:id", leaveRequestController.getLeaveRequestsByUserId);
 
 // ────────────────────────────────
 // 🟢 GET REQUEST FOR APPROVER
