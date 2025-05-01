@@ -150,13 +150,13 @@ exports.login = async (req, res, next) => {
     //console.log(user)
 
     if (!user) {
-      return createError(404, "User not found");
+      return createError(404, "ไม่พบผู้ใช้ในระบบ");
     }
 
     // จำเป็นต้องนำเข้าฐานข้อมูลก่อน แล้วรหัสจะทำยังไง?
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return createError(401, "Invalid email or password");
+      return createError(401, "รหัสผ่านไม่ถูกต้อง");
     }
     // console.log('isMatch = ' + isMatch);
     // console.log('password = ' + password);
