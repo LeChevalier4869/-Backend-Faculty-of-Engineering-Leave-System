@@ -22,6 +22,7 @@ const signatureRoute       = require('./routes/signature-route');
 const reportRoutes         = require('./routes/reportRoutes');
 const lookupRoute          = require('./routes/lookup-routes')
 const adminUserRoute       = require("./routes/admin-user-route");
+//const reportRouter         = require('./routes/report-router');
 
 // Initialize app
 const app = express();
@@ -40,6 +41,9 @@ app.use(
     },
   })
 );
+
+// Report
+//app.use('/api', reportRouter);
 
 // Body parsing
 app.use(express.json());
