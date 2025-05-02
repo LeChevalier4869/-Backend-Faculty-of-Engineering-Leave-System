@@ -494,8 +494,17 @@ class UserService {
     if (!user) throw new Error("ไม่พบผู้ใช้");
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) throw new Error("รหัสผ่านเดิมไม่ถูกต้อง");
+    if (!isMatch) throw new Error("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+    if (oldPassword === newPassword)
+      throw new Error("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน");
 
+    const letterCount = (newPassword.match(/[a-zA-Z]/g) || []).length;
+    if (String(newPassword).length < 8 || letterCount < 4) {
+      throw createError(
+        400,
+        "รหัสผ่านต้องมีความยาวมากกว่า 8 ตัวอักษร และต้องมีตัวอักษรอย่างน้อย 4 ตัว"
+      );
+    }
     const hashed = await bcrypt.hash(newPassword, 10);
     await prisma.User.update({
       where: { id: user.id },
