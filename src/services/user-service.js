@@ -494,6 +494,8 @@ class UserService {
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) throw new Error("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+    if (oldPassword === newPassword)
+      throw new Error("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน");
 
     const letterCount = (newPassword.match(/[a-zA-Z]/g) || []).length;
     if (String(newPassword).length < 8 || letterCount < 4) {
