@@ -2,6 +2,7 @@ const { PDFDocument } = require("pdf-lib");
 const fontkit = require("fontkit");
 const fs = require("fs");
 const path = require("path");
+const prisma = require("../config/prisma");
 
 async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
   try {

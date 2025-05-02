@@ -9,6 +9,7 @@ const upload = multer();
 const { sendEmail } = require("../utils/emailService");
 const { isCorporateEmail } = require("../utils/checkEmailDomain");
 const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
+const prisma = require("../config/prisma");
 const fs = require("fs");
 
 // controller/auth-controller.js
@@ -203,7 +204,7 @@ exports.login = async (req, res, next) => {
 
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await prisma.User.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: req.user?.id },
       include: { department: true, personnelType: true, }
     });
