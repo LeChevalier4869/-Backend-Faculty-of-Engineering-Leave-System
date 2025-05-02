@@ -10,7 +10,6 @@ const { sendEmail } = require("../utils/emailService");
 const { isCorporateEmail } = require("../utils/checkEmailDomain");
 const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
 const fs = require("fs");
-const prisma = require("../config/prisma");
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
@@ -184,7 +183,6 @@ exports.login = async (req, res, next) => {
         sex: user.sex,
         role: roles,
         phone: user.phone,
-        position: user.position,
         organization: organization,
         department: departments,
         // isHeadOfDepartment: ตรวจสอบว่า user เป็นหัวหน้าของสาขานี้หรือไม่,
@@ -205,8 +203,8 @@ exports.login = async (req, res, next) => {
 
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.userId },
+    const user = await prisma.User.findUnique({
+      where: { id: req.user?.id },
       include: { department: true, personnelType: true, }
     });
     res.json({ data: user });
