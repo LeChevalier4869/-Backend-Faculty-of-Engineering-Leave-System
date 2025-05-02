@@ -10,6 +10,7 @@ const { sendEmail } = require("../utils/emailService");
 const { isCorporateEmail } = require("../utils/checkEmailDomain");
 const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
 const fs = require("fs");
+const prisma = require("../config/prisma");
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
