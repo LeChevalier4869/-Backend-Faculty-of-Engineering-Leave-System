@@ -183,6 +183,7 @@ exports.login = async (req, res, next) => {
         sex: user.sex,
         role: roles,
         phone: user.phone,
+        position: user.position,
         organization: organization,
         department: departments,
         // isHeadOfDepartment: ตรวจสอบว่า user เป็นหัวหน้าของสาขานี้หรือไม่,
