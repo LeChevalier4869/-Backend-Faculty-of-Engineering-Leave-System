@@ -130,6 +130,27 @@ class LeaveRequestService {
             prefixName: true,
             firstName: true,
             lastName: true,
+            position: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+                organization: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            personnelType: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            employmentType: true, // เพิ่ม employmentType ที่นี่
+            phone: true,
           },
         },
         leaveType: true,

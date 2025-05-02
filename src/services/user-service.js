@@ -91,7 +91,7 @@ class UserService {
   }
 
   static async getUserByEmail(email) {
-    const user = await prisma.user.findUnique({ 
+    const user = await prisma.user.findUnique({
       where: { email },
       include: {
         personnelType: true,
@@ -126,29 +126,28 @@ class UserService {
       where: { id },
     });
   }
-  
+
   static async updateUser(userEmail, data) {
     try {
       const userExists = await prisma.user.findUnique({
         where: { email: userEmail },
       });
-  
+
       if (!userExists) {
         throw createError(404, "User not found");
       }
-  
+
       const updatedUser = await prisma.user.update({
         where: { email: userEmail },
         data,
       });
-  
+
       return updatedUser;
     } catch (error) {
       console.error(error);
       throw createError(400, "Failed to update");
     }
   }
-  
 
   static async updateUserById(userId, data) {
     try {
@@ -513,10 +512,10 @@ class UserService {
     if (!user) throw new Error("ไม่พบผู้ใช้");
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: RESET_TOKEN_EXPIRY || "1h",
+      expiresIn: RESET_TOKEN_EXPIRY || "5m",
     });
 
-    const resetUrl = `https://backend-faculty-of-engineering-leave.onrender.com/reset-password?token=${token}`;
+    const resetUrl = `https://frontend-faculty-of-engine-git-c919d8-lechevalier4869s-projects.vercel.app/reset-password?token=${token}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -531,10 +530,11 @@ class UserService {
       to: email,
       subject: "ลิงก์รีเซ็ตรหัสผ่าน",
       html: `
-        <p>คุณได้รับคำขอรีเซ็ตรหัสผ่าน</p>
-        <p>คลิกที่ลิงก์ด้านล่างเพื่อรีเซ็ตรหัสผ่านของคุณ:</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-        <p>หากคุณไม่ได้ร้องขอ สามารถละเว้นอีเมลนี้ได้</p>
+            <p>คุณได้รับคำขอรีเซ็ตรหัสผ่าน</p>
+            <p>คลิกที่ลิงก์ด้านล่างเพื่อรีเซ็ตรหัสผ่านของคุณ:</p>
+            <a href="${resetUrl}">${resetUrl}</a>
+            <p style="color:red;"><strong>ลิงก์นี้จะหมดอายุใน 5 นาที</strong></p>
+            <p>หากคุณไม่ได้ร้องขอ สามารถละเว้นอีเมลนี้ได้</p>
       `,
     });
 

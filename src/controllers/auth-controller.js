@@ -150,13 +150,13 @@ exports.login = async (req, res, next) => {
     //console.log(user)
 
     if (!user) {
-      return createError(404, "User not found");
+      return createError(404, "ไม่พบผู้ใช้ในระบบ");
     }
 
     // จำเป็นต้องนำเข้าฐานข้อมูลก่อน แล้วรหัสจะทำยังไง?
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return createError(401, "Invalid email or password");
+      return createError(401, "รหัสผ่านไม่ถูกต้อง");
     }
     // console.log('isMatch = ' + isMatch);
     // console.log('password = ' + password);
@@ -203,7 +203,11 @@ exports.login = async (req, res, next) => {
 
 exports.getMe = async (req, res, next) => {
   try {
-    res.status(200).json(req.user);
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      include: { department: true, personnelType: true, position: true }
+    });
+    res.json({ data: user });
   } catch (err) {
     next(err);
   }
@@ -316,71 +320,98 @@ exports.updateUserRole = async (req, res, next) => {
 
 exports.updateUser = async (req, res, next) => {
   try {
-    const { id } = req.params; // จาก URL path /users/:id
-    const user = req.user;
-    const userIdToUpdate = user.role.includes('ADMIN') ? parseInt(id) : user.id; // ADMIN update ใครก็ได้, USER update ตัวเองเท่านั้น
+    /* ---------- เตรียม id ---------- */
+    const { id } = req.params;
+    const who    = req.user;
+    const userId = id ? +id : who.id;
 
-    if (!userIdToUpdate || isNaN(userIdToUpdate)) {
-      return next(createError(400, "Invalid user ID"));
-    }
+    if (!userId) return next(createError(400, "Invalid user ID"));
 
+    /* ---------- รับค่า body ---------- */
     const {
-      prefixName,
-      firstName,
-      lastName,
-      sex,
-      email,
-      phone,
-      hireDate,
-      inActive,
-      employmentType,
-      personnelTypeId,
-      departmentId,
-      organizationId,
+      prefixName, firstName, lastName, sex, email, phone,
+      position, hireDate, inActive, employmentType,
+      personnelTypeId, departmentId,
     } = req.body;
 
+    /* ---------- validate ---------- */
     validatePhone(phone);
 
-    let updateData = {
+    // ตรวจอีเมลซ้ำ (ถ้าเปลี่ยน)
+    if (email) {
+      const emailTaken = await prisma.user.findFirst({
+        where: { email, NOT: { id: userId } },
+        select: { id: true },
+      });
+      if (emailTaken) return next(createError(409, "อีเมลนี้ถูกใช้งานแล้ว"));
+    }
+
+    /* ---------- สร้าง updateData ---------- */
+    const updateData = {
       prefixName,
       firstName,
       lastName,
       sex,
       email,
       phone,
+      ...(hireDate && { hireDate: new Date(hireDate) }),
+      ...(employmentType && { employmentType }),
+      ...(inActive !== undefined && { inActive: Boolean(inActive) }),
+
+      /* ---- position ----
+         ถ้าคุณมี model Position แยก (lookupPositions) ให้ส่ง positionId
+         จาก FE แทนข้อความ แล้วใช้ connect; ถ้าไม่ ก็บันทึกเป็น string ตรง ๆ */
+      ...(position && typeof position === "string" && { position }),
+
+      ...(personnelTypeId !== undefined && {
+        personnelType:
+          personnelTypeId
+            ? { connect: { id: +personnelTypeId } }
+            : { disconnect: true },          // เคลียร์ความสัมพันธ์ได้
+      }),
+
+      ...(departmentId !== undefined && {
+        department:
+          departmentId
+            ? { connect: { id: +departmentId } }
+            : { disconnect: true },          // เคลียร์ความสัมพันธ์ได้
+      }),
     };
 
-    if (user.role.includes("ADMIN")) {
-      if (!sex || !email || !hireDate || inActive === undefined || !personnelTypeId || !employmentType || !departmentId) {
-        return next(createError(400, "Required fields are missing"));
-      }
-
-      Object.assign(updateData, {
-        hireDate: new Date(hireDate),
-        inActive: Boolean(inActive),
-        employmentType,
-        personnelType: { connect: { id: parseInt(personnelTypeId) } },
-        department: { connect: { id: parseInt(departmentId) } },
-      });
-
-      if (organizationId) {
-        updateData.organization = { connect: { id: parseInt(organizationId) } };
-      }
-    }
-
+    /* ---------- อัปโหลดรูป ---------- */
     if (req.file) {
-      const fileUrl = await cloudUpload(req.file.path);
-      updateData.profilePicturePath = fileUrl;
+      const url = await cloudUpload(req.file.path);
+      updateData.profilePicturePath = url;
     }
 
-    const updatedUser = await UserService.updateUserById(userIdToUpdate, updateData);
+    /* ---------- อัปเดตฐานข้อมูล ---------- */
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data:  updateData,
+      include: {
+        department:    { include: { organization: true } },
+        personnelType: true,
+        userRoles:     { include: { role: true } },
+      },
+    });
 
-    res.status(200).json({ message: "User updated", user: updatedUser });
+    /* ---------- ออก JWT ใหม่ ---------- */
+    const newToken = jwt.sign(
+      { sub: updatedUser.id, role: updatedUser.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    /* ---------- ส่งกลับ ---------- */
+    res.status(200).json({
+      message: "User updated",
+      user: updatedUser,
+      token: newToken,
+    });
   } catch (err) {
     next(err);
   }
 };
-
 
 exports.updateUserStatus = async (req, res, next) => {
   try {
