@@ -286,6 +286,25 @@ exports.getLeaveRequestIsMine = async (req, res, next) => {
   }
 };
 
+exports.getMyLastApprovedLeaveRequest = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const lastApproved = await LeaveRequestService.getLastApprovedRequestIsMine(userId);
+
+    if (!lastApproved) {
+      throw createError(404, "No approved leave request found");
+    }
+
+    res.status(200).json({
+      message: "Last approved leave request retrieved",
+      data: lastApproved,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 exports.updateLeaveRequest = async (req, res, next) => {
   const leaveRequestId = req.params.id;
   const updateData = req.body;

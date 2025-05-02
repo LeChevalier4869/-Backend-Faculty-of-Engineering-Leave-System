@@ -178,6 +178,31 @@ class LeaveRequestService {
     });
   }
 
+  static async getLastApprovedRequestIsMine(userId) {
+    return await prisma.leaveRequest.findFirst({
+      where: {
+        userId,
+        status: 'APPROVED',
+      },
+      orderBy: {
+        createdAt: 'desc', // หรือใช้ startDate ถ้าต้องการเรียงตามวันที่เริ่มลา
+      },
+      include: {
+        user: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        leaveType: true,
+        leaveRequestDetails: true,
+        files: true,
+      },
+    });
+  }
+  
+
   static async findByUserId(userId) {
     console.log("Received userId:", userId); // ช่วย debug
     return await prisma.leaveRequest.findMany({

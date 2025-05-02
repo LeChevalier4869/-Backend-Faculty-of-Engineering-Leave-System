@@ -206,7 +206,7 @@ exports.getMe = async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      include: { department: true, personnelType: true, position: true }
+      include: { department: true, personnelType: true, }
     });
     res.json({ data: user });
   } catch (err) {

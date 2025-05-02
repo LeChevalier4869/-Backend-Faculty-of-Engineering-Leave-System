@@ -30,6 +30,7 @@ router.get(
 );
 
 router.get("/me", authenticate, leaveRequestController.getLeaveRequestIsMine);
+router.get("last-request/me", authenticate, leaveRequestController.getMyLastApprovedLeaveRequest);
 
 // Get a specific leave request by ID (authorized roles)
 router.get(
