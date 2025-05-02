@@ -58,6 +58,7 @@ class UserService {
             leaveRequestDetails: true,
           },
         },
+        position: true, 
       },
     });
   }
