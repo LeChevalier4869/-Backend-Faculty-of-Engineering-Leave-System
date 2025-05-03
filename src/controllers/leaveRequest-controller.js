@@ -297,10 +297,6 @@ exports.getLastLeaveRequestByUserAndType = async (req, res) => {
   try {
     const leaveRequest = await LeaveRequestService.getLastLeaveRequestByUserAndType(userId, leaveTypeId);
 
-    if (!leaveRequest) {
-      return res.status(404).json({ message: "ไม่พบคำขอลาล่าสุดที่มีสถานะเป็น APPROVED" });
-    }
-
     res.status(200).json(leaveRequest);
   } catch (err) {
     console.error("❌ Error:", err);
