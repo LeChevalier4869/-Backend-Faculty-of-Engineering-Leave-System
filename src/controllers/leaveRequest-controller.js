@@ -286,6 +286,28 @@ exports.getLeaveRequestIsMine = async (req, res, next) => {
   }
 };
 
+exports.getLastLeaveRequestByUserAndType = async (req, res) => {
+  const userId = req.params.userId;
+  const { leaveTypeId } = req.body;
+
+  if (!leaveTypeId) {
+    return res.status(400).json({ message: "leaveTypeId is required in body" });
+  }
+
+  try {
+    const leaveRequest = await LeaveRequestService.getLastLeaveRequestByUserAndType(userId, leaveTypeId);
+
+    if (!leaveRequest) {
+      return res.status(404).json({ message: "ไม่พบคำขอลาล่าสุดที่มีสถานะเป็น APPROVED" });
+    }
+
+    res.status(200).json(leaveRequest);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ message: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์" });
+  }
+};
+
 exports.getMyLastApprovedLeaveRequest = async (req, res, next) => {
   try {
     const userId = req.user.id;

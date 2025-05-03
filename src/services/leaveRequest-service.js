@@ -178,6 +178,33 @@ class LeaveRequestService {
     });
   }
 
+  static async getLastLeaveRequestByUserAndType(userId, leaveTypeId) {
+    console.log("🔍 getLastLeaveRequestByUserAndType:", userId, leaveTypeId); // debug
+
+    return await prisma.leaveRequest.findFirst({
+      where: {
+        userId: Number(userId),
+        leaveTypeId: Number(leaveTypeId),
+        status: "APPROVED", // เพิ่มเงื่อนไขสถานะเป็น "APPROVED"
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        leaveRequestDetails: true,
+        leaveType: true,
+        user: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        files: true,
+      },
+    });
+  }
+  
   static async getLastApprovedRequestIsMine(userId) {
     return await prisma.leaveRequest.findFirst({
       where: {
