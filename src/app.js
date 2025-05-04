@@ -50,14 +50,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // CORS
-app.use(cors());
-// app.use(
-//   cors({
-//     origin: "http://localhost:5173", // หรือ '*' ชั่วคราว debug ก็ได้
-//     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-//     allowedHeaders: ["Content-Type", "Authorization"],
-//   })
-// );
+// app.use(cors());
+app.use(cors({
+  origin: 'https://frontend-faculty-of-engineering-leave-system.vercel.app',  // หรือ '*' ชั่วคราว debug ก็ได้
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 // Public & utility routes
 app.use("/api", reportRoutes);
