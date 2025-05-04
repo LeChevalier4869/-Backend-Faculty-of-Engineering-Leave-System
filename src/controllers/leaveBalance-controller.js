@@ -22,13 +22,27 @@ exports.getLeaveBalanceByUserId = async (req, res, next) => {
   }
 };
 
+exports.getMyLeaveSummary = (req, res) => {
+  const userId = req.user.id;
+
+  LeaveBalanceService.getLeaveSummaryByUser(userId)
+    .then((summary) => {
+      res.json(summary);
+    })
+    .catch((error) => {
+      console.error("Error fetching leave summary:", error);
+      res.status(500).json({ message: "Internal server error" });
+    });
+};
+
 exports.getLeaveBalanceMe = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const balances = await LeaveBalanceService.getAllBalancesForUser(userId);
-    res
-      .status(200)
-      .json({ message: "ดึงข้อมูล Leave Balance ของคุณสำเร็จ", data: balances });
+    res.status(200).json({
+      message: "ดึงข้อมูล Leave Balance ของคุณสำเร็จ",
+      data: balances,
+    });
   } catch (err) {
     next(err);
   }
@@ -37,9 +51,10 @@ exports.getLeaveBalanceMe = async (req, res, next) => {
 exports.getAllLeaveBalances = async (req, res, next) => {
   try {
     const balances = await LeaveBalanceService.getAllLeaveBalances();
-    res
-      .status(200)
-      .json({ message: "ดึงข้อมูล Leave Balance ทั้งหมดสำเร็จ", data: balances });
+    res.status(200).json({
+      message: "ดึงข้อมูล Leave Balance ทั้งหมดสำเร็จ",
+      data: balances,
+    });
   } catch (err) {
     next(err);
   }
@@ -48,10 +63,14 @@ exports.getAllLeaveBalances = async (req, res, next) => {
 exports.updateLeaveBalance = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    if (!id || isNaN(id)) throw createError(400, "รหัส Leave Balance ไม่ถูกต้อง");
+    if (!id || isNaN(id))
+      throw createError(400, "รหัส Leave Balance ไม่ถูกต้อง");
 
     const updateData = req.body;
-    const updated = await LeaveBalanceService.updateLeaveBalance(id, updateData);
+    const updated = await LeaveBalanceService.updateLeaveBalance(
+      id,
+      updateData
+    );
     res
       .status(200)
       .json({ message: "อัปเดต Leave Balance สำเร็จ", data: updated });

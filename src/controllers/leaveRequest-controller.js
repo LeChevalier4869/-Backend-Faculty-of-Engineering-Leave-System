@@ -180,6 +180,18 @@ exports.createLeaveRequest = async (req, res, next) => {
 // };
 
 //use (not mail)
+
+  exports.getMyLeaveRequests = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const leaveRequests = await LeaveRequestService.getLeaveRequestsByUser(userId);
+    res.json(leaveRequests);
+  } catch (error) {
+    console.error('Error fetching leave requests:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 exports.updateLeaveStatus = async (req, res, next) => {
   try {
     const requestId = parseInt(req.params.id);

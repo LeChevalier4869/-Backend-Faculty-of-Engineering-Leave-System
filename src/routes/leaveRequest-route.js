@@ -22,6 +22,8 @@ router.get(
   leaveRequestController.getAllLeaveRequests
 );
 
+router.get('/my-requests', authenticate, leaveRequestController.getMyLeaveRequests);
+
 router.get(
   "/",
   authenticate,

@@ -63,6 +63,8 @@ class RankService {
 
   static async getRankForUserByLeaveType(user, leaveTypeId) {
     console.log("Debug user.id:", user.id);
+    console.log("Debug user.id:", leaveTypeId);
+    console.log("Debug user.id:", user.personnelTypeId);
     const userRank = await prisma.userRank.findFirst({
       where: {
         userId: user.id,
@@ -75,6 +77,7 @@ class RankService {
         rank: true,
       },
     });
+    console.log("Debug userRank:", userRank);
 
     return userRank?.rank || null;
   }

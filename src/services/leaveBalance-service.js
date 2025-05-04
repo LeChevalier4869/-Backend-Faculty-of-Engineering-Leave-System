@@ -20,6 +20,21 @@ class LeaveBalanceService {
     });
   }
 
+  static async getLeaveSummaryByUser(userId) {
+    return await prisma.leaveBalance.findMany({
+      where: { userId },
+      include: {
+        leaveType: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        leaveTypeId: 'asc',
+      },
+    });
+  }
   /**
    * Get all leave balances for a user, including leave type details.
    */
