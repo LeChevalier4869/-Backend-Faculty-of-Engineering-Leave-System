@@ -92,7 +92,7 @@ const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
 app.use(cors({
-  origin: 'http://localhost:5174',  // หรือ '*' ชั่วคราว debug ก็ได้
+  origin: 'https://frontend-faculty-of-engineering-leave-system.vercel.app',  // หรือ '*' ชั่วคราว debug ก็ได้
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
