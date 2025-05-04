@@ -49,15 +49,38 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS
+// CORS ---------------------------------------------------
 // app.use(cors());
+/*
 app.use(cors({
   origin: 'https://frontend-faculty-of-engineering-leave-system.vercel.app',  // หรือ '*' ชั่วคราว debug ก็ได้
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+*/
+const allowedOrigins = [
+  'https://frontend-faculty-of-engineering-leave-system.vercel.app',
+  'http://localhost:5173' 
+];
 
-// Public & utility routes
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,  // ถ้าใช้ cookie หรือ auth
+}));
+
+
+// Public & utility routes ------------------------------------------------------------
 app.use('/api', reportRoutes);
 app.use('/public', express.static('public'));
 
