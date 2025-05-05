@@ -182,7 +182,26 @@ class AdminService {
 
   //------------------------ Department -------------
   static async departmentList() {
-    return await prisma.department.findMany();
+    return await prisma.department.findMany(
+      {
+        include: {
+          head: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      }
+    );
   }
   static async createDepartment(data) {
     return await prisma.department.create({ data });
