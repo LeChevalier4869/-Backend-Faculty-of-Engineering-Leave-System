@@ -39,15 +39,6 @@ router.post("/last/type/:userId", authenticate, leaveRequestController.getLastLe
 router.get(
   "/getLeaveRequest/:id",
   authenticate,
-  authorize([
-    "ADMIN",
-    "APPROVER_1",
-    "APPROVER_2",
-    "APPROVER_3",
-    "APPROVER_4",
-    "VERIFIER",
-    "RECEIVER",
-  ]),
   leaveRequestController.getLeaveRequest
 );
 
