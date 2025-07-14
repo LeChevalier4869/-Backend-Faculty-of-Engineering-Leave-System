@@ -38,7 +38,7 @@ router.get('/list', adminController.adminList);
 router.post('/leave-request', upload.array("images", 5), adminController.createRequestByAdmin);
 
 //-------------------------------------- holiday -------------------- 
-router.get('/holiday', adminController.getHoliday);
+router.get('/holiday', authorize(["USER"]), adminController.getHoliday);
 router.post('/holiday', upload.none(), adminController.addHoliday);
 router.put('/holiday/:id',adminController.updateHoliday);
 router.delete('/holiday/:id',adminController.deleteHoliday);
