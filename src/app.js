@@ -100,7 +100,7 @@ app.use("/signature", signatureRoute);
 app.use("/setting", settingRoute);
 
 // Admin routes (requires ADMIN role)
-app.use("/admin", authenticate, authorize(["ADMIN"]), adminRoute);
+app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 
 // Swagger documentation
