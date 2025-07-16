@@ -107,7 +107,7 @@ class UserService {
   }
 
   static async getUserByUsername(email) {
-     await prisma.user.findMany({
+     return await prisma.user.findMany({
       where: {
         email: {
           startsWith: email + "@",
