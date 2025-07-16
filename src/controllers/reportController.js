@@ -2,6 +2,7 @@ const fs = require("fs");
 const { fillPDFTemplate } = require("../services/pdfService");
 const { title } = require("process");
 const LeaveBalanceService = require("../services/leaveBalance-service");
+const prisma = require("../config/prisma");
 
 const templateMap = {
   1: "sick_template.pdf",
