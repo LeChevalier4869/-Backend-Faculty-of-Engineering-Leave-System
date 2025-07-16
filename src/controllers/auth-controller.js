@@ -99,7 +99,7 @@ exports.register = async (req, res, next) => {
     if (file) {
       const imgUrl = await cloudUpload(file.path);
       await UserService.createUserProfile(newUser.id, imgUrl);
-      fs.unlink(file.path, () => {});
+      fs.unlink(file.path, () => { });
     }
 
     // ✅ กำหนดบทบาท
@@ -155,8 +155,12 @@ exports.login = async (req, res, next) => {
     if (isEmail) {
       user = await UserService.getUserByEmail(email);
     }
-    else {  
-      user = await UserService.getUserByUsername(email);
+    else {
+      user = await UserService.getUserForLogin();
+      if (!user) {
+        const users = await UserService.getUserByUsername(email);
+        user = users.find(u => u.email.split('@')[0] === email) || null;
+      }
     }
 
     if (!user) {
@@ -328,7 +332,7 @@ exports.updateUser = async (req, res, next) => {
   try {
     /* ---------- เตรียม id ---------- */
     const { id } = req.params;
-    const who    = req.user;
+    const who = req.user;
     const userId = id ? +id : who.id;
 
     if (!userId) return next(createError(400, "Invalid user ID"));
@@ -393,11 +397,11 @@ exports.updateUser = async (req, res, next) => {
     /* ---------- อัปเดตฐานข้อมูล ---------- */
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data:  updateData,
+      data: updateData,
       include: {
-        department:    { include: { organization: true } },
+        department: { include: { organization: true } },
         personnelType: true,
-        userRoles:     { include: { role: true } },
+        userRoles: { include: { role: true } },
       },
     });
 

@@ -207,6 +207,15 @@ class UserService {
     }
   }
 
+  static async getUserForLogin() {
+    const user = await prisma.user.findFirst({ where: {} });
+
+    if (!user) {
+      throw createError(404, "ไม่พบผู้ใช้");
+    }
+    return user;
+  }
+
   static async getUserLanding() {
     try {
       const user = await prisma.user.findMany({
