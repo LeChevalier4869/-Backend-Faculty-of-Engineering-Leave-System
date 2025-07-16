@@ -3,7 +3,7 @@ const cloudUpload = require("../utils/cloudUpload");
 
 exports.createSignature = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.params.userId;
 
     const file = req.file;
     if (!file) {

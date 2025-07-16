@@ -4,7 +4,7 @@ const signatureController = require('../controllers/signature-controller');
 const upload = require("../middlewares/upload");
 const { authenticate } = require('../middlewares/auth');
 
-router.post('/',upload.single('images'), signatureController.createSignature);
+router.post('/:userId',upload.single('images'), signatureController.createSignature);
 router.get('/', signatureController.getAllSignature);
 router.get('/get/:id', signatureController.getSignatureById);
 router.put('/update/:userId', upload.single('images'), signatureController.updateSignature);
