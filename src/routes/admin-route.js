@@ -34,87 +34,86 @@ const { authenticate , authorize } = require('../middlewares/auth');
  */
 
 
-router.get('/list', adminController.adminList);
-router.post('/leave-request', upload.array("images", 5), adminController.createRequestByAdmin);
+router.get('/list', authorize(["ADMIN"]), adminController.adminList);
+router.post('/leave-request', upload.array("images", 5), authorize(["ADMIN"]), adminController.createRequestByAdmin);
 
 //-------------------------------------- holiday -------------------- 
-router.get('/holiday', adminController.getHoliday);
-router.post('/holiday', upload.none(), adminController.addHoliday);
-router.put('/holiday/:id',adminController.updateHoliday);
-router.delete('/holiday/:id',adminController.deleteHoliday);
+router.get('/holiday', authorize(["USER", "ADMIN"]), adminController.getHoliday);
+router.post('/holiday', upload.none(), authorize(["ADMIN"]), adminController.addHoliday);
+router.put('/holiday/:id', authorize(["ADMIN"]), adminController.updateHoliday);
+router.delete('/holiday/:id', authorize(["ADMIN"]), adminController.deleteHoliday);
 
 
 //-------------------------------------- approver -------------------- 
-router.get('/approver', adminController.approverList);
-router.post('/approver', upload.none(), adminController.createApprover);
-router.put('/approver/:id', adminController.updateApprover);
-router.delete('/approver/:id', adminController.deleteApprover);
+router.get('/approver', authorize(["ADMIN"]), adminController.approverList);
+router.post('/approver', upload.none(), authorize(["ADMIN"]), adminController.createApprover);
+router.put('/approver/:id', authorize(["ADMIN"]), adminController.updateApprover);
+router.delete('/approver/:id', authorize(["ADMIN"]), adminController.deleteApprover);
 
 //------------------------------------ Manage user -----------------
 router.get(
   '/users',
-  authenticate,
   authorize(['ADMIN']),
   adminController.getAllUsers
 );
-router.get('/users/:id', authenticate, authorize(["ADMIN"]), adminController.getUserById);
-router.post("/create-user", authenticate, authorize(["ADMIN"]), upload.single("profilePicture"), adminController.createUserByAdmin);
-router.put('/users/:id', authenticate, authorize(['ADMIN']), adminController.updateUserById);
-router.delete('/users/:id', authenticate, authorize(['ADMIN']), adminController.deleteUser);
+router.get('/users/:id', authorize(["ADMIN"]), adminController.getUserById);
+router.post("/create-user", authorize(["ADMIN"]), upload.single("profilePicture"), adminController.createUserByAdmin);
+router.put('/users/:id', authorize(['ADMIN']), adminController.updateUserById);
+router.delete('/users/:id', authorize(['ADMIN']), adminController.deleteUser);
 
 
 //------------------------------------- role ----------------------------------
-router.get('/role', adminController.roleList);
-router.get('/role/:id', adminController.getRoleById);
-router.post('/role', adminController.createRole);
-router.put('/role/:id', adminController.updateRole);
-router.delete('/role/:id', adminController.deleteRole);
+router.get('/role', authorize(["ADMIN"]), adminController.roleList);
+router.get('/role/:id', authorize(["ADMIN"]), adminController.getRoleById);
+router.post('/role', authorize(["ADMIN"]), adminController.createRole);
+router.put('/role/:id', authorize(["ADMIN"]), adminController.updateRole);
+router.delete('/role/:id', authorize(["ADMIN"]), adminController.deleteRole);
 
 //------------------------------------- Assign Head department ----------------------------------
-router.post("/assign-head", adminController.assignHeadDepartment);
+router.post("/assign-head", authorize(["ADMIN"]), adminController.assignHeadDepartment);
 
 //-------------------------------------- rank --------------------------------
-router.get('/rank', adminController.getAllRank);
-router.get('/rank/:id', adminController.getRankById);
-router.post('/rank', adminController.createRank);
-router.put('/rank/:id', adminController.updateRank);
-router.delete('/rank/:id', adminController.deleteRank);
+router.get('/rank', authorize(["ADMIN"]), adminController.getAllRank);
+router.get('/rank/:id', authorize(["ADMIN"]), adminController.getRankById);
+router.post('/rank', authorize(["ADMIN"]), adminController.createRank);
+router.put('/rank/:id', authorize(["ADMIN"]), adminController.updateRank);
+router.delete('/rank/:id', authorize(["ADMIN"]), adminController.deleteRank);
 
 //---------------------------------- personnelType -----------------------
-router.get('/personnel-types', adminController.getAllPersonnelType);
-router.get('/personnel-type/:id', adminController.getPersonnelTypeById);
-router.post('/personnel-type', adminController.createPersonnelType);
-router.put('/personnel-type/:id', adminController.updatePersonnelType);
-router.delete('/personnel-type/:id', adminController.deletePersonnelType);
+router.get('/personnel-types', authorize(["ADMIN"]), adminController.getAllPersonnelType);
+router.get('/personnel-type/:id', authorize(["ADMIN"]), adminController.getPersonnelTypeById);
+router.post('/personnel-type', authorize(["ADMIN"]), adminController.createPersonnelType);
+router.put('/personnel-type/:id', authorize(["ADMIN"]), adminController.updatePersonnelType);
+router.delete('/personnel-type/:id', authorize(["ADMIN"]), adminController.deletePersonnelType);
 
 //---------------------------------- department -----------------------
-router.get('/departmentsList', adminController.departmentList);
+router.get('/departmentsList', authorize(["ADMIN"]), adminController.departmentList);
 router
   .route("/departments")
-  .get(authenticate, authorize(["ADMIN"]), adminController.departmentList)
-  .post(authenticate, authorize(["ADMIN"]), adminController.departmentCreate);
+  .get(authorize(["ADMIN"]), adminController.departmentList)
+  .post(authorize(["ADMIN"]), adminController.departmentCreate);
 
 router
   .route("/departments/:id")
-  .put(authenticate, authorize(["ADMIN"]), adminController.departmentUpdate)
-  .delete(authenticate, authorize(["ADMIN"]), adminController.departmentDelete);
+  .put(authorize(["ADMIN"]), adminController.departmentUpdate)
+  .delete(authorize(["ADMIN"]), adminController.departmentDelete);
 
 //---------------------------------- organization -----------------------
-router.get('/organizations', authController.getAllOrganizations);
-router.get('/organizations/:id', authController.getOrganizationById);
-router.post('/organizations', authController.createOrganization);
-router.put('/organizations/:id', authController.updateOrganization);
-router.delete('/organizations/:id', authController.deleteOrganization);
+router.get('/organizations', authorize(["ADMIN"]), authController.getAllOrganizations);
+router.get('/organizations/:id', authorize(["ADMIN"]), authController.getOrganizationById);
+router.post('/organizations', authorize(["ADMIN"]), authController.createOrganization);
+router.put('/organizations/:id', authorize(["ADMIN"]), authController.updateOrganization);
+router.delete('/organizations/:id', authorize(["ADMIN"]), authController.deleteOrganization);
 
   //---------------------------------- employmentType -----------------------
-router.get('/organizations', adminController.organizationList);
-router.post("/create-user", upload.single("profilePicture"), adminController.createUserByAdmin);
+router.get('/organizations', authorize(["ADMIN"]), adminController.organizationList);
+router.post("/create-user", upload.single("profilePicture"), authorize(["ADMIN"]), adminController.createUserByAdmin);
 
  //---------------------------------- setting -----------------------
-router.post('/setting', adminController.createSetting);
-router.get('/setting', adminController.getAllSetting);
-router.get('/setting/:id', adminController.getSettingById);
-router.put('/setting/:id', adminController.updateSetting);
-router.delete('/setting/:id', adminController.deleteSetting);
+router.post('/setting', authorize(["ADMIN"]), adminController.createSetting);
+router.get('/setting', authorize(["ADMIN"]), adminController.getAllSetting);
+router.get('/setting/:id', authorize(["ADMIN"]), adminController.getSettingById);
+router.put('/setting/:id', authorize(["ADMIN"]), adminController.updateSetting);
+router.delete('/setting/:id', authorize(["ADMIN"]), adminController.deleteSetting);
 
 module.exports = router;
