@@ -141,14 +141,23 @@ exports.login = async (req, res, next) => {
     const { email, password } = req.body;
 
     if (!email || !password)
-      throw createError(400, "กรุณากรอกอีเมลและรหัสผ่าน");
+      throw createError(400, "กรุณากรอกอีเมลหรือชื่อผู้ใช้และรหัสผ่าน");
 
-    if (!isCorporateEmail(email)) {
-      return createError(403, "อนุญาตให้ล็อกอินด้วยอีเมลมหาวิทยาลัยเท่านั้น");
+    // user may use email or username
+    // if (!isCorporateEmail(email)) {
+    //   return createError(403, "อนุญาตให้ล็อกอินด้วยอีเมลมหาวิทยาลัยเท่านั้น");
+    // }
+
+    // check email or username
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+    let user;
+    if (isEmail) {
+      user = await UserService.getUserByEmail(email);
     }
-
-    const user = await UserService.getUserByEmail(email);
-    //console.log(user)
+    else {  
+      user = await UserService.getUserByUsername(email);
+    }
 
     if (!user) {
       return createError(404, "ไม่พบผู้ใช้ในระบบ");
@@ -197,37 +206,6 @@ exports.login = async (req, res, next) => {
       { expiresIn: process.env.JWT_EXPIRESIN }
     );
     res.status(200).json({ token });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.loginByUsername = async (req, res, next) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return createError(400, "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
-    }
-
-    const user = await UserService.getUserByUsername(username);
-    if (!user) {
-      return createError(404, "ไม่พบผู้ใช้ในระบบ");
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return createError(401, "รหัสผ่านไม่ถูกต้อง");
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.roleNames || user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRESIN }
-    );
-
-    res.status(200).json({ token });
-
   } catch (err) {
     next(err);
   }

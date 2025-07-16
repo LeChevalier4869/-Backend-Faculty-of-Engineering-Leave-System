@@ -106,11 +106,11 @@ class UserService {
     return user;
   }
 
-  static async getUserByUsername(username) {
+  static async getUserByUsername(email) {
     const user = await prisma.user.findUnique({
       where: {
         email: {
-          startsWith: username + "@",
+          startsWith: email + "@",
         }
       },
     });
