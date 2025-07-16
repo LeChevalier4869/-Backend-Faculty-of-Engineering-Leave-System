@@ -118,11 +118,10 @@ exports.getSignatureByUserId = async (userId) => {
     include: { user: true }, // ถ้าต้องการข้อมูล user ด้วย
   });
 
+  // ถ้าไม่เจอ ลบ error ออก แล้ว return null
   if (!signature) {
-    const error = new Error("ID ไม่ถูกต้อง");
-    error.status = 404;
-    throw error;
+    return null;
   }
 
   return signature;
-}
+};
