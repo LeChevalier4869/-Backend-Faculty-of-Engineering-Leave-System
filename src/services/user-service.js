@@ -107,7 +107,7 @@ class UserService {
   }
 
   static async getUserByUsername(email) {
-    const user = await prisma.user.findUnique({
+     await prisma.user.findMany({
       where: {
         email: {
           startsWith: email + "@",
