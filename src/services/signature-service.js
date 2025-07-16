@@ -54,12 +54,12 @@ exports.getSignatureById = async (id) => {
   return signature;
 };
 
-exports.updateSignature = async (id, data) => {
-  const signatureId = parseInt(id);
+exports.updateSignature = async (userId, data) => {
+  const uid = parseInt(userId);
 
   // ตรวจสอบว่า signature ที่จะอัปเดตมีอยู่จริงหรือไม่
-  const existing = await prisma.signature.findUnique({
-    where: { id: signatureId },
+   const existing = await prisma.signature.findFirst({
+    where: { userId: uid },
   });
 
   if (!existing) {
@@ -68,21 +68,8 @@ exports.updateSignature = async (id, data) => {
     throw error;
   }
 
-  // ถ้ามีการส่ง userId มาใหม่ ให้ตรวจสอบว่าผู้ใช้นั้นมีอยู่จริงหรือไม่
-  if (data.userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: parseInt(data.userId) },
-    });
-
-    if (!user) {
-      const error = new Error("ไม่พบผู้ใช้นี้ในระบบ");
-      error.status = 404;
-      throw error;
-    }
-  }
-
   return await prisma.signature.update({
-    where: { id: signatureId },
+    where: { id: existing.id },
     data,
   });
 };

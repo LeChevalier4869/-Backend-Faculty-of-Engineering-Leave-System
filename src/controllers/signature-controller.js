@@ -42,16 +42,10 @@ exports.getSignatureById = async (req, res) => {
 
 exports.updateSignature = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { userId } = req.body;
+    const userId = req.params.userId;
     const file = req.file;
 
     const dataToUpdate = {};
-
-    // ถ้ามี userId ส่งมา ให้แปลงเป็น int
-    if (userId) {
-      dataToUpdate.userId = parseInt(userId);
-    }
 
     // ถ้ามีไฟล์แนบ ให้ upload แล้วใช้ URL
     if (file) {
@@ -59,7 +53,7 @@ exports.updateSignature = async (req, res) => {
       dataToUpdate.file = imgUrl;
     }
 
-    const signature = await signatureService.updateSignature(id, dataToUpdate);
+    const signature = await signatureService.updateSignature(userId, dataToUpdate);
     res.json(signature);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
