@@ -13,6 +13,7 @@ const authController = require('../controllers/auth-controller');
 
 router.post('/register', registerLimiter, upload.single('images'), authController.register);
 router.post('/login', loginLimiter, uploadFile.uploadProfile.none(), authController.login);
+router.post('/login/username', loginLimiter, uploadFile.uploadProfile.none(), authController.loginByUsername);
 router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.getMe);
 router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);

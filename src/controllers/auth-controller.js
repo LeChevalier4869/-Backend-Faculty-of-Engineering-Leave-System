@@ -202,6 +202,37 @@ exports.login = async (req, res, next) => {
   }
 };
 
+exports.loginByUsername = async (req, res, next) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return createError(400, "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
+    }
+
+    const user = await UserService.getUserByUsername(username);
+    if (!user) {
+      return createError(404, "ไม่พบผู้ใช้ในระบบ");
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return createError(401, "รหัสผ่านไม่ถูกต้อง");
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.roleNames || user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRESIN }
+    );
+
+    res.status(200).json({ token });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getMe = async (req, res, next) => {
   try {
     res.status(200).json(req.user);
