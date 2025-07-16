@@ -156,11 +156,9 @@ exports.login = async (req, res, next) => {
       user = await UserService.getUserByEmail(email);
     }
     else {
-      user = await UserService.getUserForLogin();
-      if (!user) {
+      // ถ้าไม่ใช่อีเมล ให้ค้นหาจากชื่อผู้ใช้
         const users = await UserService.getUserByUsername(email);
         user = users.find(u => u.email.split('@')[0] === email) || null;
-      }
     }
 
     if (!user) {
