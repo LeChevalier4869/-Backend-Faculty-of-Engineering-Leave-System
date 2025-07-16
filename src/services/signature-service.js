@@ -109,6 +109,7 @@ exports.deleteSignature = async (id) => {
 exports.getSignatureIsMine = async (userId) => {
   const signature = await prisma.signature.findFirst({
     where: { userId },
+    include: { user: true }, // ถ้าคุณต้องการข้อมูล user ด้วย
   });
 
   if (!signature) {
