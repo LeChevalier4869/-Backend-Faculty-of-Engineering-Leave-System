@@ -86,3 +86,13 @@ exports.getSignatureIsMine = async (req, res) => {
     res.status(err.status || 500).json({ error: err.message });
   }
 };
+
+exports.getSignatureByUserId = async (req, res) => {
+  try {
+    const userId = req.params.userId; // รับ userId จากพารามิเตอร์ URL
+    const signature = await getSignatureByUserId(userId);
+    res.json(signature);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+};

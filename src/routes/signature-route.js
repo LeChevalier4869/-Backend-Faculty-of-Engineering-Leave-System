@@ -10,5 +10,6 @@ router.get('/get/:id', signatureController.getSignatureById);
 router.put('/update/:id', upload.single('images'), signatureController.updateSignature);
 router.delete('/delete/:id', signatureController.deleteSignature);
 router.get("/me", authenticate, signatureController.getSignatureIsMine);
+router.get('/signature/:userId', signatureController.getSignatureByUserId);
 
 module.exports = router;

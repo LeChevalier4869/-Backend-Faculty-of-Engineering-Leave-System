@@ -121,3 +121,18 @@ exports.getSignatureIsMine = async (userId) => {
 
   return signature;
 };
+
+exports.getSignatureByUserId = async (userId) => {
+  const signature = await prisma.signature.findFirst({
+    where: { userId: userId },
+    include: { user: true }, // ถ้าต้องการข้อมูล user ด้วย
+  });
+
+  if (!signature) {
+    const error = new Error("ยังไม่มีลายเซ็นสำหรับผู้ใช้นี้");
+    error.status = 404;
+    throw error;
+  }
+
+  return signature;
+}
