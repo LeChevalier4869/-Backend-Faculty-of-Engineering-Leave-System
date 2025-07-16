@@ -87,12 +87,12 @@ exports.updateSignature = async (id, data) => {
   });
 };
 
-exports.deleteSignature = async (id) => {
-  const signatureId = parseInt(id);
+exports.deleteSignature = async (userId) => {
+  const signatureId = parseInt(userId);
 
   // ตรวจสอบว่ามีลายเซ็นนี้อยู่หรือไม่
   const existing = await prisma.signature.findUnique({
-    where: { id: signatureId },
+    where: { userId: signatureId },
   });
 
   if (!existing) {
@@ -102,7 +102,7 @@ exports.deleteSignature = async (id) => {
   }
 
   return await prisma.signature.delete({
-    where: { id: signatureId },
+    where: { userId: signatureId },
   });
 };
 

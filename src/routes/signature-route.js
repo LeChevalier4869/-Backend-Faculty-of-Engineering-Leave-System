@@ -8,7 +8,7 @@ router.post('/',upload.single('images'), signatureController.createSignature);
 router.get('/', signatureController.getAllSignature);
 router.get('/get/:id', signatureController.getSignatureById);
 router.put('/update/:id', upload.single('images'), signatureController.updateSignature);
-router.delete('/delete/:id', signatureController.deleteSignature);
+router.delete('/delete/:userId', signatureController.deleteSignature);
 router.get("/me", authenticate, signatureController.getSignatureIsMine);
 router.get('/user/:userId', signatureController.getSignatureByUserId);
 
