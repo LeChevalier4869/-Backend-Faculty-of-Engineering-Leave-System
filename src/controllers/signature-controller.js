@@ -87,10 +87,18 @@ exports.getSignatureIsMine = async (req, res) => {
   }
 };
 
+exports.getSignatureById = async (req, res) => {
+  try {
+    const signature = await signatureService.getSignatureById(req.params.id);
+    res.json(signature);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+};
 exports.getSignatureByUserId = async (req, res) => {
   try {
     const userId = req.params.userId; // รับ userId จากพารามิเตอร์ URL
-    const signature = await getSignatureByUserId(userId);
+    const signature = await signatureService.getSignatureByUserId(userId);
     res.json(signature);
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message });
