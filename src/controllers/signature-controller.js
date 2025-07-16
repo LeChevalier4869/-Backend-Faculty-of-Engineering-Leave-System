@@ -68,8 +68,8 @@ exports.updateSignature = async (req, res) => {
 
 exports.deleteSignature = async (req, res) => {
   try {
-    const { id } = req.params;
-    await signatureService.deleteSignature(id);
+    const userId = req.params.userId;
+    await signatureService.deleteSignature(userId);
     res.json({ message: "ลบลายเซ็นเรียบร้อยแล้ว" });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
