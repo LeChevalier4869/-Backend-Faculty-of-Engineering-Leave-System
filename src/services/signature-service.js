@@ -88,11 +88,11 @@ exports.updateSignature = async (id, data) => {
 };
 
 exports.deleteSignature = async (userId) => {
-  const signatureId = parseInt(userId);
+  const uid = parseInt(userId);
 
-  // ตรวจสอบว่ามีลายเซ็นนี้อยู่หรือไม่
-  const existing = await prisma.signature.findUnique({
-    where: { userId: signatureId },
+  // หา signature แรกที่ตรงกับ userId
+  const existing = await prisma.signature.findFirst({
+    where: { userId: uid },
   });
 
   if (!existing) {
@@ -101,10 +101,12 @@ exports.deleteSignature = async (userId) => {
     throw error;
   }
 
+  // ลบจาก id (primary key)
   return await prisma.signature.delete({
-    where: { userId: signatureId },
+    where: { id: existing.id },
   });
 };
+
 
 exports.getSignatureIsMine = async (userId) => {
   const signature = await prisma.signature.findFirst({
