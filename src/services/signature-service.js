@@ -111,6 +111,7 @@ exports.getSignatureIsMine = async (userId) => {
     where: { userId },
     include: { user: true }, // ถ้าคุณต้องการข้อมูล user ด้วย
   });
+  console.log("Signature for user ID:", userId, "is", signature);
 
   if (!signature) {
     const error = new Error("ยังไม่มีลายเซ็นสำหรับผู้ใช้นี้");

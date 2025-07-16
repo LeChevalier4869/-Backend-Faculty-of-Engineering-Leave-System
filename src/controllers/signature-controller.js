@@ -79,7 +79,7 @@ exports.deleteSignature = async (req, res) => {
 exports.getSignatureIsMine = async (req, res) => {
   try {
     const userId = req.user.id; // ต้องใช้ middleware auth เพื่อให้ req.user มีข้อมูล
-
+    console.log("Getting signature for user ID:", userId);
     const signature = await signatureService.getSignatureIsMine(userId);
     res.json(signature);
   } catch (err) {

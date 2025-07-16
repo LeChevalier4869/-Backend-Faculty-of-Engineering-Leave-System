@@ -6,9 +6,9 @@ const { authenticate } = require('../middlewares/auth');
 
 router.post('/',upload.single('images'), signatureController.createSignature);
 router.get('/', signatureController.getAllSignature);
-router.get('/:id', signatureController.getSignatureById);
-router.put('/:id', upload.single('images'), signatureController.updateSignature);
-router.delete('/:id', signatureController.deleteSignature);
+router.get('/get/:id', signatureController.getSignatureById);
+router.put('/update/:id', upload.single('images'), signatureController.updateSignature);
+router.delete('/delete/:id', signatureController.deleteSignature);
 router.get("/me", authenticate, signatureController.getSignatureIsMine);
 
 module.exports = router;
