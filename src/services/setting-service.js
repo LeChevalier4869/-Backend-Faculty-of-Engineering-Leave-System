@@ -19,6 +19,12 @@ exports.getAllSettings = async () => {
   return await prisma.setting.findMany();
 };
 
+exports.getSettingByKey = async (key) => {
+  return await prisma.setting.findFirst({
+    where: { key },
+  });
+};
+
 exports.getSettingById = async (id) => {
   const existing = await prisma.setting.findUnique({
     where: { id: parseInt(id) },

@@ -19,7 +19,9 @@ class LeaveRequestService {
     startDate,
     endDate,
     reason,
-    contact
+    contact,
+    documentNumber,
+    documentIssuedDate
   ) {
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
@@ -48,6 +50,8 @@ class LeaveRequestService {
 
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
+        documentNumber,
+        documentIssuedDate,
         userId,
         leaveTypeId: parseInt(leaveTypeId),
         startDate: start,

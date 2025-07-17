@@ -15,6 +15,21 @@ exports.createSetting = async (req, res) => {
   }
 };
 
+exports.getSettingByKey = async (req, res, next) => {
+  try {
+    const { key } = req.params;
+    const setting = await settingService.getSettingByKey(key);
+
+    if (!setting) {
+      return res.status(404).json({ message: "Setting not found" });
+    }
+
+    res.json({ data: setting });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getAllSetting = async (req, res) => {
   try {
     const settings = await settingService.getAllSettings();
