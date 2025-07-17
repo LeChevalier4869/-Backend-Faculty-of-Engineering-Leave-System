@@ -23,6 +23,7 @@ router.get(
 );
 
 router.get('/my-requests', authenticate, leaveRequestController.getMyLeaveRequests);
+router.get('/my-requests/approved', authenticate, leaveRequestController.getMyApprovedLeaveRequests);
 
 router.get(
   "/",

@@ -552,6 +552,52 @@ class LeaveRequestService {
     });
   }
   
+  static async getApprovedLeaveRequestsByUser(userId) {
+  return await prisma.leaveRequest.findMany({
+    where: {
+      userId,
+      status: "APPROVED", // ✅ แสดงเฉพาะรายการที่อนุมัติแล้ว
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          prefixName: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          department: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      leaveType: true,
+      leaveRequestDetails: {
+        include: {
+          approver: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          stepOrder: 'asc',
+        },
+      },
+      files: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+}
+
   // ตรวจสอบสิทธิ์ลา
   static async checkEligibility(userId, leaveTypeId, requestedDays) {
     const user = await prisma.user.findUnique({

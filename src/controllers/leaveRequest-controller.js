@@ -181,16 +181,31 @@ exports.createLeaveRequest = async (req, res, next) => {
 
 //use (not mail)
 
-  exports.getMyLeaveRequests = async (req, res) => {
+exports.getMyLeaveRequests = async (req, res) => {
   try {
     const userId = req.user.id;
-    const leaveRequests = await LeaveRequestService.getLeaveRequestsByUser(userId);
+    const leaveRequests = await LeaveRequestService.getLeaveRequestsByUser(
+      userId
+    );
     res.json(leaveRequests);
   } catch (error) {
-    console.error('Error fetching leave requests:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("Error fetching leave requests:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-}
+};
+
+exports.getMyApprovedLeaveRequests = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const leaveRequests = await LeaveRequestService.getApprovedLeaveRequestsByUser(
+      userId
+    );
+    res.json(leaveRequests);
+  } catch (error) {
+    console.error("Error fetching leave requests:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 exports.updateLeaveStatus = async (req, res, next) => {
   try {
@@ -307,7 +322,11 @@ exports.getLastLeaveRequestByUserAndType = async (req, res) => {
   }
 
   try {
-    const leaveRequest = await LeaveRequestService.getLastLeaveRequestByUserAndType(userId, leaveTypeId);
+    const leaveRequest =
+      await LeaveRequestService.getLastLeaveRequestByUserAndType(
+        userId,
+        leaveTypeId
+      );
 
     res.status(200).json(leaveRequest);
   } catch (err) {
@@ -319,7 +338,9 @@ exports.getLastLeaveRequestByUserAndType = async (req, res) => {
 exports.getMyLastApprovedLeaveRequest = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const lastApproved = await LeaveRequestService.getLastApprovedRequestIsMine(userId);
+    const lastApproved = await LeaveRequestService.getLastApprovedRequestIsMine(
+      userId
+    );
 
     if (!lastApproved) {
       throw createError(404, "No approved leave request found");
@@ -333,7 +354,6 @@ exports.getMyLastApprovedLeaveRequest = async (req, res, next) => {
     next(err);
   }
 };
-
 
 exports.updateLeaveRequest = async (req, res, next) => {
   const leaveRequestId = req.params.id;
@@ -421,8 +441,6 @@ exports.deleteLeaveRequest = async (req, res, next) => {
     next(err);
   }
 };
-
-
 
 exports.getLeaveRequestsByUserId = async (req, res) => {
   const userId = req.params.userId || req.params.id;
@@ -648,7 +666,7 @@ exports.approveByReceiver = async (req, res, next) => {
       approverId,
       remarks,
       comment,
-      documentNumber
+      documentNumber,
     });
     res.json(result);
   } catch (err) {
@@ -695,7 +713,7 @@ exports.approveBySecondApprover = async (req, res, next) => {
       id,
       approverId,
       remarks,
-      comment
+      comment,
     });
     res.json(result);
   } catch (err) {
@@ -742,7 +760,7 @@ exports.approveByThirdApprover = async (req, res, next) => {
       id,
       approverId,
       remarks,
-      comment
+      comment,
     });
     res.json(result);
   } catch (err) {
@@ -789,7 +807,7 @@ exports.approveByFourthApprover = async (req, res, next) => {
       id,
       approverId,
       remarks,
-      comment
+      comment,
     });
     res.json(result);
   } catch (err) {
