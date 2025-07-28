@@ -59,7 +59,7 @@ app.use(cors({
 }));
 */
 const allowedOrigins = [
-  'https://frontend-faculty-of-engineering-leave-system.vercel.app',
+  process.env.FRONTEND_URL || 'https://frontend-faculty-of-engineering-leave-system.vercel.app',
   'http://localhost:5173' 
 ];
 
@@ -113,9 +113,11 @@ app.use("/api/lookups", lookupRoute);
 app.use(errorHandler);
 app.use("*", notFoundHandler);
 
+
 // เรียก reset leave balance เมื่อขึ้นปีงบประมาณใหม่
 require("./utils/resetLeaveBalance");
 
 // Server listen
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+
