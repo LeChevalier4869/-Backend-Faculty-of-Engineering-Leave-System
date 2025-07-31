@@ -5,8 +5,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql" // หรือปรับเป็น provider ที่ใช้งานอยู่
-  url      = env("DATABASE_URL")
+  provider          = "mysql" // หรือปรับเป็น provider ที่ใช้งานอยู่
+  url               = env("DATABASE_URL")
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
@@ -24,8 +24,6 @@ enum FileType {
 
 model User {
   id                 Int      @id @default(autoincrement())
-  departmentId       Int
-  personnelTypeId    Int
   prefixName         String?
   firstName          String
   lastName           String
@@ -35,9 +33,10 @@ model User {
   phone              String?
   position           String?
   hireDate           DateTime
-  inActive           Boolean  @default(false)
   employmentType     String?
   profilePicturePath String?
+  departmentId       Int
+  personnelTypeId    Int
 
   // Relations
   department          Department           @relation(fields: [departmentId], references: [id])
@@ -144,9 +143,9 @@ model UserRole {
 }
 
 model Signature {
-  id     Int    @id @default(autoincrement())
+  id     Int     @id @default(autoincrement())
   userId Int
-  file   String
+  file   String?
 
   user User @relation(fields: [userId], references: [id])
 
@@ -168,13 +167,13 @@ model ApproveStep {
   @@map("approve_step")
 }
 
-model Approver {
-  id   Int    @id @default(autoincrement())
-  name String
-  // อาจมี relation เพิ่มเติมในอนาคต หากต้องการแยกข้อมูลผู้อนุมัติออกจาก User
+// model Approver {
+//   id   Int    @id @default(autoincrement())
+//   name String
+//   // อาจมี relation เพิ่มเติมในอนาคต หากต้องการแยกข้อมูลผู้อนุมัติออกจาก User
 
-  @@map("approver")
-}
+//   @@map("approver")
+// }
 
 model Rank {
   id              Int      @id @default(autoincrement())
@@ -208,13 +207,16 @@ model UserRank {
 }
 
 model LeaveBalance {
-  id            Int @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   userId        Int
   leaveTypeId   Int
   maxDays       Int
   usedDays      Int
   pendingDays   Int
   remainingDays Int
+  year          Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
   user      User      @relation(fields: [userId], references: [id])
@@ -227,8 +229,8 @@ model LeaveType {
   id          Int     @id @default(autoincrement())
   name        String
   isAvailable Boolean @default(true)
+  template    String?
 
-  // Relations
   leaveBalances LeaveBalance[]
   leaveRequests LeaveRequest[]
   Rank          Rank[]
@@ -247,14 +249,14 @@ model LeaveRequest {
   totalDays          Int
   balanceDays        Int
   reason             String?
+  contact            String?
   status             LeaveRequestStatus @default(PENDING)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   documentNumber     String?
   documentIssuedDate DateTime?
-  verifierId         Int?
   receiverId         Int?
-  contact            String?
+  
 
   // Relations
   user                User                 @relation(fields: [userId], references: [id])
@@ -268,13 +270,13 @@ model LeaveRequest {
 
 model File {
   id             Int      @id @default(autoincrement())
-  leaveRequestId Int
+  leaveRequestId Int?
   type           FileType
   filePath       String
   uploadedAt     DateTime @default(now())
 
   // Relations
-  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+  leaveRequest LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
 
   @@map("file")
 }

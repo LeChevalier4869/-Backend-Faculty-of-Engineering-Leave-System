@@ -10,6 +10,8 @@ const errorHandler = require("./middlewares/error");
 const notFoundHandler = require("./middlewares/notFound");
 
 // Route modules
+
+const exelRoute = require("./routes/exel-route");
 const authRoute = require("./routes/auth-route");
 const userRoute = require("./routes/user-route");
 const leaveRequestRoute = require("./routes/leaveRequest-route");
@@ -102,6 +104,9 @@ app.use("/setting", settingRoute);
 // Admin routes (requires ADMIN role)
 app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
+
+// Excel upload route
+app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute); 
 
 // Swagger documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
