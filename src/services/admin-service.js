@@ -38,8 +38,6 @@ class AdminService {
       startDate,
       endDate,
       reason,
-      isEmergency,
-      verifierId,
       receiverId,
       contact,
     } = data;

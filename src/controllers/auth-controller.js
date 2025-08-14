@@ -26,7 +26,6 @@ exports.register = async (req, res, next) => {
       roleNames,
       position,
       hireDate,
-      inActiveRaw = "false",
       employmentType,
       personnelTypeId,
       departmentId,
@@ -88,7 +87,6 @@ exports.register = async (req, res, next) => {
       phone,
       position,
       hireDate: parsedHireDate,
-      inActive: inActiveRaw === "true",
       employmentType: mapEmploymentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
@@ -200,7 +198,6 @@ exports.login = async (req, res, next) => {
         // isHeadOfDepartment: ตรวจสอบว่า user เป็นหัวหน้าของสาขานี้หรือไม่,
         personnelType: personnelType,
         hireDate: user.hireDate,
-        inActive: user.inActive,
         employmentType: user.employmentType,
         profilePicturePath: user.profilePicturePath,
       },
@@ -338,7 +335,7 @@ exports.updateUser = async (req, res, next) => {
     /* ---------- รับค่า body ---------- */
     const {
       prefixName, firstName, lastName, sex, email, phone,
-      position, hireDate, inActive, employmentType,
+      position, hireDate, employmentType,
       personnelTypeId, departmentId,
     } = req.body;
 
@@ -364,7 +361,6 @@ exports.updateUser = async (req, res, next) => {
       phone,
       ...(hireDate && { hireDate: new Date(hireDate) }),
       ...(employmentType && { employmentType }),
-      ...(inActive !== undefined && { inActive: Boolean(inActive) }),
 
       /* ---- position ----
          ถ้าคุณมี model Position แยก (lookupPositions) ให้ส่ง positionId
@@ -416,38 +412,6 @@ exports.updateUser = async (req, res, next) => {
       user: updatedUser,
       token: newToken,
     });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.updateUserStatus = async (req, res, next) => {
-  try {
-    const userId = parseInt(req.params.id);
-    const { inActive } = req.body;
-    // const inActived = Boolean(inActive);
-
-    if (!userId || isNaN(userId)) {
-      return createError(400, "Invalid user ID");
-    }
-
-    // console.log('in active = ' + inActive);
-    // console.log('in actived = ' + inActived);
-
-    const inActived = inActive === "true" || inActive === true;
-
-    if (typeof inActived !== "boolean") {
-      return createError(400, "Invalid inActive");
-    }
-
-    const updateUserStatus = await UserService.updateUserStatusById(
-      userId,
-      inActived
-    );
-
-    res
-      .status(200)
-      .json({ message: "User status updated", user: updateUserStatus });
   } catch (err) {
     next(err);
   }
@@ -865,7 +829,6 @@ exports.adminCreateUser = async (req, res, next) => {
       employmentType,
       hireDate,
       roleNames = "USER",
-      inActiveRaw = "false",
     } = req.body;
 
     // 2. validate (ตัวอย่างสั้น ๆ)
@@ -897,7 +860,6 @@ exports.adminCreateUser = async (req, res, next) => {
         organizationId: +organizationId || null,
         employmentType,
         hireDate: hireDate ? new Date(hireDate) : null,
-        inActive: inActiveRaw === "true",
         roleNames: Array.isArray(roleNames) ? roleNames : [roleNames],
         profilePicture: avatar,
       },

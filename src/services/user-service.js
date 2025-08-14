@@ -185,28 +185,7 @@ class UserService {
       throw err;
     }
   }
-
-  static async updateUserStatusById(userId, status) {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
-
-      if (!user) {
-        throw createError(404, "User not found");
-      }
-
-      const updateUserStatus = await prisma.user.update({
-        where: { id: userId },
-        data: { inActive: status },
-      });
-
-      return updateUserStatus;
-    } catch (err) {
-      throw err;
-    }
-  }
-
+  
   static async getUserForLogin() {
     const user = await prisma.user.findFirst({ where: {} });
 

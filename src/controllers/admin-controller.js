@@ -66,7 +66,6 @@ exports.createRequestByAdmin = async (req, res, next) => {
       startDate: start,
       endDate: end,
       reason,
-      isEmergency: Boolean(isEmergency),
       status: status.trim().toUpperCase()
     }, req.user.id /* ถ้า service ต้องการ adminId เพิ่ม */);
 
