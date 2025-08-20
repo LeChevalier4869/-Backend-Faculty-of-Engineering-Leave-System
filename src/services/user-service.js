@@ -597,6 +597,11 @@ class UserService {
   }
 
   static async assignLeaveBalanceFromRanks(userId) {
+    const fiscalYearSetting = await prisma.setting.findUnique({
+    where: { key: "fiscalYear" },
+  });
+  const yearValue = parseInt(fiscalYearSetting.value, 10);
+
     const userRanks = await prisma.userRank.findMany({
       where: { userId },
       include: {
@@ -618,8 +623,10 @@ class UserService {
           usedDays: 0,
           pendingDays: 0,
           remainingDays: receiveDays,
+          year: yearValue,
         },
       });
+      // console.log(`➕ เพิ่ม LeaveBalance ให้ userId ${userId}, leaveType ${leaveTypeId}`);
     }
   }
 

@@ -1,64 +1,33 @@
-const cron = require('node-cron');
+const cron = require("node-cron");
 const prisma = require("../config/prisma");
 const UserService = require("../services/user-service");
-
-// async function resetLeaveBalance() {
-//   console.log("🔄 กำลังรีเซ็ตข้อมูล Leave Balance");
-
-//   // 1. ลบข้อมูล user_Rank ทั้งหมด
-//   await prisma.user_Rank.deleteMany({});
-//   console.log("🧹 ลบข้อมูล user_Rank เรียบร้อย");
-
-//   // 2. ลบ LeaveBalance ทั้งหมด
-//   await prisma.leaveBalance.deleteMany({});
-//   console.log("🧹 ลบข้อมูล leaveBalance เรียบร้อย");
-
-//   // 3. ดึงผู้ใช้งานทั้งหมดพร้อม personnelType และ hireDate
-//   const users = await prisma.user.findMany({
-//     select: {
-//       id: true,
-//       personnelTypeId: true,
-//       hireDate: true,
-//     },
-//   });
-
-//   // 4. วนลูปสร้าง user_Rank และ leaveBalance ใหม่
-//   for (const user of users) {
-//     const { id, personnelTypeId, hireDate } = user;
-
-//     // ตรวจสอบว่ามีข้อมูลครบ
-//     if (!personnelTypeId || !hireDate) continue;
-
-//     // สร้าง user_Rank ใหม่
-//     await UserService.assignRankToUser(id, personnelTypeId, new Date(hireDate));
-
-//     // สร้าง leaveBalance ใหม่จาก rank
-//     await UserService.assignLeaveBalanceFromRanks(id);
-//   }
-
-//   console.log("✅ รีเซ็ต Leave Balance และ Rank เรียบร้อยแล้ว");
-// }
 
 async function resetLeaveBalance() {
   console.log("🔄 กำลังรีเซ็ตข้อมูล Leave Balance");
 
+  const fiscalYearSetting = await prisma.setting.findUnique({
+    where: { key: "fiscalYear" },
+  });
+
+  const year = fiscalYearSetting
+    ? parseInt(fiscalYearSetting.value)
+    : new Date().getFullYear();
+
   // 🟡 ดึง LeaveBalance เดิมก่อนลบ
-  const oldLeaveBalances = await prisma.leaveBalance.findMany();
-  const remainingMap = {};
+  const oldLeaveBalances = await prisma.leaveBalance.findMany({
+    where: { year },
+  });
+  const existingMap = new Map();
   for (const lb of oldLeaveBalances) {
     const key = `${lb.userId}-${lb.leaveTypeId}`;
-    remainingMap[key] = lb.remainingDays;
+    existingMap.set(key, true);
   }
 
-  // 1. ลบข้อมูล user_Rank ทั้งหมด
+  // ลบข้อมูล user_Rank ทั้งหมด
   await prisma.userRank.deleteMany({});
   console.log("🧹 ลบข้อมูล user_Rank เรียบร้อย");
 
-  // 2. ลบ LeaveBalance ทั้งหมด
-  await prisma.leaveBalance.deleteMany({});
-  console.log("🧹 ลบข้อมูล leaveBalance เรียบร้อย");
-
-  // 3. ดึงผู้ใช้งานทั้งหมดพร้อม personnelType และ hireDate
+  // ดึงผู้ใช้งานทั้งหมดพร้อม personnelType และ hireDate
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -66,7 +35,6 @@ async function resetLeaveBalance() {
       hireDate: true,
     },
   });
-
   console.log(`👥 พบผู้ใช้ทั้งหมด ${users.length} คน`);
 
   // 4. วนลูปสร้าง user_Rank และ leaveBalance ใหม่
@@ -75,44 +43,76 @@ async function resetLeaveBalance() {
     if (!personnelTypeId || !hireDate) continue;
 
     await UserService.assignRankToUser(id, personnelTypeId, new Date(hireDate));
-    await UserService.assignLeaveBalanceFromRanks(id);
 
-    // 🟡 อัปเดต remainingDays โดยใช้ของเก่ามาบวก
-    const newBalances = await prisma.leaveBalance.findMany({
+    const userRanks = await prisma.userRank.findMany({
       where: { userId: id },
+      include: { rank: true },
     });
 
-    for (const newLb of newBalances) {
-      const key = `${id}-${newLb.leaveTypeId}`;
-      const previousRemaining = remainingMap[key] || 0;
-      let newRemaining = previousRemaining + newLb.remainingDays;
+    for (const ur of userRanks) {
+      const { leaveTypeId, maxDays, receiveDays } = ur.rank;
+      if (!leaveTypeId || maxDays === null) continue;
 
-      if (newRemaining > newLb.maxDays) {
-        newRemaining = newLb.maxDays;
+      const key = `${id}-${leaveTypeId}`;
+      if (!existingMap.has(key)) {
+        // สร้างเฉพาะที่ยังไม่มี
+        await prisma.leaveBalance.create({
+          data: {
+            userId: id,
+            leaveTypeId,
+            maxDays,
+            usedDays: 0,
+            pendingDays: 0,
+            remainingDays: receiveDays,
+            year,
+          },
+        });
+        console.log(
+          `➕ เพิ่ม LeaveBalance ให้ userId ${id}, leaveType ${leaveTypeId}`
+        );
       }
-
-      await prisma.leaveBalance.update({
-        where: { id: newLb.id },
-        data: { remainingDays: newRemaining },
-      });
     }
-
-    console.log(`✅ อัปเดต leaveBalance ของ userId ${id}`);
   }
 
   console.log("🎉 รีเซ็ต Leave Balance และ Rank เรียบร้อยแล้ว");
 }
 
-//             🔁 ทำงานทุกวันที่ 1 ต.ค. เวลา 00:00
-//             ┌───────────── นาที (0 - 59)
-//             │ ┌───────────── ชั่วโมง (0 - 23)
-//             │ │ ┌───────────── วันที่ของเดือน (1 - 31)
-//             │ │ │ ┌───────────── เดือน (1 - 12)
-//             │ │ │ │  ┌───────────── วันในสัปดาห์ (0 - 7) (อาทิตย์คือ 0 หรือ 7)
-//             │ │ │ │  │
-//             │ │ │ │  │
-//             * * * *  *
-cron.schedule('0 0 1 10 *', async () => {
-  console.log('🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)');
-  await resetLeaveBalance();
+// //             🔁 ทำงานทุกวันที่ 1 ต.ค. เวลา 00:00
+// //             ┌───────────── นาที (0 - 59)
+// //             │ ┌───────────── ชั่วโมง (0 - 23)
+// //             │ │ ┌───────────── วันที่ของเดือน (1 - 31)
+// //             │ │ │ ┌───────────── เดือน (1 - 12)
+// //             │ │ │ │  ┌───────────── วันในสัปดาห์ (0 - 7) (อาทิตย์คือ 0 หรือ 7)
+// //             │ │ │ │  │
+// //             │ │ │ │  │
+// //             * * * *  *
+// cron.schedule("0 0 1 10 *", async () => {
+//   console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
+//   await resetLeaveBalance();
+// });
+
+cron.schedule("0 0 * * *", async () => {
+  const today = new Date();
+  // ถ้าเป็นวันที่ 1 ตุลาคม ให้รีเซ็ต Leave Balance
+  if (today.getMonth() === 9 && today.getDate() === 1) {
+    console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
+
+    // อัปเดตปีงบประมาณใน setting
+    const fiscalYear = await prisma.setting.update({
+      where: { key: "fiscalYear" },
+      data: { value: String(today.getFullYear() + 1) },
+    });
+    console.log("ปีงบประมาณปัจจุบัน", fiscalYear.value);
+
+    // รีเซ็ต Leave Balance
+    await resetLeaveBalance();
+  }
+  // ถ้าเป็นวันที่ 1 มกราคม ให้รีเซ็ตปีใน setting
+  if (today.getMonth() === 0 && today.getDate() === 1) {
+    const currentYear = await prisma.setting.update({
+      where: { key: "currentYear" },
+      data: { value: today.getFullYear().toString() },
+    });
+    console.log("ปีปัจจุบัน", currentYear.value);
+  }
 });

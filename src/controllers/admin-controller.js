@@ -31,7 +31,7 @@ exports.adminList = async (req, res, next) => {
 
 exports.createRequestByAdmin = async (req, res, next) => {
   try {
-    const { leaveTypeId, startDate, endDate, reason, isEmergency, status } = req.body;
+    const { leaveTypeId, startDate, endDate, reason, status } = req.body;
     const userId = req.user.id;           // ← ประกาศ userId มาจาก req.user
 
     if (!leaveTypeId || !startDate || !endDate || !status) {
@@ -44,7 +44,8 @@ exports.createRequestByAdmin = async (req, res, next) => {
       throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
     }
 
-    const requestedDays = await calculateWorkingDays(start, end);
+    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    
     if (requestedDays <= 0) {
       throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
     }

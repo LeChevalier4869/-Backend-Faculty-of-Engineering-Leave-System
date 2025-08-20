@@ -625,7 +625,7 @@ class LeaveRequestService {
     if (!rank) {
       return {
         success: false,
-        message: "ยังไม่มีสิทธิ์ลาพักผ่อนในช่วงอายุงานปัจจุบัน!",
+        message: "ยังไม่มีสิทธิ์นี้ในช่วงอายุงานปัจจุบัน!",
       };
     }
 

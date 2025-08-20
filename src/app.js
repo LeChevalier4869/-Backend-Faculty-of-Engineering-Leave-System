@@ -106,7 +106,8 @@ app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 
 // Excel upload route
-app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute); 
+app.use("/excel", exelRoute); //ใช้เพื่อทดสอบเฉยๆ 
+// app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute); //ถ้า oaut เสร็จต้องใช้อันนี้
 
 // Swagger documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));

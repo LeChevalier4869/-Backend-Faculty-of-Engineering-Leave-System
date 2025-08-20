@@ -40,7 +40,7 @@ router.put(
 );
 
 // update status
-router.put("/user-status/:id", authenticate, authController.updateUserStatus);
+// router.put("/user-status/:id", authenticate, authController.updateUserStatus);
 
 // get info by id
 router.get("/user-info/:id", authenticate, authController.getUserInfoById);
