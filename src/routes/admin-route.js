@@ -35,6 +35,8 @@ const { authenticate , authorize } = require('../middlewares/auth');
 
 
 router.get('/list', authorize(["ADMIN"]), adminController.adminList);
+
+//-------------------------------------- leave request --------------------
 router.post('/leave-request', upload.array("images", 5), authorize(["ADMIN"]), adminController.createRequestByAdmin);
 
 //-------------------------------------- holiday -------------------- 

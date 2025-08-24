@@ -29,6 +29,7 @@ exports.adminList = async (req, res, next) => {
   }
 };
 
+//-------------------------------------- leave request --------------------
 exports.createRequestByAdmin = async (req, res, next) => {
   try {
     const { leaveTypeId, startDate, endDate, reason, status } = req.body;
@@ -89,7 +90,6 @@ exports.createRequestByAdmin = async (req, res, next) => {
     next(err);
   }
 };
-
 
 //--------------------- Holiday --------------------
 exports.getHoliday = async (req, res, next) => {

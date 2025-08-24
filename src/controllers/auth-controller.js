@@ -134,6 +134,7 @@ exports.register = async (req, res, next) => {
   }
 };
 
+// waiting for edit ****************** (use oauth2 no password)
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
