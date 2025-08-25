@@ -99,7 +99,7 @@ router.get(
 
 // Google callback
 router.get(
-  "/google/callback",
+  "/api/connect/google/callback",
   passport.authenticate("google", { failureRedirect: "/auth/fail" }),
   (req, res) => res.json(req.user)
 );
