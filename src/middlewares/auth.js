@@ -68,6 +68,4 @@ const authenticateJWT = async (req, res, next) => {
   }
 }
 
-module.exports = authenticateJWT;
-
-module.exports = { authenticate, authorize };
+module.exports = { authenticate, authorize,authenticateJWT };

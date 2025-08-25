@@ -97,7 +97,7 @@ app.use('/public', express.static('public'));
 
 // Authentication & user management
 app.use("/auth", authRoute);
-app.use("/oauth", oauthRoute);
+// app.use("/oauth", oauthRoute);
 app.use("/api/user", userRoute);
 
 // Leave management
