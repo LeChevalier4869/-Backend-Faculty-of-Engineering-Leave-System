@@ -84,7 +84,7 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const prisma = require("./prisma");
-const { generateTokens } = require("../utils/token");
+const { generateTokens } = require("../utils/tokens");
 
 passport.serializeUser((user, done) => done(null, user.user.id));
 passport.deserializeUser(async (id, done) => {

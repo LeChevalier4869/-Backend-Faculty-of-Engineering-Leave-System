@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 
 const passport = require("../config/passport");
-const { refreshAccessToken } = require("../utils/token");
+const { refreshAccessToken } = require("../utils/tokens");
 
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorize , authenticateJWT} = require('../middlewares/auth');
 const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");

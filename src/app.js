@@ -11,14 +11,9 @@ const { authenticate, authorize } = require("./middlewares/auth");
 const errorHandler = require("./middlewares/error");
 const notFoundHandler = require("./middlewares/notFound");
 
-// Session and Passport setup
-app.use(session({ secret: "supersecret", resave: false, saveUninitialized: false }));
-app.use(passport.initialize());
-app.use(passport.session());
-
 
 // Route modules
-const oauthRoute = require("./routes/oauth-route");
+// const oauthRoute = require("./routes/oauth-route");
 const exelRoute = require("./routes/exel-route");
 const authRoute = require("./routes/auth-route");
 const userRoute = require("./routes/user-route");
@@ -36,6 +31,12 @@ const adminUserRoute = require("./routes/admin-user-route");
 
 // Initialize app
 const app = express();
+
+// Session and Passport setup
+app.use(session({ secret: "supersecret", resave: false, saveUninitialized: false }));
+app.use(passport.initialize());
+app.use(passport.session());
+
 
 app.set("trust proxy", 1);
 
