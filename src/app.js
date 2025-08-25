@@ -11,7 +11,6 @@ const { authenticate, authorize } = require("./middlewares/auth");
 const errorHandler = require("./middlewares/error");
 const notFoundHandler = require("./middlewares/notFound");
 
-
 // Route modules
 // const oauthRoute = require("./routes/oauth-route");
 const exelRoute = require("./routes/exel-route");
@@ -33,10 +32,11 @@ const adminUserRoute = require("./routes/admin-user-route");
 const app = express();
 
 // Session and Passport setup
-app.use(session({ secret: "supersecret", resave: false, saveUninitialized: false }));
+app.use(
+  session({ secret: "supersecret", resave: false, saveUninitialized: false })
+);
 app.use(passport.initialize());
 app.use(passport.session());
-
 
 app.set("trust proxy", 1);
 
@@ -70,31 +70,32 @@ app.use(cors({
 }));
 */
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'https://frontend-faculty-of-engineering-leave-system.vercel.app',
-  'http://localhost:5173' 
+  process.env.FRONTEND_URL ||
+    "https://frontend-faculty-of-engineering-leave-system.vercel.app",
+  "http://localhost:5173",
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,  // ถ้าใช้ cookie หรือ auth
-}));
-
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true, // ถ้าใช้ cookie หรือ auth
+  })
+);
 
 // Public & utility routes ------------------------------------------------------------
-app.use('/api', reportRoutes);
-app.use('/public', express.static('public'));
-
+app.use("/api", reportRoutes);
+app.use("/public", express.static("public"));
 
 // Authentication & user management
 app.use("/auth", authRoute);
@@ -116,7 +117,7 @@ app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 
 // Excel upload route
-app.use("/excel", exelRoute); //ใช้เพื่อทดสอบเฉยๆ 
+app.use("/excel", exelRoute); //ใช้เพื่อทดสอบเฉยๆ
 // app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute); //ถ้า oaut เสร็จต้องใช้อันนี้
 
 // Swagger documentation
@@ -129,11 +130,9 @@ app.use("/api/lookups", lookupRoute);
 app.use(errorHandler);
 app.use("*", notFoundHandler);
 
-
 // เรียก reset leave balance เมื่อขึ้นปีงบประมาณใหม่
 require("./utils/resetLeaveBalance");
 
 // Server listen
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-
