@@ -83,12 +83,17 @@
 
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const prisma = require("./prisma");
-const { generateTokens } = require("../utils/tokens");
+const AuthService = require("../services/auth-service");
 
-passport.serializeUser((user, done) => done(null, user.user.id));
+// Serialize / Deserialize user
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
 passport.deserializeUser(async (id, done) => {
   try {
+    // โหลด user จาก prisma
+    const prisma = require("../config/prisma");
     const user = await prisma.user.findUnique({ where: { id } });
     done(null, user);
   } catch (err) {
@@ -96,30 +101,38 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
+// Google Strategy
 passport.use(
-  new GoogleStrategy({
+  new GoogleStrategy(
+    {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "https://backend-faculty-of-engineering-leave.onrender.com/auth/google/callback"
+      callbackURL: "https://backend-faculty-of-engineering-leave.onrender.com/auth/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        // ดึง profile จาก Google
         const googleId = profile.id;
+        const email = profile.emails[0].value;
+        const firstName = profile.name.givenName;
+        const lastName = profile.name.familyName;
 
-        const account = await prisma.account.findUnique({
-          where: { provider_providerAccountId: { provider: "google", providerAccountId: googleId } },
-          include: { user: true },
-        });
+        const { user, accessToken: jwtAccess, refreshToken: jwtRefresh } =
+          await AuthService.loginWithOAuth("google", googleId, {
+            email,
+            firstName,
+            lastName,
+            sex: profile.gender || "N/A",
+          });
 
-        if (!account) return done(null, false, { message: "Account not registered" });
-
-        const tokens = await generateTokens(account.user.id);
-        return done(null, { user: account.user, ...tokens });
+        // return ทั้ง user + token กลับไป
+        return done(null, { ...user, jwtAccess, jwtRefresh });
       } catch (err) {
-        return done(err, null);
+        done(err, null);
       }
     }
   )
 );
 
 module.exports = passport;
+
