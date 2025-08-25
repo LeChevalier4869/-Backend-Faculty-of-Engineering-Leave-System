@@ -44,4 +44,30 @@ const authorize = (requiredRoles) => (req, res, next) => {
     next();
 };
 
+const authenticateJWT = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Missing or invalid Authorization header" });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    // ตรวจสอบ JWT access token
+    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+
+    // โหลด user จาก DB
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user) return res.status(401).json({ message: "User not found" });
+
+    req.user = user; // เก็บข้อมูล user ใน request
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Unauthorized", error: err.message });
+  }
+}
+
+module.exports = authenticateJWT;
+
 module.exports = { authenticate, authorize };

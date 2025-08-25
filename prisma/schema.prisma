@@ -1,11 +1,9 @@
-// schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider          = "mysql" // หรือปรับเป็น provider ที่ใช้งานอยู่
+  provider          = "mysql"
   url               = env("DATABASE_URL")
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
@@ -48,9 +46,12 @@ model User {
   leaveRequests       LeaveRequest[]
   leaveRequestDetails LeaveRequestDetail[]
   userRanks           UserRank[]
-  approveSteps        ApproveStep[] // สำหรับนโยบายอนุมัติ (ถ้าใช้ผู้อนุมัติที่เป็นผู้ใช้งาน)
+  approveSteps        ApproveStep[] // สำหรับนโยบายอนุมัติ
+  Department          Department[] @relation("DepartmentHead")
 
-  Department Department[] @relation("DepartmentHead")
+  // OAuth Relations
+  accounts     Account[]
+  refreshTokens RefreshToken[]
 
   @@map("user")
 }
@@ -153,7 +154,7 @@ model Signature {
 
 model ApproveStep {
   id             Int       @id @default(autoincrement())
-  approveId      Int? // หากมีการอ้างอิงถึงกระบวนการหรือ policy ภายนอก
+  approveId      Int?
   userId         Int
   organizationId Int
   level          Int
@@ -166,14 +167,6 @@ model ApproveStep {
   @@map("approve_step")
 }
 
-// model Approver {
-//   id   Int    @id @default(autoincrement())
-//   name String
-//   // อาจมี relation เพิ่มเติมในอนาคต หากต้องการแยกข้อมูลผู้อนุมัติออกจาก User
-
-//   @@map("approver")
-// }
-
 model Rank {
   id              Int      @id @default(autoincrement())
   rank            String
@@ -183,7 +176,7 @@ model Rank {
   maxDays         Int?
   isBalance       Boolean?
   personnelTypeId Int
-  leaveTypeId     Int // nullable สำหรับความปลอดภัย
+  leaveTypeId     Int
 
   // Relations
   userRanks     UserRank[]
@@ -319,4 +312,38 @@ model Setting {
   updatedAt   DateTime @updatedAt
 
   @@map("setting")
+}
+
+//
+// ====== OAuth เพิ่มเข้ามา ======
+//
+
+model Account {
+  id                 Int     @id @default(autoincrement())
+  userId             Int
+  provider           String
+  providerAccountId  String
+  accessToken        String?
+  refreshToken       String?
+  expiresAt          DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
+  @@map("account")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_token")
 }

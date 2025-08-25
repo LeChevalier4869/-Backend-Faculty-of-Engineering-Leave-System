@@ -3,14 +3,22 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const session = require("express-session");
+const passport = require("./config/passport");
 
 const { swaggerUi, specs } = require("./config/swagger");
 const { authenticate, authorize } = require("./middlewares/auth");
 const errorHandler = require("./middlewares/error");
 const notFoundHandler = require("./middlewares/notFound");
 
-// Route modules
+// Session and Passport setup
+app.use(session({ secret: "supersecret", resave: false, saveUninitialized: false }));
+app.use(passport.initialize());
+app.use(passport.session());
 
+
+// Route modules
+const oauthRoute = require("./routes/oauth-route");
 const exelRoute = require("./routes/exel-route");
 const authRoute = require("./routes/auth-route");
 const userRoute = require("./routes/user-route");
@@ -89,6 +97,7 @@ app.use('/public', express.static('public'));
 
 // Authentication & user management
 app.use("/auth", authRoute);
+app.use("/oauth", oauthRoute);
 app.use("/api/user", userRoute);
 
 // Leave management
