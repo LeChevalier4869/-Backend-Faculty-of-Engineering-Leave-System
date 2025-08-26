@@ -117,50 +117,36 @@ router.get("/fail", (req, res) =>
 router.post("/refresh", async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    const accessToken = await refreshAccessToken(refreshToken);
-    res.json({ accessToken });
+    const { accessToken, refreshToken: newRefreshToken } =
+      await AuthService.refreshToken(refreshToken); // ใช้ฟังก์ชันใน service
+    res.json({ accessToken, refreshToken: newRefreshToken });
   } catch (err) {
     res.status(401).json({ error: err.message });
   }
 });
 
+
 // Logout
 router.post("/logout", async (req, res) => {
   const { refreshToken } = req.body;
-  await prisma.refreshToken.updateMany({
+  if (!refreshToken) return res.status(400).json({ error: "Missing token" });
+
+  const tokens = await prisma.refreshToken.findMany({
     where: { revoked: false },
-    data: { revoked: true },
   });
-  res.json({ message: "Logged out" });
+
+  for (const t of tokens) {
+    if (await bcrypt.compare(refreshToken, t.tokenHash)) {
+      await prisma.refreshToken.update({
+        where: { id: t.id },
+        data: { revoked: true },
+      });
+      return res.json({ message: "Logged out" });
+    }
+  }
+
+  res.status(400).json({ error: "Invalid token" });
 });
 
-
-// // เริ่มต้น login
-// router.get(
-//   "/google",
-//   passport.authenticate("google", { scope: ["profile", "email"] })
-// );
-
-// // callback จาก Google
-// router.get(
-//   "/google/callback",
-//   passport.authenticate("google", { failureRedirect: "/auth/fail" }),
-//   (req, res) => {
-//     // ส่ง JWT กลับไปให้ frontend
-//     res.json({
-//       message: "Login success",
-//       user: req.user,
-//     });
-//   }
-// );
-
-// // logout
-// router.get("/logout", (req, res) => {
-//   req.logout(() => {
-//     res.json({ message: "Logged out" });
-//   });
-// });
-
-// router.get("/fail", (req, res) => res.send("Google Login Failed"));
 
 module.exports = router;
