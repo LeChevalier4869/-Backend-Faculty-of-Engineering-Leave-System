@@ -1,5 +1,7 @@
 const createError = require('../utils/createError');
 const jwt = require('jsonwebtoken');
+const prisma = require("../config/prisma");
+
 const authenticate = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     console.log(req.headers);
