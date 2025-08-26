@@ -9,6 +9,7 @@ const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");
 const authController = require('../controllers/auth-controller');
+const AuthService = require('../services/auth-service');
 
 // ==============================
 // 🧑‍💼 Authentication & User
@@ -147,6 +148,5 @@ router.post("/logout", async (req, res) => {
 
   res.status(400).json({ error: "Invalid token" });
 });
-
 
 module.exports = router;
