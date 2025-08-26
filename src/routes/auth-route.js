@@ -105,7 +105,7 @@ router.get(
   (req, res) => res.json(req.user)
 );
 
-router.get("/profile", authenticate, async (req, res) => {
+router.get("/profile", authenticateJWT, async (req, res) => {
   // req.user มีข้อมูล user ที่ login แล้ว
   res.json({ message: "This is protected", user: req.user });
 });
