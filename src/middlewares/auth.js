@@ -2,6 +2,9 @@ const createError = require('../utils/createError');
 const jwt = require('jsonwebtoken');
 const authenticate = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
+    console.log(req.headers);
+    console.log(req.headers.authorization);
+    console.log("Token: ", token);
     if (!token) {
         return next(createError(401, 'Unauthorized'));
     }
