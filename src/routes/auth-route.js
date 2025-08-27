@@ -131,6 +131,7 @@ router.post("/refresh", async (req, res) => {
 // Logout
 router.post("/logout", async (req, res) => {
   const { refreshToken } = req.body;
+  console.log("debug refresh:",refreshToken);
   if (!refreshToken) return res.status(400).json({ error: "Missing token" });
 
   const tokens = await prisma.refreshToken.findMany({
