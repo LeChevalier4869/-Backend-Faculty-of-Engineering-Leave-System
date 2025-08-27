@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require("bcrypt");
 const router = express.Router();
 
 const passport = require("../config/passport");
@@ -130,28 +131,32 @@ router.post("/refresh", async (req, res) => {
 
 // Logout
 router.post("/logout", async (req, res) => {
-  const { refreshToken } = req.body;
-  console.log("debug req.body:",req.body);
-  console.log("debug refresh:",refreshToken);
-  if (!refreshToken) return res.status(400).json({ error: "Missing token" });
-
-  const tokens = await prisma.refreshToken.findMany({
-    where: { revoked: false },
-  });
-
-  console.log("debug tokens:",tokens);
-
-  for (const t of tokens) {
-    if (await bcrypt.compare(refreshToken, t.tokenHash)) {
-      await prisma.refreshToken.update({
-        where: { id: t.id },
-        data: { revoked: true },
-      });
-      return res.json({ message: "Logged out" });
+  try {
+    const { refreshToken } = req.body;
+    console.log("debug req.body:",req.body);
+    console.log("debug refresh:",refreshToken);
+    if (!refreshToken) return res.status(400).json({ error: "Missing token" });
+  
+    const tokens = await prisma.refreshToken.findMany({
+      where: { revoked: false },
+    });
+  
+    console.log("debug tokens:",tokens);
+  
+    for (const t of tokens) {
+      if (await bcrypt.compare(refreshToken, t.tokenHash)) {
+        await prisma.refreshToken.update({
+          where: { id: t.id },
+          data: { revoked: true },
+        });
+        return res.json({ message: "Logged out" });
+      }
     }
+  
+    res.status(400).json({ error: "Invalid token" });
+  } catch (err) {
+    console.error(err);
   }
-
-  res.status(400).json({ error: "Invalid token" });
 });
 
 module.exports = router;
