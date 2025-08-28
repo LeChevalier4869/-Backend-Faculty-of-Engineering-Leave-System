@@ -34,7 +34,7 @@ passport.use(
         // const firstName = profile.name.givenName;
         // const lastName = profile.name.familyName;
 
-        console.log("email form passport :", );
+        console.log("email form passport :", email);
         const { user, accessToken: jwtAccess, refreshToken: jwtRefresh } =
           await AuthService.loginWithOAuth("google", googleId, email);
 
