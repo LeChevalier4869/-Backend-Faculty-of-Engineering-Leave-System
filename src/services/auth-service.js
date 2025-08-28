@@ -6,8 +6,8 @@ const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
 async function generateTokens(userId) {
-  const accessToken = jwt.sign({ userId }, ACCESS_SECRET, { expiresIn: "15m" });
-  const refreshToken = jwt.sign({ userId }, REFRESH_SECRET, { expiresIn: "7d" });
+  const accessToken = jwt.sign({ userId }, ACCESS_SECRET, {expiresIn: "15m" });
+  const refreshToken = jwt.sign({ userId }, REFRESH_SECRET, {expiresIn: "7d",});
 
   // เก็บ hash ของ refresh token
   const hash = await bcrypt.hash(refreshToken, 10);
@@ -24,6 +24,10 @@ async function generateTokens(userId) {
 }
 
 async function loginWithOAuth(provider, providerAccountId, profile) {
+  console.log("OAuth profile:", profile);
+  console.log("provider:", provider);
+  console.log("providerAccountId:", providerAccountId);
+  
   let account = await prisma.account.findUnique({
     where: {
       provider_providerAccountId: { provider, providerAccountId },
@@ -31,29 +35,61 @@ async function loginWithOAuth(provider, providerAccountId, profile) {
     include: { user: true },
   });
 
+  // Check if user with the email already exists
+  let userExist = await prisma.user.findUnique({
+    where: { email: profile.email },
+  });
+
+  // if (!account) {
+  //   // สร้าง user ใหม่
+  //   const user = await prisma.user.create({
+  //     data: {
+  //       firstName: profile.firstName,
+  //       lastName: profile.lastName,
+  //       email: profile.email,
+  //       sex: profile.sex || "N/A",
+  //       hireDate: new Date(),
+  //       departmentId: 1, // ค่า default หรือหา logic ใส่
+  //       personnelTypeId: 1,
+  //       accounts: {
+  //         create: {
+  //           provider,
+  //           providerAccountId,
+  //         },
+  //       },
+  //     },
+  //   });
+  //   account = { user };
+  // }
+
+  // Temporary: บังคับให้มี account เท่านั้น
   if (!account) {
-    // สร้าง user ใหม่
-    const user = await prisma.user.create({
-      data: {
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        email: profile.email,
-        sex: profile.sex || "N/A",
-        hireDate: new Date(),
-        departmentId: 1, // ค่า default หรือหา logic ใส่
-        personnelTypeId: 1,
-        accounts: {
-          create: {
-            provider,
-            providerAccountId,
-          },
+    if (userExist) {
+      // ถ้ามี user อยู่แล้ว ให้สร้าง account ใหม่
+      account = await prisma.account.create({
+        data: {
+          provider,
+          providerAccountId,
+          userId: userExist.id,
         },
-      },
-    });
-    account = { user };
+        include: { user: true },
+      });
+    } else {
+      throw new Error("ไม่พบข้อมูลบัญชีของคุณในระบบ โปรดติดต่อเจ้าหน้าที่");
+    }
+    account = { user: userExist };
   }
 
   const tokens = await generateTokens(account.user.id);
+
+  // อัพเดท refresh token ใน account (maybe error)
+  // await prisma.account.update({
+  //   where: { id: account.id }, //----
+  //   data: {
+  //     refreshToken: tokens.refreshToken,
+  //   },
+  // });
+
   return { user: account.user, ...tokens };
 }
 
