@@ -28,19 +28,18 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        console.log("Google profile:", profile);
+        console.log("accessToken:", accessToken);
+        console.log("refreshToken:", refreshToken);
+        console.log("profile:", done);
         // ดึง profile จาก Google
         const googleId = profile.id;
         const email = profile.emails[0].value;
-        const firstName = profile.name.givenName;
-        const lastName = profile.name.familyName;
+        // const firstName = profile.name.givenName;
+        // const lastName = profile.name.familyName;
 
         const { user, accessToken: jwtAccess, refreshToken: jwtRefresh } =
-          await AuthService.loginWithOAuth("google", googleId, {
-            email,
-            firstName,
-            lastName,
-            sex: profile.gender || "N/A",
-          });
+          await AuthService.loginWithOAuth("google", googleId, email);
 
         // return ทั้ง user + token กลับไป
         return done(null, { ...user, jwtAccess, jwtRefresh });
