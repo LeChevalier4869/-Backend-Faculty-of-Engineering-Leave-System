@@ -323,9 +323,6 @@ model Account {
   userId             Int
   provider           String
   providerAccountId  String
-  accessToken        String?
-  refreshToken       String?
-  expiresAt          DateTime?
 
   user User @relation(fields: [userId], references: [id])
 
