@@ -43,6 +43,7 @@ async function loginWithOAuth(provider, providerAccountId, email) {
     include: { accounts: true },
   });
 
+  console.log("Existing user:", userExist);
   // if (!account) {
   //   // สร้าง user ใหม่
   //   const user = await prisma.user.create({
