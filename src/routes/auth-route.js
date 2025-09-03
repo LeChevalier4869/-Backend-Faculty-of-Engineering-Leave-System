@@ -17,6 +17,7 @@ const prisma = require("../config/prisma");
 // 🧑‍💼 Authentication & User
 // ==============================
 
+// "register", "login" เปลี่ยนไปใช้ "google login"
 router.post('/register', registerLimiter, upload.single('images'), authController.register);
 router.post('/login', loginLimiter, uploadFile.uploadProfile.none(), authController.login);
 router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.getMe);

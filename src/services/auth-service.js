@@ -44,27 +44,6 @@ async function loginWithOAuth(provider, providerAccountId, email) {
   });
 
   console.log("Existing user:", userExist);
-  // if (!account) {
-  //   // สร้าง user ใหม่
-  //   const user = await prisma.user.create({
-  //     data: {
-  //       firstName: profile.firstName,
-  //       lastName: profile.lastName,
-  //       email: profile.email,
-  //       sex: profile.sex || "N/A",
-  //       hireDate: new Date(),
-  //       departmentId: 1, // ค่า default หรือหา logic ใส่
-  //       personnelTypeId: 1,
-  //       accounts: {
-  //         create: {
-  //           provider,
-  //           providerAccountId,
-  //         },
-  //       },
-  //     },
-  //   });
-  //   account = { user };
-  // }
 
   // Temporary: บังคับให้มี account เท่านั้น
   if (userExist) {
