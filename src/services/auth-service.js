@@ -108,4 +108,4 @@ async function logout(userId) {
   });
 }
 
-module.exports = { loginWithOAuth, refreshToken, logout };
+module.exports = { loginWithOAuth, refreshToken, logout, generateTokens };
