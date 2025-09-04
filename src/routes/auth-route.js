@@ -3,7 +3,6 @@ const bcrypt = require("bcrypt");
 const router = express.Router();
 
 const passport = require("../config/passport");
-const { refreshAccessToken } = require("../utils/tokens");
 
 const { authenticate, authorize , authenticateJWT} = require('../middlewares/auth');
 const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
@@ -102,11 +101,30 @@ router.get(
 );
 
 // Google callback
+// router.get(
+//   "/google/callback",
+//   passport.authenticate("google", { failureRedirect: "/auth/fail" }),
+//   (req, res) => res.json(req.user)
+// );
+
 router.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: "/auth/fail" }),
-  (req, res) => res.json(req.user)
+  passport.authenticate("google", { failureRedirect: "/auth/fail", session: false }),
+  async (req, res) => {
+    const user = req.user;
+
+    // สร้าง JWT
+    const { accessToken, refreshToken } = await AuthService.generateTokens(user.id);
+
+    // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    res.redirect(
+      `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`
+    );
+  }
 );
+
+
 
 router.get("/profile", authenticateJWT, async (req, res) => {
   // req.user มีข้อมูล user ที่ login แล้ว
