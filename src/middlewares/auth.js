@@ -63,7 +63,10 @@ const authenticateJWT = async (req, res, next) => {
     const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
 
     // โหลด user จาก DB
-    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    const user = await prisma.user.findUnique({ 
+      where: { id: payload.userId } ,
+      include: { role: true }
+    });
     if (!user) return res.status(401).json({ message: "User not found" });
 
     req.user = user; // เก็บข้อมูล user ใน request
