@@ -118,6 +118,8 @@ router.get(
 
     // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    console.log("Redirecting to:", `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`);
+
     res.redirect(
       `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`
     );
