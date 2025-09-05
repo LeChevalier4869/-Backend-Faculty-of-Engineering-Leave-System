@@ -7,7 +7,7 @@ const session = require("express-session");
 const passport = require("./config/passport");
 
 const { swaggerUi, specs } = require("./config/swagger");
-const { authenticate, authorize } = require("./middlewares/auth");
+const { authenticate, authorize ,authenticateJWT} = require("./middlewares/auth");
 const errorHandler = require("./middlewares/error");
 const notFoundHandler = require("./middlewares/notFound");
 
@@ -105,7 +105,8 @@ app.use("/api/user", userRoute);
 // Leave management
 app.use("/leave-requests", leaveRequestRoute);
 app.use("/leave-types", leaveTypeRoute);
-app.use("/leave-balances", authenticate, leaveBalanceRoute);
+// app.use("/leave-balances", authenticate, leaveBalanceRoute);
+app.use("/leave-balances", authenticateJWT, leaveBalanceRoute);
 app.use("/test", authenticate, testRoute);
 
 // Signature & settings

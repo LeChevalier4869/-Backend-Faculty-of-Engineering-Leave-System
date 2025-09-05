@@ -12,7 +12,7 @@ const authenticate = (req, res, next) => {
     }
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        //console.log("Decoded User: ", user);
+        console.log("Decoded User: ", decoded);
 
         // check token expiration
 
@@ -65,7 +65,7 @@ const authenticateJWT = async (req, res, next) => {
     // โหลด user จาก DB
     const user = await prisma.user.findUnique({ 
       where: { id: payload.userId } ,
-      include: { role: true }
+      // include: { role: true }
     });
     if (!user) return res.status(401).json({ message: "User not found" });
 

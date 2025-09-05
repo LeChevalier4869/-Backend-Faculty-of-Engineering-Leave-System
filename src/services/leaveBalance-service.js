@@ -145,9 +145,11 @@ class LeaveBalanceService {
    * Get a balance record by its ID (rarely needed).
    */
   static async getBalanceById(balanceId) {
-    const balance = await prisma.leaveBalance.findUnique({
-      where: { id: balanceId },
+    console.log("🔍 ตรวจสอบ Leave Balance by ID:", { balanceId });
+    const balance = await prisma.leaveBalance.findMany({
+      where: { userId: balanceId },
     });
+    console.log("🔍 Found Balance:", balance);
     if (!balance) {
       throw createError(404, "ไม่พบข้อมูลสิทธิ์การลา");
     }

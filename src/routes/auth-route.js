@@ -20,6 +20,7 @@ const prisma = require("../config/prisma");
 router.post('/register', registerLimiter, upload.single('images'), authController.register);
 router.post('/login', loginLimiter, uploadFile.uploadProfile.none(), authController.login);
 router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.getMe);
+// router.get('/me', uploadFile.uploadProfile.none(), authenticateJWT, authController.getMe);
 router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 router.get('/user-info/:id', authenticate, authController.getUserInfoById);
