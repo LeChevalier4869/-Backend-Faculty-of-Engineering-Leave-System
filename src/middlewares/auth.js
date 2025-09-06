@@ -2,33 +2,33 @@ const createError = require('../utils/createError');
 const jwt = require('jsonwebtoken');
 const prisma = require("../config/prisma");
 
-const authenticate = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    console.log(req.headers);
-    console.log(req.headers.authorization);
-    console.log("Token: ", token);
-    if (!token) {
-        return next(createError(401, 'Unauthorized'));
-    }
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log("Decoded User: ", decoded);
+// const authenticate = (req, res, next) => {
+//     const token = req.headers.authorization?.split(' ')[1];
+//     console.log(req.headers);
+//     console.log(req.headers.authorization);
+//     console.log("Token: ", token);
+//     if (!token) {
+//         return next(createError(401, 'Unauthorized'));
+//     }
+//     try {
+//         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//         console.log("Decoded User: ", decoded);
 
-        // check token expiration
+//         // check token expiration
 
-        const now = Math.floor(Date.now() / 1000); // หน่วยเป็นวินาที
-        if (decoded.exp && decoded.exp < now) {
-            return next(createError(401, 'Token expired'));
-        }
+//         const now = Math.floor(Date.now() / 1000); // หน่วยเป็นวินาที
+//         if (decoded.exp && decoded.exp < now) {
+//             return next(createError(401, 'Token expired'));
+//         }
 
-        req.user = decoded;
-        next();
-    } catch (err) {
-        console.error("JWT decode error:", err.message); // เพิ่ม log
-        next(createError(401, 'Unauthorized'));
-    }
+//         req.user = decoded;
+//         next();
+//     } catch (err) {
+//         console.error("JWT decode error:", err.message); // เพิ่ม log
+//         next(createError(401, 'Unauthorized'));
+//     }
     
-};
+// };
 
 const authorize = (requiredRoles) => (req, res, next) => {
     if (!req.user || !req.user.role) {
@@ -49,7 +49,7 @@ const authorize = (requiredRoles) => (req, res, next) => {
     next();
 };
 
-const authenticateJWT = async (req, res, next) => {
+const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -70,10 +70,14 @@ const authenticateJWT = async (req, res, next) => {
     if (!user) return res.status(401).json({ message: "User not found" });
 
     req.user = user; // เก็บข้อมูล user ใน request
+
+    //debug req.user
+    console.log("Authenticated User: ", req.user);
+
     next();
   } catch (err) {
     return res.status(401).json({ message: "Unauthorized", error: err.message });
   }
 }
 
-module.exports = { authenticate, authorize,authenticateJWT };
+module.exports = { authenticate, authorize };

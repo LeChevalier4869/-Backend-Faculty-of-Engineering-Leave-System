@@ -4,7 +4,7 @@ const router = express.Router();
 
 const passport = require("../config/passport");
 
-const { authenticate, authorize , authenticateJWT} = require('../middlewares/auth');
+const { authenticate, authorize} = require('../middlewares/auth');
 const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");
@@ -129,7 +129,7 @@ router.get(
 
 
 
-router.get("/profile", authenticateJWT, async (req, res) => {
+router.get("/profile", authenticate, async (req, res) => {
   // req.user มีข้อมูล user ที่ login แล้ว
   res.json({ message: "This is protected", user: req.user });
 });
