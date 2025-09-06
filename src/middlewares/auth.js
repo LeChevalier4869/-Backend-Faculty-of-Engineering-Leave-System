@@ -65,7 +65,9 @@ const authenticate = async (req, res, next) => {
     // โหลด user จาก DB
     const user = await prisma.user.findUnique({ 
       where: { id: payload.userId } ,
-      // include: { role: true }
+      include: { 
+        userRoles: { include: { role: true } }  
+       }
     });
     if (!user) return res.status(401).json({ message: "User not found" });
 
