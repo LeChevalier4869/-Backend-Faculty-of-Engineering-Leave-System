@@ -100,7 +100,7 @@ const authenticate = async (req, res, next) => {
     const { userRoles, ...plainUser } = user; // ตัด relation ออกให้เบาขึ้น
     req.user = { ...plainUser, role: roleNames, roles: roleNames };
 
-    // req.user = user; // เก็บข้อมูล user ใน request
+    
 
     //debug req.user
     console.log("Authenticated User: ", req.user);
