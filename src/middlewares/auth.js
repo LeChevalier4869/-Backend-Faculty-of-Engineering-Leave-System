@@ -50,6 +50,9 @@ const authorize = (requiredRoles) => (req, res, next) => {
   //   return next(createError(403, "Forbidden"));
   // }
 
+  console.log("Authorized User Roles: ", req.user.role);
+  console.log("Authorized User Roles2: ", req.user.roles);
+
   //========== new authorize ==========
   const r = req.user?.role || req.user?.roles || [];
   const userRoles = Array.isArray(r) ? r : [r];
@@ -57,8 +60,7 @@ const authorize = (requiredRoles) => (req, res, next) => {
   if (!ok) return next(createError(403, "Forbidden"));
   //===================================
 
-  console.log("Authorized User Roles: ", req.user.role);
-  console.log("Authorized User Roles2: ", req.user.roles);
+  
 
   next();
 };
