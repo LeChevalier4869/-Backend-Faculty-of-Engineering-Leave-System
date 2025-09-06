@@ -31,24 +31,34 @@ const prisma = require("../config/prisma");
 // };
 
 const authorize = (requiredRoles) => (req, res, next) => {
-  if (!req.user || !req.user.role) {
-    return next(createError(403, "Forbidden: no role assigned."));
-  }
-  // console.log("Decoded User Role: ", req.user.role);
+  // if (!req.user || !req.user.role) {
+  //   return next(createError(403, "Forbidden: no role assigned."));
+  // }
+  // // console.log("Debug User Role: ", req.user.role);
 
-  const userRoles = Array.isArray(req.user.role)
-    ? req.user.role
-    : [req.user.role];
-  //const roleNames = Array.isArray(userRoles) ? userRoles.map(role => role.name) : [];
-  const hasRequiredRole = requiredRoles.some((role) =>
-    userRoles.includes(role)
-  );
-  // console.log("Decoded userRole: ", userRoles);
-  //console.log("Decoded roleNames: ", roleNames);
-  // console.log("Decoded hasRequire Role: ", hasRequiredRole);
-  if (!hasRequiredRole) {
-    return next(createError(403, "Forbidden"));
-  }
+  // const userRoles = Array.isArray(req.user.role)
+  //   ? req.user.role
+  //   : [req.user.role];
+  // //const roleNames = Array.isArray(userRoles) ? userRoles.map(role => role.name) : [];
+  // const hasRequiredRole = requiredRoles.some((role) =>
+  //   userRoles.includes(role)
+  // );
+  // // console.log("Decoded userRole: ", userRoles);
+  // //console.log("Decoded roleNames: ", roleNames);
+  // // console.log("Decoded hasRequire Role: ", hasRequiredRole);
+  // if (!hasRequiredRole) {
+  //   return next(createError(403, "Forbidden"));
+  // }
+
+  //========== new authorize ==========
+  const r = req.user?.role || req.user?.roles || [];
+  const userRoles = Array.isArray(r) ? r : [r];
+  const ok = requiredRoles.some((role) => userRoles.includes(role));
+  if (!ok) return next(createError(403, "Forbidden"));
+  //===================================
+
+  console.log("Authorized User Roles: ", req.user.role);
+  console.log("Authorized User Roles2: ", req.user.roles);
 
   next();
 };
@@ -92,8 +102,8 @@ const authenticate = async (req, res, next) => {
 
     //debug req.user
     console.log("Authenticated User: ", req.user);
-    console.log("User Roles: ", roleNames);
-    console.log("req.user.role: ", req.user.role);
+    // console.log("User Roles: ", roleNames);
+    // console.log("req.user.role: ", req.user.role);
 
     next();
   } catch (err) {
