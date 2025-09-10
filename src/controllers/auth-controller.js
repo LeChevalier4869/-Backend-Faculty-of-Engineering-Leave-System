@@ -424,10 +424,10 @@ exports.checkUserRole = async (req, res, next) => {
     const userRole = await UserService.getUserByIdWithRoles(userId);
 
     if (!userRole) {
-      console.log("Debug userRole", userRole.role);
+      console.log("Debug userRole ", userRole.role);
       throw createError(404, "User role not found");
     }
-    // console.log(userRole);
+    console.log("Debug userRole ", userRole);
 
     res.status(200).json({ message: "User role checked", role: userRole.role });
   } catch (err) {
