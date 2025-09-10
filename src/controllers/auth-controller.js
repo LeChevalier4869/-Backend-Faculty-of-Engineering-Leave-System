@@ -427,7 +427,7 @@ exports.checkUserRole = async (req, res, next) => {
       console.log("Debug userRole", userRole.role);
       throw createError(404, "User role not found");
     }
-    console.log(userRole);
+    // console.log(userRole);
 
     res.status(200).json({ message: "User role checked", role: userRole.role });
   } catch (err) {

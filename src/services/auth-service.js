@@ -6,7 +6,7 @@ const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
 async function generateTokens(userId) {
-  const accessToken = jwt.sign({ userId }, ACCESS_SECRET, { expiresIn: "15m" });
+  const accessToken = jwt.sign({ userId }, ACCESS_SECRET, { expiresIn: "8h" });
   const refreshToken = jwt.sign({ userId }, REFRESH_SECRET, {
     expiresIn: "7d",
   });

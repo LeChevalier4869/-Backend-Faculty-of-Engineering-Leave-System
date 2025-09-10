@@ -84,8 +84,6 @@ class UserService {
       },
     });
 
-    if (user) delete user.password;
-
     return user;
   }
 
