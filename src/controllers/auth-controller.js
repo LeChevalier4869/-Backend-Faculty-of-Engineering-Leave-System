@@ -755,7 +755,7 @@ exports.createPersonnelType = async (req, res, next) => {
       throw createError(400, "Name is required");
     }
 
-    const personnelType = await OrgAndDeptService.createPersonnelType({ name });
+    const personnelType = await OrgAndDeptService.createPersonnelType(name);
 
     res.status(201).json({
       message: "Personnel type created successfully",
