@@ -777,7 +777,7 @@ exports.updatePersonnelType = async (req, res, next) => {
 
     const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(
       parseInt(id),
-      { name }
+      name 
     );
 
     if (!updatedPersonnelType) {
