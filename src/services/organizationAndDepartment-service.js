@@ -102,10 +102,10 @@ class OrgAndDeptService {
   }
 
   static async createPersonnelType(name) {
-    console.log("Creating PersonnelType with name:", name.name);
+    console.log("Creating PersonnelType with name:", name);
     return await prisma.personnelType.create({
       data: {
-        name: name, // หรือเขียน name เฉยๆ ก็ได้ถ้าชื่อ parameter ตรงกัน
+        name, // หรือเขียน name เฉยๆ ก็ได้ถ้าชื่อ parameter ตรงกัน
       },
     });
   }
