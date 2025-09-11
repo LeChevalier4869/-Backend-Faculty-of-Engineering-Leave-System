@@ -1,8 +1,10 @@
 const fs = require("fs");
+const PdfPrinter = require("pdfmake");
 const { fillPDFTemplate } = require("../services/pdfService");
 const { title } = require("process");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const prisma = require("../config/prisma");
+const ReportService = require("../services/report-service");
 
 const templateMap = {
   1: "sick_template.pdf",
@@ -235,68 +237,77 @@ exports.downloadReport = async (req, res) => {
   }
 };
 
-//----------------------------------------------------------------------------------------------------------------
-// const fs = require('fs');  // เพิ่มการ import fs
+exports.previewReport = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const data = await ReportService.getReportData(userId);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+exports.editReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remark, days } = req.body; // ✅ อนุญาตแก้เฉพาะ 2 col
+    const updated = await ReportService.updateReportData(id, { remark, days });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+exports.generateReportPdf = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const reportData = await ReportService.getReportData(userId);
 
-// const { fillPDFTemplate } = require("../services/pdfService");
+    const fonts = {
+      Roboto: {
+        normal: "fonts/Roboto-Regular.ttf",
+        bold: "fonts/Roboto-Medium.ttf",
+        italics: "fonts/Roboto-Italic.ttf",
+        bolditalics: "fonts/Roboto-MediumItalic.ttf",
+      },
+    };
+    const printer = new PdfPrinter(fonts);
 
-// const templateMap = {
-//   1: "sick_template.pdf",
-//   2: "personal_template.pdf",
-//   3: "vacation_template.pdf",
-// };
+    const body = [
+      ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map((h) => ({
+        text: h,
+        bold: true,
+      })),
+      ...reportData.map((row) => [
+        row.startDate.toISOString().split("T")[0],
+        row.type,
+        row.days.toString(),
+        row.remark || "",
+      ]),
+    ];
 
-// exports.downloadReport = async (req, res) => {
-//   const data = {
-//     name: req.body.name || "ไม่ระบุชื่อ",
-//     description: req.body.description || "ไม่ระบุรายละเอียด",
-//     date: req.body.date || new Date().toLocaleDateString(),
-//   };
+    const docDefinition = {
+      content: [
+        { text: "รายงานการลา", style: "header" },
+        {
+          table: { body },
+        },
+      ],
+      styles: {
+        header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+      },
+    };
 
-//   const leaveTypeId = Number(req.body.leaveTypeId);
+    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=report-${userId}.pdf`
+    );
+    pdfDoc.pipe(res);
+    pdfDoc.end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
-//   // ตรวจสอบว่า leaveTypeId อยู่ในรายการที่กำหนด
-//   if (!Object.keys(templateMap).map(Number).includes(leaveTypeId)) {
-//     return res
-//       .status(400)
-//       .json({ error: "leaveTypeId ต้อง 1 หรือ 2 หรือ 3 เท่านั้น" });
-//   }
 
-//   const templatePath = `./templates/${templateMap[leaveTypeId]}`;
-//   const fileName = `report${Date.now()}.pdf`;
-//   const outputPath = `./public/reports/${fileName}`;
 
-//   try {
-//     await fillPDFTemplate(data, templatePath, outputPath);
-
-//     // ตั้งชื่อไฟล์ที่จะแสดงบนหน้า download
-//     const downloadFileName = `${data.date}.pdf`;
-//     console.log(downloadFileName);
-
-//     // ตรวจสอบให้แน่ใจว่า filename ไม่มีเครื่องหมายที่ไม่อนุญาต
-//     res.setHeader("Content-Type", "application/pdf");
-//     res.setHeader(
-//       "Content-Disposition",
-//       `inline; filename="${downloadFileName.replace(/"/g, "")}"`
-//     );
-
-//     const fileStream = fs.createReadStream(outputPath);
-//     fileStream.pipe(res);
-
-//     fileStream.on("end", () => {
-//       fs.unlink(outputPath, (err) => {
-//         if (err) {
-//           console.error("ไม่สามารถลบไฟล์ PDF ชั่วคราว:", err);
-//         }
-//       });
-//     });
-
-//     fileStream.on("error", (err) => {
-//       console.error("เกิดข้อผิดพลาดในการส่งไฟล์:", err);
-//       res.status(500).send("ไม่สามารถเปิดไฟล์ PDF ได้");
-//     });
-//   } catch (err) {
-//     console.error("เกิดข้อผิดพลาดในการสร้างไฟล์ PDF:", err);
-//     res.status(500).send("เกิดข้อผิดพลาดในการสร้างไฟล์ PDF");
-//   }
-// };
