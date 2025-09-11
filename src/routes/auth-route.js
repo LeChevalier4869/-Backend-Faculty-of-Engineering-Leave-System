@@ -75,13 +75,6 @@ router.delete('/personnel-types/:id', authController.deletePersonnelType);
 //           Position
 // ==============================
 
-
-// ==============================
-//      Combined Utilities
-// ==============================
-
-router.get('/OrgAndDep-list', authenticate, authController.getOrganizationAndDepartment);
-
 // ==============================
 //      Google Auth (Optional)
 // ==============================
