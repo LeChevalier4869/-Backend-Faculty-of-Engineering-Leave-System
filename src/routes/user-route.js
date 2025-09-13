@@ -74,8 +74,6 @@ router.post("/personnel-types",           authController.createPersonnelType);
 router.put("/personnel-types/:id",        authController.updatePersonnelType);
 router.delete("/personnel-types/:id",     authController.deletePersonnelType);
 
-router.get('/OrgAndDep-list', authenticate, authController.getOrganizationAndDepartment);
-
 router.post("/change-password",           authController.changePassword);
 router.post("/forgot-password",           authController.forgotPassword);
 router.post("/reset-password",            authController.resetPassword);
