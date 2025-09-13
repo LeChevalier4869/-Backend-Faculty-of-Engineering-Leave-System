@@ -247,7 +247,7 @@ model LeaveRequest {
   updatedAt          DateTime           @updatedAt
   documentNumber     String?
   documentIssuedDate DateTime?
-  receiverId         Int?
+  verifierId         Int?
 
   // Relations
   user                User                 @relation(fields: [userId], references: [id])
