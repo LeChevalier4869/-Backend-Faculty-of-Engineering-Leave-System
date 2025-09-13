@@ -34,7 +34,6 @@ model User {
   signatures          Signature[]
   department          Department           @relation(fields: [departmentId], references: [id])
   personnelType       PersonnelType        @relation(fields: [personnelTypeId], references: [id])
-  verifiedLeaveRequests LeaveRequest[] @relation("VerifiedLeaveRequests")
   userRanks           UserRank[]
   userRoles           UserRole[]
 
@@ -231,7 +230,6 @@ model LeaveRequest {
   files               File[]
   leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
   user                User                 @relation(fields: [userId], references: [id])
-  verifier           User?     @relation("VerifiedLeaveRequests", fields: [verifierId], references: [id])
   leaveRequestDetails LeaveRequestDetail[]
 
   @@index([leaveTypeId], map: "leave_request_leaveTypeId_fkey")
