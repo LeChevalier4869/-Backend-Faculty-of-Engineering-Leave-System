@@ -43,15 +43,16 @@ model User {
   userRoles           UserRole[]
   signatures          Signature[]
   leaveBalances       LeaveBalance[]
-  leaveRequests       LeaveRequest[]
   leaveRequestDetails LeaveRequestDetail[]
   userRanks           UserRank[]
   approveSteps        ApproveStep[] // สำหรับนโยบายอนุมัติ
-  Department          Department[] @relation("DepartmentHead")
+  Department          Department[]         @relation("DepartmentHead")
 
   // OAuth Relations
-  accounts     Account[]
+  accounts      Account[]
   refreshTokens RefreshToken[]
+  LeaveRequest  LeaveRequest[]
+  verifierLeaveRequests LeaveRequest[] @relation("VerifierLeaveRequests")
 
   @@map("user")
 }
@@ -252,6 +253,7 @@ model LeaveRequest {
   // Relations
   user                User                 @relation(fields: [userId], references: [id])
   leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
+  verifier            User?                @relation("VerifierLeaveRequests", fields: [verifierId], references: [id]) // ✅ เพิ่ม relation
   auditLogs           AuditLog[]
   files               File[]
   leaveRequestDetails LeaveRequestDetail[]
@@ -319,10 +321,10 @@ model Setting {
 //
 
 model Account {
-  id                 Int     @id @default(autoincrement())
-  userId             Int
-  provider           String
-  providerAccountId  String
+  id                Int    @id @default(autoincrement())
+  userId            Int
+  provider          String
+  providerAccountId String
 
   user User @relation(fields: [userId], references: [id])
 
