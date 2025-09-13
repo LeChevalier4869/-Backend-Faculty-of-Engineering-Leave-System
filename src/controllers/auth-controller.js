@@ -593,24 +593,6 @@ exports.deleteOrganization = async (req, res, next) => {
   }
 };
 
-exports.getOrganizationAndDepartment = async (req, res, next) => {
-  try {
-    const organizationAndDepartment =
-      await OrgAndDeptService.getOrganizationAndDepartment();
-
-    if (!organizationAndDepartment) {
-      console.log(
-        "Debug organizationAndDepartment: ",
-        organizationAndDepartment
-      );
-      throw createError(404, "not found");
-    }
-
-    res.status(200).json({ message: "ok", data: organizationAndDepartment });
-  } catch (err) {
-    next(err);
-  }
-};
 
 //Departments---------------------------------------------------------------------------------------------------
 exports.getAllDepartments = async (req, res, next) => {

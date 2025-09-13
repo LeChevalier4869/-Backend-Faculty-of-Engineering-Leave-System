@@ -47,16 +47,16 @@ exports.createLeaveRequest = async (req, res, next) => {
 
     // console.log("Debug leaveBalance: ", leaveBalance);
 
-    const eligibility = await LeaveRequestService.checkEligibility(
-      req.user.id,
-      leaveTypeId,
-      requestedDays
-    );
+    // const eligibility = await LeaveRequestService.checkEligibility(
+    //   req.user.id,
+    //   leaveTypeId,
+    //   requestedDays
+    // );
 
-    console.log("Debug eligibility: ", eligibility);
-    if (!eligibility.success) {
-      throw createError(400, eligibility.message);
-    }
+    // console.log("Debug eligibility: ", eligibility);
+    // if (!eligibility.success) {
+    //   throw createError(400, eligibility.message);
+    // }
 
     const leaveBalance = await LeaveBalanceService.getUserBalance(
       req.user.id,
