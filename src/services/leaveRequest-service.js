@@ -44,9 +44,9 @@ class LeaveRequestService {
 
     const { balance } = eligibility;
     const verifier = await UserService.getVerifier();
-    const receiver = await UserService.getReceiver();
-    if (!verifier || !receiver)
-      throw createError(500, "ไม่พบผู้ตรวจสอบหรือผู้รับหนังสือ");
+
+    if (!verifier)
+      throw createError(500, "ไม่พบผู้ตรวจสอบ");
 
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
@@ -63,7 +63,6 @@ class LeaveRequestService {
         reason,
         contact,
         verifierId: verifier.id,
-        receiverId: receiver.id,
         status: "PENDING",
       },
     });
@@ -321,193 +320,11 @@ class LeaveRequestService {
     );
   }
 
-  // อัพเดตสถานะตาม step
-  static async updateRequestStatus(
-    requestId,
-    status,
-    approverId,
-    remarks = null,
-    documentNumber = null
-  ) {
-    if (!requestId || !status || !approverId) {
-      throw createError(400, "ข้อมูลไม่ครบถ้วน");
-    }
-
-    const leaveRequest = await prisma.leaveRequest.findUnique({
-      where: { id: requestId },
-      include: { leaveRequestDetails: true },
-    });
-
-    if (!leaveRequest) {
-      throw createError(404, "ไม่พบคำขอลา");
-    }
-
-    const currentStep = await prisma.leaveRequestDetail.findFirst({
-      where: {
-        leaveRequestId: requestId,
-        approverId,
-        status: "PENDING",
-      },
-      orderBy: { stepOrder: "asc" },
-    });
-    if (!currentStep) {
-      throw createError(
-        403,
-        "คุณไม่มีสิทธิ์อัปเดตสถานะในขั้นตอนนี้ หรือได้อนุมัติไปแล้ว"
-      );
-    }
-
-    // ตรวจสอบว่าผู้อนุมัติก่อนหน้าอนุมัติแล้วหรือไม่ (ถ้ามี)
-    if (currentStep.stepOrder > 1) {
-      const prevStep = await prisma.leaveRequestDetail.findFirst({
-        where: {
-          leaveRequestId: requestId,
-          stepOrder: currentStep.stepOrder - 1,
-          status: "APPROVED",
-        },
-      });
-
-      if (!prevStep) {
-        throw createError(
-          400,
-          "ยังไม่สามารถอนุมัติได้ โปรดรอขั้นก่อนหน้าอนุมัติก่อน"
-        );
-      }
-    }
-
-    // ถ้าเป็น receiver จะทำการอัปเดตเลขที่เอกสาร
-    if (documentNumber && status === "APPROVED") {
-      await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: {
-          documentNumber,
-          documentIssuedDate: new Date(),
-        },
-      });
-    }
-
-    // อัพเดต step ปัจจุบัน (อาจจะแก้เป็น create)
-    await prisma.leaveRequestDetail.update({
-      where: { id: currentStep.id },
-      data: {
-        status,
-        reviewedAt: new Date(),
-        remarks,
-      },
-    });
-
-    // บันทึก log การทำงาน
-    await AuditLogService.createLog(
-      approverId,
-      `Update Status`,
-      requestId,
-      `Step ${currentStep.stepOrder} → ${status}${
-        remarks ? `(${remarks})` : ""
-      }`,
-      status === "REJECTED" ? "REJECTED" : "APPROVED"
-    );
-
-    // ถ้า REJECTED → ปิดทุก step และ request
-    if (status === "REJECTED") {
-      await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: { status: "REJECTED" },
-      });
-      await prisma.leaveRequestDetail.updateMany({
-        where: { leaveRequestId: requestId },
-        data: { status: "REJECTED" },
-      });
-
-      const user = await UserService.getUserByIdWithRoles(leaveRequest.userId);
-      if (user?.email) {
-        await sendNotification("REJECTION", {
-          to: user.email,
-          userName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
-          remarks,
-        });
-      }
-      return { message: "คำขอถูกปฏิเสธแล้ว" };
-    }
-
-    // ถ้า APPROVED → เช็คว่ามี step ถัดไปไหม
-    // ถ้า APPROVED → สร้าง step ถัดไป (ถ้ามี) และส่งอีเมลแจ้งเตือน
-    const nextStepOrder = currentStep.stepOrder + 1;
-    const nextApprover = await this.getNextApprover(nextStepOrder);
-
-    if (nextApprover) {
-      await prisma.leaveRequestDetail.create({
-        data: {
-          leaveRequestId: requestId,
-          approverId: nextApprover.id,
-          stepOrder: nextStepOrder,
-          status: "PENDING",
-        },
-      });
-
-      // ส่งแจ้งเตือนให้ Approver step ถัดไป
-      if (nextApprover.email) {
-        await sendNotification("NEW_STEP", {
-          to: nextApprover.email,
-          userName: `${nextApprover.prefixName} ${nextApprover.firstName} ${nextApprover.lastName}`,
-        });
-      }
-    } else {
-      // ถ้าไม่มี step ถัดไป → อัปเดตสถานะ leaveRequest เป็น APPROVED
-      await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: { status: "APPROVED" },
-      });
-
-      // หัก leaveBalance
-      const leaveDays = leaveRequest.leavedDays ?? 0;
-      await LeaveBalanceService.finalizeLeaveBalance(
-        leaveRequest.userId,
-        leaveRequest.leaveTypeId,
-        leaveDays
-      );
-
-      const user = await UserService.getUserByIdWithRoles(leaveRequest.userId);
-      if (user?.email) {
-        await sendNotification("FULLY_APPROVED", {
-          to: user.email,
-          userName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
-        });
-      }
-    }
-
-    return { message: "สถานะคำขอได้รับการอัปเดตแล้ว" };
-  }
-
   // ────────────────────────────────
   //  ใช้สำหรับ updateRequestStatus
   // ────────────────────────────────
 
-  // ฟังก์ชันสำหรับดึง approver คนถัดไป
-  static async getNextApprover(stepOrder) {
-    const approvers = {
-      2: await UserService.getVerifier(),
-      3: await UserService.getReceiver(),
-      4: await UserService.getApprover2(),
-      5: await UserService.getApprover3(),
-      6: await UserService.getApprover4(),
-    };
-    return approvers[stepOrder] || null;
-  }
 
-  // ────────────────────────────────
-  // ❌ DELETE
-  // ────────────────────────────────
-
-  static async deleteRequest(requestId) {
-    const request = await prisma.leaveRequest.findUnique({
-      where: { id: requestId },
-    });
-    if (!request) return null;
-    if (request.status !== "PENDING")
-      throw createError(400, "ไม่สามารถลบคำขอที่อนุมัติหรือปฏิเสธแล้วได้");
-    await prisma.leaveRequest.delete({ where: { id: requestId } });
-    return true;
-  }
 
   // ────────────────────────────────
   // 🔒 UTIL
@@ -762,42 +579,6 @@ class LeaveRequestService {
         leaveRequestDetails: {
           where: {
             stepOrder: 2,
-          },
-        },
-        files: true,
-      },
-    });
-  }
-
-  static async getPendingRequestsByReceiver() {
-    return await prisma.leaveRequest.findMany({
-      where: {
-        status: "PENDING",
-        leaveRequestDetails: {
-          some: {
-            stepOrder: 3,
-            status: "PENDING",
-          },
-        },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            department: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        leaveType: true,
-        leaveRequestDetails: {
-          where: {
-            stepOrder: 3,
           },
         },
         files: true,
@@ -1097,10 +878,15 @@ class LeaveRequestService {
   }
 
   // ──────────────────────────────────────────
-  // 🟢   Verifier: Verifier of Faculty
+  // 🟢   Verifier: Verifier of Faculty 
   // ──────────────────────────────────────────
 
-  static async approveByVerifier({ id, approverId, remarks, comment }) {
+  static async approveByVerifier({
+    id,
+    approverId,
+    remarks,
+    comment,
+  }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
@@ -1142,29 +928,29 @@ class LeaveRequestService {
       "APPROVED"
     );
 
-    // 3. หา receiver user
-    const receiver = await prisma.userRole.findFirst({
+    // 3. หา APPROVER_2
+    const approver = await prisma.userRole.findFirst({
       where: {
-        role: { name: "RECEIVER" },
+        role: { name: "APPROVER_2" },
       },
       orderBy: { id: "asc" },
     });
 
-    if (!receiver) throw createError(404, "ไม่พบผู้ตรวจสอบ (RECEIVER)");
+    if (!approver) throw createError(404, "ไม่พบผู้อณุมัติ (APPROVER_2)");
 
-    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ receiver
+    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ approver
     const newDetail = await prisma.leaveRequestDetail.create({
       data: {
-        approverId: receiver.userId,
+        approverId: approver.userId,
         leaveRequestId: updatedDetail.leaveRequestId,
         stepOrder: 3,
         status: "PENDING",
       },
     });
 
-    // 5. ส่งอีเมลแจ้งเตือนให้ Receiver
-    const receiverUser = await prisma.user.findUnique({
-      where: { id: receiver.userId },
+    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_2
+    const approverUser = await prisma.user.findUnique({
+      where: { id: approver.userId },
       select: {
         email: true,
         prefixName: true,
@@ -1173,10 +959,10 @@ class LeaveRequestService {
       },
     });
 
-    if (receiverUser.email) {
+    if (approverUser.email) {
       await sendNotification("VERIFIER_APPROVED", {
-        to: receiverUser.email,
-        userName: `${receiverUser.prefixName} ${receiverUser.firstName} ${receiverUser.lastName}`,
+        to: approverUser.email,
+        userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
     }
 
@@ -1199,7 +985,7 @@ class LeaveRequestService {
     }
 
     return {
-      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้รับหนังสือ",
+      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้อนุมัติขั้นถัดไป",
       approvedDetail: updatedDetail,
       nextStepDetail: newDetail,
     };
@@ -1280,16 +1066,10 @@ class LeaveRequestService {
   }
 
   // ──────────────────────────────────────────
-  // 🟢   Receiver: Receiver of Faculty
+  // 🟢   Approver 2: Head of Faculty
   // ──────────────────────────────────────────
 
-  static async approveByReceiver({
-    id,
-    approverId,
-    remarks,
-    comment,
-    documentNumber,
-  }) {
+  static async approveBySecondApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
@@ -1331,27 +1111,17 @@ class LeaveRequestService {
       "APPROVED"
     );
 
-    // ถ้าเป็น receiver จะทำการอัปเดตเลขที่เอกสาร
-
-    await prisma.leaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        documentNumber,
-        documentIssuedDate: new Date(),
-      },
-    });
-
-    // 3. หา APPROVER_2
-    const approver = await prisma.userRole.findFirst({
+    // 3. หา approver user
+    const approver = await prisma.UserRole.findFirst({
       where: {
-        role: { name: "APPROVER_2" },
+        role: { name: "APPROVER_3" },
       },
       orderBy: { id: "asc" },
     });
 
-    if (!approver) throw createError(404, "ไม่พบผู้อณุมัติ (APPROVER_2)");
+    if (!approver) throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_3)");
 
-    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ approver
+    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_3
     const newDetail = await prisma.leaveRequestDetail.create({
       data: {
         approverId: approver.userId,
@@ -1361,7 +1131,7 @@ class LeaveRequestService {
       },
     });
 
-    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_2
+    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_3
     const approverUser = await prisma.user.findUnique({
       where: { id: approver.userId },
       select: {
@@ -1373,7 +1143,7 @@ class LeaveRequestService {
     });
 
     if (approverUser.email) {
-      await sendNotification("RECEIVER_ISSUED", {
+      await sendNotification("APPROVER2_APPROVED", {
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -1391,20 +1161,20 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_RECEIVER", {
+      await sendNotification("STEP_APPROVER3", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
     }
 
     return {
-      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้รับหนัวสือ",
+      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้อนุมัติขั้นถัดไป",
       approvedDetail: updatedDetail,
       nextStepDetail: newDetail,
     };
   }
 
-  static async rejectByReceiver({ id, approverId, remarks, comment }) {
+  static async rejectBySecondApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
@@ -1434,6 +1204,13 @@ class LeaveRequestService {
       },
       include: {
         leaveRequest: true,
+      },
+    });
+
+    await prisma.LeaveRequest.update({
+      where: { id: updatedDetail.leaveRequestId },
+      data: {
+        status: "REJECTED",
       },
     });
 
@@ -1472,10 +1249,10 @@ class LeaveRequestService {
   }
 
   // ──────────────────────────────────────────
-  // 🟢   Approver 2: Head of Faculty
+  // 🟢   Approver 3: Assistant to Dean
   // ──────────────────────────────────────────
 
-  static async approveBySecondApprover({ id, approverId, remarks, comment }) {
+  static async approveByThirdApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
@@ -1518,16 +1295,16 @@ class LeaveRequestService {
     );
 
     // 3. หา approver user
-    const approver = await prisma.UserRole.findFirst({
+    const approver = await prisma.userRole.findFirst({
       where: {
-        role: { name: "APPROVER_3" },
+        role: { name: "APPROVER_4" },
       },
       orderBy: { id: "asc" },
     });
 
-    if (!approver) throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_3)");
+    if (!approver) throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_4)");
 
-    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_3
+    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_4
     const newDetail = await prisma.leaveRequestDetail.create({
       data: {
         approverId: approver.userId,
@@ -1537,7 +1314,7 @@ class LeaveRequestService {
       },
     });
 
-    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_3
+    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_4
     const approverUser = await prisma.user.findUnique({
       where: { id: approver.userId },
       select: {
@@ -1549,7 +1326,7 @@ class LeaveRequestService {
     });
 
     if (approverUser.email) {
-      await sendNotification("APPROVER2_APPROVED", {
+      await sendNotification("APPROVER3_APPROVED", {
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -1567,20 +1344,20 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVER3", {
+      await sendNotification("STEP_APPROVER4", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
     }
 
     return {
-      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้รับหนัวสือ",
+      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้อนุมัติขั้นถัดไป",
       approvedDetail: updatedDetail,
       nextStepDetail: newDetail,
     };
   }
 
-  static async rejectBySecondApprover({ id, approverId, remarks, comment }) {
+  static async rejectByThirdApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
@@ -1655,10 +1432,10 @@ class LeaveRequestService {
   }
 
   // ──────────────────────────────────────────
-  // 🟢   Approver 3: Assistant to Dean
+  // 🟢   Approver 4: The Last of Approver
   // ──────────────────────────────────────────
 
-  static async approveByThirdApprover({ id, approverId, remarks, comment }) {
+  static async approveByFourthApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
@@ -1700,45 +1477,31 @@ class LeaveRequestService {
       "APPROVED"
     );
 
-    // 3. หา approver user
-    const approver = await prisma.userRole.findFirst({
-      where: {
-        role: { name: "APPROVER_4" },
-      },
-      orderBy: { id: "asc" },
-    });
-
-    if (!approver) throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_4)");
-
-    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_4
-    const newDetail = await prisma.leaveRequestDetail.create({
+    await prisma.leaveRequest.update({
+      where: { id: updatedDetail.leaveRequestId },
       data: {
-        approverId: approver.userId,
-        leaveRequestId: updatedDetail.leaveRequestId,
-        stepOrder: 6,
-        status: "PENDING",
+        status: "APPROVED",
       },
     });
 
-    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_4
-    const approverUser = await prisma.user.findUnique({
-      where: { id: approver.userId },
-      select: {
-        email: true,
-        prefixName: true,
-        firstName: true,
-        lastName: true,
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: updatedDetail.leaveRequestId },
+      include: {
+        user: true,
+        leaveType: true,
+        leaveRequestDetails: true,
       },
     });
 
-    if (approverUser.email) {
-      await sendNotification("APPROVER3_APPROVED", {
-        to: approverUser.email,
-        userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
-      });
-    }
+    if (!request) throw createError(404, "ไม่พบคำขอลา");
 
-    // 6. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
+    await LeaveBalanceService.finalizeLeaveBalance(
+      request.userId,
+      request.leaveTypeId,
+      request.thisTimeDays
+    );
+
+    // 5. ส่งอีเมลแจ้งเตือนให้ ผู้ขออนุมัติ
     const requester = await prisma.user.findUnique({
       where: { id: updatedDetail.leaveRequest.userId },
       select: {
@@ -1750,20 +1513,19 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVER4", {
+      await sendNotification("FULLY_APPROVED", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
     }
 
     return {
-      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้รับหนัวสือ",
+      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้อนุมัติขั้นถัดไป",
       approvedDetail: updatedDetail,
-      nextStepDetail: newDetail,
     };
   }
 
-  static async rejectByThirdApprover({ id, approverId, remarks, comment }) {
+  static async rejectByFourthApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
@@ -1836,197 +1598,6 @@ class LeaveRequestService {
       rejectedDetail: updatedDetail,
     };
   }
-
-  // ──────────────────────────────────────────
-  // 🟢   Approver 4: The Last of Approver
-  // ──────────────────────────────────────────
-
-  static async approveByFourthApprover({ id, approverId, remarks, comment }) {
-    // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
-    const existingDetail = await prisma.leaveRequestDetail.findFirst({
-      where: {
-        id: Number(id),
-        stepOrder: 6,
-      },
-    });
-    if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
-
-    // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
-    if (existingDetail.status !== "PENDING") {
-      throw createError(
-        400,
-        "รายการคำขอนี้ไม่อยู่ในสถานะรอดำเนินการ (PENDING)"
-      );
-    }
-
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
-    });
-
-    // บันทึก log การทำงาน
-    await AuditLogService.createLog(
-      approverId,
-      `Update Status`,
-      updatedDetail.leaveRequestId,
-      `Step 6 → APPROVED${remarks ? `(${remarks})` : ""}`,
-      "APPROVED"
-    );
-
-    await prisma.leaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        status: "APPROVED",
-      },
-    });
-
-    const request = await prisma.leaveRequest.findUnique({
-      where: { id: updatedDetail.leaveRequestId },
-      include: {
-        user: true,
-        leaveType: true,
-        leaveRequestDetails: true,
-      },
-    });
-
-    if (!request) throw createError(404, "ไม่พบคำขอลา");
-
-    await LeaveBalanceService.finalizeLeaveBalance(
-      request.userId,
-      request.leaveTypeId,
-      request.thisTimeDays
-    );
-
-    // 5. ส่งอีเมลแจ้งเตือนให้ ผู้ขออนุมัติ
-    const requester = await prisma.user.findUnique({
-      where: { id: updatedDetail.leaveRequest.userId },
-      select: {
-        email: true,
-        prefixName: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
-
-    if (requester.email) {
-      await sendNotification("FULLY_APPROVED", {
-        to: requester.email,
-        userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
-      });
-    }
-
-    return {
-      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้รับหนังสือ",
-      approvedDetail: updatedDetail,
-    };
-  }
-
-  static async rejectByFourthApprover({ id, approverId, remarks, comment }) {
-    // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
-    const existingDetail = await prisma.leaveRequestDetail.findFirst({
-      where: {
-        id: Number(id),
-        stepOrder: 6,
-      },
-    });
-    if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
-
-    // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
-    if (existingDetail.status !== "PENDING") {
-      throw createError(
-        400,
-        "รายการคำขอนี้ไม่อยู่ในสถานะรอดำเนินการ (PENDING)"
-      );
-    }
-
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
-        reviewedAt: new Date(), // อัปเดตเวลา
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
-    });
-
-    await prisma.LeaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        status: "REJECTED",
-      },
-    });
-
-    // บันทึก log การทำงาน
-    await AuditLogService.createLog(
-      approverId,
-      `Update Status`,
-      updatedDetail.leaveRequestId,
-      `Step 6 → REJECTED${remarks ? `(${remarks})` : ""}`,
-      "REJECTED"
-    );
-
-    // ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
-    const requester = await prisma.user.findUnique({
-      where: { id: updatedDetail.leaveRequest.userId },
-      select: {
-        email: true,
-        prefixName: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
-
-    if (requester.email) {
-      await sendNotification("REJECTED", {
-        to: requester.email,
-        userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
-        remarks,
-      });
-    }
-
-    return {
-      message: "รายการคำขอลาถูกปฏิเสธเรียบร้อย",
-      rejectedDetail: updatedDetail,
-    };
-  }
-
-  // ────────────────────────────────
-  // 🟢 GET REQUEST By ID (backup)
-  // ────────────────────────────────
-
-  // static async getRequestsById(requestId) {
-  //   return await prisma.LeaveRequest.findMany({
-  //     where: { id: Number(requestId) },
-  //     include: {
-  //       user: {
-  //         select: {
-  //           id: true,
-  //           prefixName: true,
-  //           firstName: true,
-  //           lastName: true,
-  //         },
-  //       },
-  //       leaveType: true,
-  //       leaveRequestDetails: true,
-  //       files: true,
-  //     },
-  //   });
-  // }
 }
 
 module.exports = LeaveRequestService;

@@ -46,7 +46,7 @@ router.get(
 // Update own leave request
 router.patch("/:id", authenticate, leaveRequestController.updateLeaveRequest);
 
-// Update status (admin/approver/verifier/receiver)
+// Update status (admin/approver/verifier)
 router.patch(
   "/:id/status",
   authenticate,
@@ -57,7 +57,6 @@ router.patch(
     "APPROVER_3",
     "APPROVER_4",
     "VERIFIER",
-    "RECEIVER",
   ]),
   leaveRequestController.updateLeaveStatus
 );
@@ -122,14 +121,6 @@ router.get(
   leaveRequestController.getLeaveRequestsForVerifier
 );
 
-// get request for receiver (step 3)
-router.get(
-  "/for-receiver",
-  authenticate,
-  authorize(["RECEIVER"]),
-  leaveRequestController.getLeaveRequestsForReceiver
-);
-
 // get request for approver 2 (step 4)
 router.get(
   "/for-approver2",
@@ -180,20 +171,6 @@ router.patch(
   authenticate,
   authorize(["VERIFIER"]),
   leaveRequestController.rejectByVerifier
-);
-
-//approve and reject for Receiver
-router.patch(
-  "/:id/approve-by-receiver",
-  authenticate,
-  authorize(["RECEIVER"]),
-  leaveRequestController.approveByReceiver
-);
-router.patch(
-  "/:id/reject-by-receiver",
-  authenticate,
-  authorize(["RECEIVER"]),
-  leaveRequestController.rejectByReceiver
 );
 
 //approve and reject for Approver 2

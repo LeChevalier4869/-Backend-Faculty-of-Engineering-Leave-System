@@ -348,25 +348,6 @@ class UserService {
     return user;
   }
 
-  static async getReceiver() {
-    const user = await prisma.user.findFirst({
-      where: {
-        userRoles: {
-          some: {
-            role: {
-              name: "RECEIVER",
-            },
-          },
-        },
-      },
-      include: { userRoles: { include: { role: true } } },
-    });
-
-    if (!user) throw createError(404, "ไม่พบผู้รับหนังสือ (Receiver)");
-
-    return user;
-  }
-
   static async getHeadOfDepartment(departmentId) {
     if (!departmentId || isNaN(departmentId)) {
       console.error("Invalid departmentId:", departmentId);

@@ -245,7 +245,7 @@ exports.getMyApprovedLeaveRequests = async (req, res) => {
 exports.updateLeaveStatus = async (req, res, next) => {
   try {
     const requestId = parseInt(req.params.id);
-    const { status, remarks, documentNumber } = req.body;
+    const { status, remarks} = req.body;
     const approverId = req.user.id;
 
     if (!status) throw createError(400, "ต้องระบุสถานะ");
@@ -255,20 +255,14 @@ exports.updateLeaveStatus = async (req, res, next) => {
       throw createError(400, "สถานะไม่ถูกต้อง");
     }
 
-    let docNumber = null;
     const user = req.user;
     const userRole = Array.isArray(user.role) ? user.role : [user.role];
-
-    if (userRole.includes("RECEIVER")) {
-      docNumber = documentNumber;
-    }
 
     const updatedStatus = await LeaveRequestService.updateRequestStatus(
       requestId,
       status,
       approverId,
       remarks,
-      docNumber
     );
     await AuditLogService.createLog(
       req.user.id,
@@ -318,9 +312,6 @@ exports.getLeaveRequest = async (req, res, next) => {
           : null,
         verifier: await UserService.getUserByIdWithRoles(
           leaveRequests[0].verifierId
-        ),
-        receiver: await UserService.getUserByIdWithRoles(
-          leaveRequests[0].receiverId
         ),
         approvalSteps,
       },
@@ -544,17 +535,6 @@ exports.getLeaveRequestsForVerifier = async (req, res) => {
   }
 };
 
-exports.getLeaveRequestsForReceiver = async (req, res) => {
-  try {
-    const leaveRequests =
-      await LeaveRequestService.getPendingRequestsByReceiver();
-    res.status(200).json(leaveRequests);
-  } catch (error) {
-    console.error("Error fetching leave requests at step 2:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
 exports.getLeaveRequestsForSecondApprover = async (req, res) => {
   try {
     const leaveRequests =
@@ -674,54 +654,6 @@ exports.rejectByVerifier = async (req, res, next) => {
 
     // เรียกใช้ service ในการ reject
     const result = await LeaveRequestService.rejectByVerifier({
-      id,
-      approverId,
-      remarks,
-      comment,
-    });
-
-    return res.status(200).json(result);
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.approveByReceiver = async (req, res, next) => {
-  const id = parseInt(req.params.id);
-  const { remarks, comment, documentNumber } = req.body;
-  const approverId = req.user.id;
-
-  try {
-    if (typeof id !== "number" || isNaN(id)) {
-      console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
-    }
-    const result = await LeaveRequestService.approveByReceiver({
-      id,
-      approverId,
-      remarks,
-      comment,
-      documentNumber,
-    });
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.rejectByReceiver = async (req, res, next) => {
-  const id = parseInt(req.params.id);
-  const { remarks, comment } = req.body;
-  const approverId = req.user.id;
-
-  try {
-    if (typeof id !== "number" || isNaN(id)) {
-      console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
-    }
-
-    // เรียกใช้ service ในการ reject
-    const result = await LeaveRequestService.rejectByReceiver({
       id,
       approverId,
       remarks,

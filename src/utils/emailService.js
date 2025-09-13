@@ -82,14 +82,8 @@ function getEmailTemplate(eventType, data) {
     case "VERIFIER_APPROVED":
       return {
         subject: "คำขอลาได้รับการตรวจสอบจากผู้ตรวจสอบ",
-        html: `<p>เรียน ผู้รับหนังสือ,</p>
-            <p>คำขอลาจาก ${data.userName} ได้รับการตรวจสอบผ่านจากผู้ตรวจสอบ กรุณาออกเลขที่เอกสาร</p>`,
-      };
-    case "RECEIVER_ISSUED":
-      return {
-        subject: "เอกสารคำขอลาออกแล้ว",
-        html: `<p>เรียน หัวหน้าคณะ,</p>
-            <p>คำขอลาจาก ${data.userName} มีเอกสารออกแล้ว (เลขที่: ${data.documentNumber}, วันที่: ${data.documentIssuedDate}) กรุณาอนุมัติขั้นต่อไป</p>`,
+        html: `<p>เรียน ผู้บังคับบัญชา,</p>
+            <p>คำขอลาจาก ${data.userName} ได้รับการตรวจสอบผ่านจากผู้ตรวจสอบ กรุณาตรวจสอบและอนุมัติขั้นต่อไป</p>`,
       };
     case "APPROVER2_APPROVED":
       return {

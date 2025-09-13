@@ -38,7 +38,7 @@ class AdminService {
       startDate,
       endDate,
       reason,
-      receiverId,
+      verifierId,
       contact,
     } = data;
 
@@ -67,7 +67,6 @@ class AdminService {
         reason,
         isEmergency: Boolean(isEmergency),
         verifierId,
-        receiverId,
         contact,
         status: "APPROVED",
         leavedDays: requestedDays,
