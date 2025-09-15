@@ -1,10 +1,20 @@
 const fs = require("fs");
 const PdfPrinter = require("pdfmake");
+const path = require("path");
 const { fillPDFTemplate } = require("../services/pdfService");
 const { title } = require("process");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const prisma = require("../config/prisma");
 const ReportService = require("../services/report-service");
+
+const {
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableRow,
+  TableCell,
+} = require("docx");
 
 const templateMap = {
   1: "sick_template.pdf",
@@ -237,77 +247,195 @@ exports.downloadReport = async (req, res) => {
   }
 };
 
+// exports.previewReport = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const data = await ReportService.getReportData(userId);
+//     res.json(data);
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// };
+
+// exports.generateReportPdf = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const reportData = await ReportService.getReportData(userId);
+
+//     const fonts = {
+//       Roboto: {
+//         normal: "fonts/Roboto-Regular.ttf",
+//         bold: "fonts/Roboto-Medium.ttf",
+//         italics: "fonts/Roboto-Italic.ttf",
+//         bolditalics: "fonts/Roboto-MediumItalic.ttf",
+//       },
+//     };
+//     const printer = new PdfPrinter(fonts);
+
+//     const body = [
+//       ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map((h) => ({
+//         text: h,
+//         bold: true,
+//       })),
+//       ...reportData.map((row) => [
+//         row.startDate.toISOString().split("T")[0],
+//         row.type,
+//         row.days.toString(),
+//         row.remark || "",
+//       ]),
+//     ];
+
+//     const docDefinition = {
+//       content: [
+//         { text: "รายงานการลา", style: "header" },
+//         {
+//           table: { body },
+//         },
+//       ],
+//       styles: {
+//         header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+//       },
+//     };
+
+//     const pdfDoc = printer.createPdfKitDocument(docDefinition);
+//     res.setHeader("Content-Type", "application/pdf");
+//     res.setHeader(
+//       "Content-Disposition",
+//       `attachment; filename=report-${userId}.pdf`
+//     );
+//     pdfDoc.pipe(res);
+//     pdfDoc.end();
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// };
+
+// 📍 Preview
 exports.previewReport = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const data = await ReportService.getReportData(userId);
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-exports.editReport = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { remark, days } = req.body; // ✅ อนุญาตแก้เฉพาะ 2 col
-    const updated = await ReportService.updateReportData(id, { remark, days });
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-exports.generateReportPdf = async (req, res) => {
   try {
     const { userId } = req.params;
     const reportData = await ReportService.getReportData(userId);
 
-    const fonts = {
-      Roboto: {
-        normal: "fonts/Roboto-Regular.ttf",
-        bold: "fonts/Roboto-Medium.ttf",
-        italics: "fonts/Roboto-Italic.ttf",
-        bolditalics: "fonts/Roboto-MediumItalic.ttf",
-      },
-    };
-    const printer = new PdfPrinter(fonts);
-
-    const body = [
-      ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map((h) => ({
-        text: h,
-        bold: true,
-      })),
-      ...reportData.map((row) => [
-        row.startDate.toISOString().split("T")[0],
-        row.type,
-        row.days.toString(),
-        row.remark || "",
-      ]),
-    ];
-
-    const docDefinition = {
-      content: [
-        { text: "รายงานการลา", style: "header" },
-        {
-          table: { body },
-        },
-      ],
-      styles: {
-        header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
-      },
-    };
-
-    const pdfDoc = printer.createPdfKitDocument(docDefinition);
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename=report-${userId}.pdf`
-    );
-    pdfDoc.pipe(res);
-    pdfDoc.end();
+    res.json({
+      title: "รายงานการลา",
+      userId,
+      rows: reportData,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
+// 📍 Export PDF หรือ Word
+exports.exportReport = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { format } = req.body; // "pdf" | "word"
+    const reportData = await ReportService.getReportData(userId);
 
+    if (format === "pdf") {
+      if (format === "pdf") {
+        const fonts = {
+          THSarabunNew: {
+            normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
+            bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
+            italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
+            bolditalics: path.join(__dirname, "../fonts/THSarabunNew-BoldItalic.ttf"),
+          },
+        };
 
+        const printer = new PdfPrinter(fonts);
+
+        const body = [
+          ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map((h) => ({
+            text: h,
+            bold: true,
+          })),
+          ...reportData.map((row) => [
+            row.date,
+            row.type,
+            row.days.toString(),
+            row.remark,
+          ]),
+        ];
+
+        const docDefinition = {
+          content: [
+            { text: "รายงานการลา", style: "header", alignment: "center" },
+            {
+              table: { body },
+              layout: "lightHorizontalLines",
+              margin: [0, 20, 0, 0],
+            },
+          ],
+          styles: {
+            header: { fontSize: 18, bold: true },
+          },
+          defaultStyle: {
+            font: "THSarabunNew", // ✅ fix ปัญหา font Roboto not found
+            fontSize: 16,
+          },
+        };
+
+        const pdfDoc = printer.createPdfKitDocument(docDefinition);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=report-${userId}.pdf`
+        );
+        pdfDoc.pipe(res);
+        pdfDoc.end();
+      }
+    } else if (format === "word") {
+      const rows = [
+        new TableRow({
+          children: ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map(
+            (h) =>
+              new TableCell({
+                children: [new Paragraph({ text: h, bold: true })],
+              })
+          ),
+        }),
+        ...reportData.map(
+          (row) =>
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph(row.date)] }),
+                new TableCell({ children: [new Paragraph(row.type)] }),
+                new TableCell({
+                  children: [new Paragraph(row.days.toString())],
+                }),
+                new TableCell({ children: [new Paragraph(row.remark)] }),
+              ],
+            })
+        ),
+      ];
+
+      const doc = new Document({
+        sections: [
+          {
+            children: [
+              new Paragraph({ text: "รายงานการลา", heading: "Heading1" }),
+              new Table({ rows }),
+            ],
+          },
+        ],
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=report-${userId}.docx`
+      );
+      res.send(buffer);
+    } else {
+      res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

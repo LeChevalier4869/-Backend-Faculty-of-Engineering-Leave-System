@@ -27,17 +27,29 @@ class ReportService {
     });
   }
 
+  // static async getReportData(userId) {
+  //   return prisma.leaveRequest.findMany({
+  //     where: { userId: Number(userId) },
+  //     include: { user: true },
+  //   });
+  // }
+  // static async updateReportData(userId) {
+  //   return prisma.leaveRequest.findMany({
+  //     where: { userId: Number(userId) },
+  //     include: { user: true },
+  //   });
+  // }
+  // mock service ดึงข้อมูลรายงาน (จริงๆ จะไป query จาก Prisma หรือ DB)
   static async getReportData(userId) {
-    return prisma.leaveRequest.findMany({
-      where: { userId: Number(userId) },
-      include: { user: true },
-    });
-  }
-  static async updateReportData(userId) {
-    return prisma.leaveRequest.findMany({
-      where: { userId: Number(userId) },
-      include: { user: true },
-    });
+    return [
+      { date: "2025-09-01", type: "SICK", days: 5, remark: "เป็นไข้" },
+      {
+        date: "2025-09-05",
+        type: "VACATION",
+        days: 2,
+        remark: "ไปต่างจังหวัด",
+      },
+    ];
   }
 }
 
