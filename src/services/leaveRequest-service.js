@@ -62,7 +62,7 @@ class LeaveRequestService {
         balanceDays: balance.remainingDays,
         reason,
         contact,
-        verifier: { connect: { id: 1 } },
+        verifier: { connect: { id: verifier.id } },
         status: "PENDING",
       },
     });
