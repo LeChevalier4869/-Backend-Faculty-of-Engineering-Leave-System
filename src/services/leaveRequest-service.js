@@ -83,38 +83,38 @@ class LeaveRequestService {
       },
     });
 
-    // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
-    const approver = await UserService.getUserByIdWithRoles(
-      user.department.headId
-    );
-    if (approver) {
-      const approverEmail = approver.email;
-      const approverName = `${approver.prefixName} ${approver.firstName} ${approver.lastName}`;
+    // // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
+    // const approver = await UserService.getUserByIdWithRoles(
+    //   user.department.headId
+    // );
+    // if (approver) {
+    //   const approverEmail = approver.email;
+    //   const approverName = `${approver.prefixName} ${approver.firstName} ${approver.lastName}`;
 
-      const subject = "ยืนยันการยื่นคำขอลา";
-      const message = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h3 style="color: #2c3e50;">เรียน ${approverName},</h3>
-          <p>คุณได้รับการแจ้งเตือนเกี่ยวกับคำขอลาใหม่จากระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          <p><strong>รายละเอียดคำขอลา:</strong></p>
-          <ul style="list-style: none; padding: 0;">
-            <li><strong>ผู้ยื่นคำขอ:</strong> ${user.prefixName} ${
-        user.firstName
-      } ${user.lastName}</li>
-            <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
-            <li><strong>เหตุผล:</strong> ${reason}</li>
-            ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
-          </ul>
-          <p>กรุณาตรวจสอบและดำเนินการในระบบตามขั้นตอนที่กำหนด</p>
-          <br/>
-          <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-          <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-          <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-        </div>
-      `;
-      // await sendEmail(approverEmail, subject, message);
-    }
+    //   const subject = "ยืนยันการยื่นคำขอลา";
+    //   const message = `
+    //     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    //       <h3 style="color: #2c3e50;">เรียน ${approverName},</h3>
+    //       <p>คุณได้รับการแจ้งเตือนเกี่ยวกับคำขอลาใหม่จากระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+    //       <p><strong>รายละเอียดคำขอลา:</strong></p>
+    //       <ul style="list-style: none; padding: 0;">
+    //         <li><strong>ผู้ยื่นคำขอ:</strong> ${user.prefixName} ${
+    //     user.firstName
+    //   } ${user.lastName}</li>
+    //         <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
+    //         <li><strong>เหตุผล:</strong> ${reason}</li>
+    //         ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
+    //       </ul>
+    //       <p>กรุณาตรวจสอบและดำเนินการในระบบตามขั้นตอนที่กำหนด</p>
+    //       <br/>
+    //       <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
+    //       <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+    //       <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+    //       <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
+    //     </div>
+    //   `;
+    //   // await sendEmail(approverEmail, subject, message);
+    // }
 
     return leaveRequest;
   }
