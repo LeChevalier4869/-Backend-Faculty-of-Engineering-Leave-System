@@ -34,6 +34,7 @@ model User {
   signatures          Signature[]
   department          Department           @relation(fields: [departmentId], references: [id])
   personnelType       PersonnelType        @relation(fields: [personnelTypeId], references: [id])
+  leaveRequestsAsVerifier LeaveRequest[]     @relation("LeaveRequestVerifier")
   userRanks           UserRank[]
   userRoles           UserRole[]
 
@@ -225,7 +226,10 @@ model LeaveRequest {
   documentNumber      String?
   documentIssuedDate  DateTime?
   contact             String?
-  verifierId          Int?
+  
+  verifierId          Int?                
+  verifier            User?                @relation("LeaveRequestVerifier", fields: [verifierId], references: [id])
+
   auditLogs           AuditLog[]
   files               File[]
   leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
@@ -236,6 +240,7 @@ model LeaveRequest {
   @@index([userId], map: "leave_request_userId_fkey")
   @@map("leave_request")
 }
+
 
 model File {
   id             Int           @id @default(autoincrement())
