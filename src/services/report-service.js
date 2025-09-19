@@ -51,6 +51,51 @@ class ReportService {
       },
     ];
   }
+  static async getOrganizationLeaveReport(organizationId) {
+    // ดึง user ทั้งหมดใน org
+    const users = await prisma.user.findMany({
+      where: {
+        department: {
+          organizationId: Number(organizationId),
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        LeaveRequest: {
+          where: { status: "APPROVED" },
+          select: {
+            id: true,
+            leaveType: { select: { id: true, name: true } },
+            totalDays: true,
+          },
+        },
+      },
+    });
+
+    // สร้าง summary ต่อ user
+    return users.map((user) => {
+      const summary = {};
+      user.LeaveRequest.forEach((lr) => {
+        const typeName = lr.leaveType.name;
+        if (!summary[typeName]) {
+          summary[typeName] = { count: 0, days: 0 };
+        }
+        summary[typeName].count += 1;
+        summary[typeName].days += lr.totalDays;
+      });
+
+      return {
+        userId: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        leaveSummary: summary,
+      };
+    });
+  }
+
 }
 
 module.exports = ReportService;

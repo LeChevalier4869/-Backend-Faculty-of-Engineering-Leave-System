@@ -8,6 +8,7 @@ router.post('/download-report', authenticate,reportController.downloadReport);
 // router.put("/update/:id", reportController.editReport);
 // router.get("/pdf/:userId", reportController.generateReportPdf);
 router.get("/:userId/preview", reportController.previewReport);
-router.post("/:userId/export", reportController.exportReport);
+router.get("/report/:organizationId", reportController.previewOrganizationReport);
+router.post("/export/:organizationId", reportController.exportReport);
 
 module.exports = router;

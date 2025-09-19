@@ -326,6 +326,24 @@ exports.previewReport = async (req, res) => {
   }
 };
 
+exports.previewOrganizationReport = async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const reportData = await ReportService.getOrganizationLeaveReport(
+      organizationId
+    );
+
+    res.json({
+      title: "รายงานการลาของบุคลากรในคณะ",
+      organizationId,
+      rows: reportData,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // 📍 Export PDF หรือ Word
 exports.exportReport = async (req, res) => {
   try {
@@ -439,3 +457,160 @@ exports.exportReport = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// exports.exportReport = async (req, res) => {
+//   try {
+//     const { organizationId } = req.params;
+//     const { format } = req.body;
+
+//     const reportData = await ReportService.getOrganizationLeaveReport(
+//       organizationId
+//     );
+
+//     console.log("Report Data:", reportData);
+//     if (!reportData || reportData.length === 0) {
+//       return res.status(404).json({ error: "ไม่พบข้อมูล" });
+//     }
+
+//     if (format === "pdf") {
+//       const fonts = {
+//         THSarabunNew: {
+//           normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
+//           bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
+//           italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
+//           bolditalics: path.join(
+//             __dirname,
+//             "../fonts/THSarabunNew-BoldItalic.ttf"
+//           ),
+//         },
+//       };
+//       const printer = new PdfPrinter(fonts);
+
+//       const body = [
+//         ["ชื่อ-สกุล", "อีเมล", "ประเภทลา", "จำนวนครั้ง", "จำนวนวัน"].map(
+//           (h) => ({
+//             text: h,
+//             bold: true,
+//           })
+//         ),
+//       ];
+
+//       reportData.forEach((row) => {
+//         const summaries = row.leaveSummary || {};
+//         if (Object.keys(summaries).length === 0) {
+//           body.push([row.name, row.email, "-", "0", "0"]);
+//         } else {
+//           Object.entries(summaries).forEach(([type, s]) => {
+//             body.push([
+//               row.name,
+//               row.email,
+//               type,
+//               s.count.toString(),
+//               s.days.toString(),
+//             ]);
+//           });
+//         }
+//       });
+
+//       const docDefinition = {
+//         content: [
+//           { text: reportData.title, style: "header", alignment: "center" },
+//           {
+//             table: { body },
+//             layout: "lightHorizontalLines",
+//             margin: [0, 20, 0, 0],
+//           },
+//         ],
+//         styles: { header: { fontSize: 18, bold: true } },
+//         defaultStyle: { font: "THSarabunNew", fontSize: 16 },
+//       };
+
+//       const pdfDoc = printer.createPdfKitDocument(docDefinition);
+//       res.setHeader("Content-Type", "application/pdf");
+//       res.setHeader(
+//         "Content-Disposition",
+//         `attachment; filename=org-report-${organizationId}.pdf`
+//       );
+//       pdfDoc.pipe(res);
+//       pdfDoc.end();
+//     } else if (format === "word") {
+//       const rows = [
+//         new TableRow({
+//           children: [
+//             "ชื่อ-สกุล",
+//             "อีเมล",
+//             "ประเภทลา",
+//             "จำนวนครั้ง",
+//             "จำนวนวัน",
+//           ].map(
+//             (h) =>
+//               new TableCell({
+//                 children: [new Paragraph({ text: h, bold: true })],
+//               })
+//           ),
+//         }),
+//       ];
+
+//       reportData.rows.forEach((row) => {
+//         const summaries = row.leaveSummary || {};
+//         if (Object.keys(summaries).length === 0) {
+//           rows.push(
+//             new TableRow({
+//               children: [
+//                 new TableCell({ children: [new Paragraph(row.name)] }),
+//                 new TableCell({ children: [new Paragraph(row.email)] }),
+//                 new TableCell({ children: [new Paragraph("-")] }),
+//                 new TableCell({ children: [new Paragraph("0")] }),
+//                 new TableCell({ children: [new Paragraph("0")] }),
+//               ],
+//             })
+//           );
+//         } else {
+//           Object.entries(summaries).forEach(([type, s]) => {
+//             rows.push(
+//               new TableRow({
+//                 children: [
+//                   new TableCell({ children: [new Paragraph(row.name)] }),
+//                   new TableCell({ children: [new Paragraph(row.email)] }),
+//                   new TableCell({ children: [new Paragraph(type)] }),
+//                   new TableCell({
+//                     children: [new Paragraph(s.count.toString())],
+//                   }),
+//                   new TableCell({
+//                     children: [new Paragraph(s.days.toString())],
+//                   }),
+//                 ],
+//               })
+//             );
+//           });
+//         }
+//       });
+
+//       const doc = new Document({
+//         sections: [
+//           {
+//             children: [
+//               new Paragraph({ text: reportData.title, heading: "Heading1" }),
+//               new Table({ rows }),
+//             ],
+//           },
+//         ],
+//       });
+
+//       const buffer = await Packer.toBuffer(doc);
+//       res.setHeader(
+//         "Content-Type",
+//         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+//       );
+//       res.setHeader(
+//         "Content-Disposition",
+//         `attachment; filename=org-report-${organizationId}.docx`
+//       );
+//       res.send(buffer);
+//     } else {
+//       res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
+//     }
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// };
