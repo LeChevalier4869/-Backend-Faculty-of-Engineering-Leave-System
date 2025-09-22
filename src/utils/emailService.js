@@ -1,10 +1,11 @@
 const nodemailer = require("nodemailer");
+const createError = require("../utils/createError");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
   // service: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: false,
+  // port: process.env.EMAIL_PORT,
+  secure: true,
   auth: {
     // type: "OAuth2",
     // user: process.env.EMAIL_USER_RMUTI,
