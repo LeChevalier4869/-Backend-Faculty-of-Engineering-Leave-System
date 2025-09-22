@@ -137,33 +137,21 @@ exports.createLeaveRequest = async (req, res, next) => {
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
-    const user = await UserService.getUserByIdWithRoles(req.user.id);
+    // const user = await UserService.getUserByIdWithRoles(req.user.id);
 
-    if (user) {
-      const userEmail = user.email;
-      const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+    // if (user) {
+    //   const userEmail = user.email;
+    //   const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
 
-      const subject = "ยืนยันการยื่นคำขอลา";
-      const message = `
-              <h3>สวัสดี ${userName}</h3>
-              <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
-              <p>จำนวนวันลา: ${requestedDays}</p>
-              <br/>
-              <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          `;
-      await sendEmail(userEmail, subject, message);
-    }
-
-    // ดึง assignment สำหรับ APPROVER_1 ในวันนั้น
-    // const assignmentApprover1 = await RoleAssignmentService.getAssignments(
-    //   "APPROVER_1"
-    // );
-    // if (assignmentApprover1 && assignmentApprover1.user) {
-    //   await sendNotification("SUBMISSION", {
-    //     to: assignmentApprover1.user.email,
-    //     approverName: `${assignmentApprover1.user.prefixName} ${assignmentApprover1.user.firstName} ${assignmentApprover1.user.lastName}`,
-    //     userName: `${req.user.prefixName} ${req.user.firstName} ${req.user.lastName}`,
-    //   });
+    //   const subject = "ยืนยันการยื่นคำขอลา";
+    //   const message = `
+    //           <h3>สวัสดี ${userName}</h3>
+    //           <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
+    //           <p>จำนวนวันลา: ${requestedDays}</p>
+    //           <br/>
+    //           <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+    //       `;
+    //   await sendEmail(userEmail, subject, message);
     // }
 
     const file = req.files;
@@ -184,16 +172,6 @@ exports.createLeaveRequest = async (req, res, next) => {
 
       LeaveRequestService.attachImages(attachImages);
     }
-    //   const newLeaveRequest = await prisma.leaverequests.findFirst({
-    //     where: {
-    //       id: leaveRequest.id,
-    //     },
-    //     include: {
-    //       attachments: true,
-    //     },
-    //   });
-    //   res.json({ newLeaveRequest });
-    // }
 
     res
       .status(201)
