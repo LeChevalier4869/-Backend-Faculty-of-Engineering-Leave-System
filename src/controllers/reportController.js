@@ -345,252 +345,95 @@ exports.previewOrganizationReport = async (req, res) => {
 };
 
 // 📍 Export PDF หรือ Word
-exports.exportReport = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { format } = req.body; // "pdf" | "word"
-    const reportData = await ReportService.getReportData(userId);
-
-    if (format === "pdf") {
-      if (format === "pdf") {
-        const fonts = {
-          THSarabunNew: {
-            normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-            bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-            italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
-            bolditalics: path.join(__dirname, "../fonts/THSarabunNew-BoldItalic.ttf"),
-          },
-        };
-
-        const printer = new PdfPrinter(fonts);
-
-        const body = [
-          ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map((h) => ({
-            text: h,
-            bold: true,
-          })),
-          ...reportData.map((row) => [
-            row.date,
-            row.type,
-            row.days.toString(),
-            row.remark,
-          ]),
-        ];
-
-        const docDefinition = {
-          content: [
-            { text: "รายงานการลา", style: "header", alignment: "center" },
-            {
-              table: { body },
-              layout: "lightHorizontalLines",
-              margin: [0, 20, 0, 0],
-            },
-          ],
-          styles: {
-            header: { fontSize: 18, bold: true },
-          },
-          defaultStyle: {
-            font: "THSarabunNew", // ✅ fix ปัญหา font Roboto not found
-            fontSize: 16,
-          },
-        };
-
-        const pdfDoc = printer.createPdfKitDocument(docDefinition);
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename=report-${userId}.pdf`
-        );
-        pdfDoc.pipe(res);
-        pdfDoc.end();
-      }
-    } else if (format === "word") {
-      const rows = [
-        new TableRow({
-          children: ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map(
-            (h) =>
-              new TableCell({
-                children: [new Paragraph({ text: h, bold: true })],
-              })
-          ),
-        }),
-        ...reportData.map(
-          (row) =>
-            new TableRow({
-              children: [
-                new TableCell({ children: [new Paragraph(row.date)] }),
-                new TableCell({ children: [new Paragraph(row.type)] }),
-                new TableCell({
-                  children: [new Paragraph(row.days.toString())],
-                }),
-                new TableCell({ children: [new Paragraph(row.remark)] }),
-              ],
-            })
-        ),
-      ];
-
-      const doc = new Document({
-        sections: [
-          {
-            children: [
-              new Paragraph({ text: "รายงานการลา", heading: "Heading1" }),
-              new Table({ rows }),
-            ],
-          },
-        ],
-      });
-
-      const buffer = await Packer.toBuffer(doc);
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      );
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=report-${userId}.docx`
-      );
-      res.send(buffer);
-    } else {
-      res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
 // exports.exportReport = async (req, res) => {
 //   try {
-//     const { organizationId } = req.params;
-//     const { format } = req.body;
-
-//     const reportData = await ReportService.getOrganizationLeaveReport(
-//       organizationId
-//     );
-
-//     console.log("Report Data:", reportData);
-//     if (!reportData || reportData.length === 0) {
-//       return res.status(404).json({ error: "ไม่พบข้อมูล" });
-//     }
+//     const { userId } = req.params;
+//     const { format } = req.body; // "pdf" | "word"
+//     const reportData = await ReportService.getReportData(userId);
 
 //     if (format === "pdf") {
-//       const fonts = {
-//         THSarabunNew: {
-//           normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-//           bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-//           italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
-//           bolditalics: path.join(
-//             __dirname,
-//             "../fonts/THSarabunNew-BoldItalic.ttf"
-//           ),
-//         },
-//       };
-//       const printer = new PdfPrinter(fonts);
+//       if (format === "pdf") {
+//         const fonts = {
+//           THSarabunNew: {
+//             normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
+//             bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
+//             italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
+//             bolditalics: path.join(__dirname, "../fonts/THSarabunNew-BoldItalic.ttf"),
+//           },
+//         };
 
-//       const body = [
-//         ["ชื่อ-สกุล", "อีเมล", "ประเภทลา", "จำนวนครั้ง", "จำนวนวัน"].map(
-//           (h) => ({
+//         const printer = new PdfPrinter(fonts);
+
+//         const body = [
+//           ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map((h) => ({
 //             text: h,
 //             bold: true,
-//           })
-//         ),
-//       ];
+//           })),
+//           ...reportData.map((row) => [
+//             row.date,
+//             row.type,
+//             row.days.toString(),
+//             row.remark,
+//           ]),
+//         ];
 
-//       reportData.forEach((row) => {
-//         const summaries = row.leaveSummary || {};
-//         if (Object.keys(summaries).length === 0) {
-//           body.push([row.name, row.email, "-", "0", "0"]);
-//         } else {
-//           Object.entries(summaries).forEach(([type, s]) => {
-//             body.push([
-//               row.name,
-//               row.email,
-//               type,
-//               s.count.toString(),
-//               s.days.toString(),
-//             ]);
-//           });
-//         }
-//       });
-
-//       const docDefinition = {
-//         content: [
-//           { text: reportData.title, style: "header", alignment: "center" },
-//           {
-//             table: { body },
-//             layout: "lightHorizontalLines",
-//             margin: [0, 20, 0, 0],
+//         const docDefinition = {
+//           content: [
+//             { text: "รายงานการลา", style: "header", alignment: "center" },
+//             {
+//               table: { body },
+//               layout: "lightHorizontalLines",
+//               margin: [0, 20, 0, 0],
+//             },
+//           ],
+//           styles: {
+//             header: { fontSize: 18, bold: true },
 //           },
-//         ],
-//         styles: { header: { fontSize: 18, bold: true } },
-//         defaultStyle: { font: "THSarabunNew", fontSize: 16 },
-//       };
+//           defaultStyle: {
+//             font: "THSarabunNew", // ✅ fix ปัญหา font Roboto not found
+//             fontSize: 16,
+//           },
+//         };
 
-//       const pdfDoc = printer.createPdfKitDocument(docDefinition);
-//       res.setHeader("Content-Type", "application/pdf");
-//       res.setHeader(
-//         "Content-Disposition",
-//         `attachment; filename=org-report-${organizationId}.pdf`
-//       );
-//       pdfDoc.pipe(res);
-//       pdfDoc.end();
+//         const pdfDoc = printer.createPdfKitDocument(docDefinition);
+//         res.setHeader("Content-Type", "application/pdf");
+//         res.setHeader(
+//           "Content-Disposition",
+//           `attachment; filename=report-${userId}.pdf`
+//         );
+//         pdfDoc.pipe(res);
+//         pdfDoc.end();
+//       }
 //     } else if (format === "word") {
 //       const rows = [
 //         new TableRow({
-//           children: [
-//             "ชื่อ-สกุล",
-//             "อีเมล",
-//             "ประเภทลา",
-//             "จำนวนครั้ง",
-//             "จำนวนวัน",
-//           ].map(
+//           children: ["วันที่", "ประเภทลา", "จำนวนวัน", "หมายเหตุ"].map(
 //             (h) =>
 //               new TableCell({
 //                 children: [new Paragraph({ text: h, bold: true })],
 //               })
 //           ),
 //         }),
-//       ];
-
-//       reportData.rows.forEach((row) => {
-//         const summaries = row.leaveSummary || {};
-//         if (Object.keys(summaries).length === 0) {
-//           rows.push(
+//         ...reportData.map(
+//           (row) =>
 //             new TableRow({
 //               children: [
-//                 new TableCell({ children: [new Paragraph(row.name)] }),
-//                 new TableCell({ children: [new Paragraph(row.email)] }),
-//                 new TableCell({ children: [new Paragraph("-")] }),
-//                 new TableCell({ children: [new Paragraph("0")] }),
-//                 new TableCell({ children: [new Paragraph("0")] }),
+//                 new TableCell({ children: [new Paragraph(row.date)] }),
+//                 new TableCell({ children: [new Paragraph(row.type)] }),
+//                 new TableCell({
+//                   children: [new Paragraph(row.days.toString())],
+//                 }),
+//                 new TableCell({ children: [new Paragraph(row.remark)] }),
 //               ],
 //             })
-//           );
-//         } else {
-//           Object.entries(summaries).forEach(([type, s]) => {
-//             rows.push(
-//               new TableRow({
-//                 children: [
-//                   new TableCell({ children: [new Paragraph(row.name)] }),
-//                   new TableCell({ children: [new Paragraph(row.email)] }),
-//                   new TableCell({ children: [new Paragraph(type)] }),
-//                   new TableCell({
-//                     children: [new Paragraph(s.count.toString())],
-//                   }),
-//                   new TableCell({
-//                     children: [new Paragraph(s.days.toString())],
-//                   }),
-//                 ],
-//               })
-//             );
-//           });
-//         }
-//       });
+//         ),
+//       ];
 
 //       const doc = new Document({
 //         sections: [
 //           {
 //             children: [
-//               new Paragraph({ text: reportData.title, heading: "Heading1" }),
+//               new Paragraph({ text: "รายงานการลา", heading: "Heading1" }),
 //               new Table({ rows }),
 //             ],
 //           },
@@ -604,7 +447,7 @@ exports.exportReport = async (req, res) => {
 //       );
 //       res.setHeader(
 //         "Content-Disposition",
-//         `attachment; filename=org-report-${organizationId}.docx`
+//         `attachment; filename=report-${userId}.docx`
 //       );
 //       res.send(buffer);
 //     } else {
@@ -614,3 +457,212 @@ exports.exportReport = async (req, res) => {
 //     res.status(500).json({ error: err.message });
 //   }
 // };
+
+exports.exportReport = async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { format } = req.body;
+
+    const reportData = await ReportService.getOrganizationLeaveReport(
+      organizationId
+    );
+
+    if (!reportData || Object.keys(reportData).length === 0) {
+      return res.status(404).json({ error: "ไม่พบข้อมูล" });
+    }
+
+    if (format === "pdf") {
+      const fonts = {
+        THSarabunNew: {
+          normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
+          bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
+          italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
+          bolditalics: path.join(
+            __dirname,
+            "../fonts/THSarabunNew-BoldItalic.ttf"
+          ),
+        },
+      };
+      const printer = new PdfPrinter(fonts);
+
+      const content = [];
+
+      const TYPE_ORDER = [
+        { key: "official",  label: "ลาราชการ" },
+        { key: "sick",      label: "ลาป่วย" },
+        { key: "personal",  label: "ลากิจ" },
+        { key: "vacation",  label: "ลาพักผ่อน" },
+        { key: "maternity", label: "ลาคลอดบุตร" },
+        { key: "monkhood",  label: "ลาบวช" },
+      ];
+
+      const td = (sum, k, f) => {
+        const s = sum?.[k];
+        if (!s) return "-";
+        const v = f === "times" ? s.count : s.days;
+        return (v === 0 || v) ? String(v) : "-";
+      };
+
+      const makePdfTable = (list) => {
+        const headerRow1 = [
+          { text: "ที่", rowSpan: 3, style: "th", alignment: "center" }, 
+          { text: "ชื่อ - สกุล", rowSpan: 3, style: "th", alignment: "center" },
+          { text: "สาย/ครั้ง", rowSpan: 3, style: "th", alignment: "center" },
+          { text: "จำนวนวันลา", colSpan: 12, style: "thGray", alignment: "center" }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+          { text: "หมายเหตุ", rowSpan: 3, style: "th", alignment: "center" },
+        ];
+
+        const headerRow2 = [
+          {}, {}, {},
+          ...TYPE_ORDER.flatMap(t => [{ text: t.label, colSpan: 2, style: "thGray", alignment: "center" }, {}]),
+          {}
+        ];
+
+        const headerRow3 = [
+          {}, {}, {},
+          ...Array.from({ length: TYPE_ORDER.length }).flatMap(() => ([
+            { text: "ครั้ง", style: "thSub", alignment: "center" },
+            { text: "วัน",   style: "thSub", alignment: "center" },
+          ])),
+          {}
+        ];
+
+        const body = [headerRow1, headerRow2, headerRow3];
+
+        list.forEach((u, idx) => {
+          const row = [];
+          row.push({ text: String(idx + 1), alignment: "center" });
+          row.push({ text: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim(), alignment: "left" });
+          row.push({ text: u.lateTimes != null ? String(u.lateTimes) : "-", alignment: "center" });
+
+          TYPE_ORDER.forEach(t => {
+            row.push({ text: td(u.leaveSummary, t.key, "times"), alignment: "center" });
+            row.push({ text: td(u.leaveSummary, t.key, "days"),  alignment: "center" });
+          });
+
+          row.push({ text: u.note || "-", alignment: "left" });
+          body.push(row);
+        });
+
+        return {
+          table: {
+            headerRows: 3,
+            widths: [18, "*", 30, ...Array(12).fill(24), "*"],
+            body
+          },
+          layout: {
+            paddingLeft: () => 2, paddingRight: () => 2, paddingTop: () => 3, paddingBottom: () => 3,
+            hLineColor: "#9CA3AF", vLineColor: "#9CA3AF"
+          },
+          margin: [0, 10, 0, 20]
+        };
+      };
+
+      Object.entries(reportData).forEach(([typeName, users]) => {
+        content.push(
+          { text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น", alignment: "center" },
+          { text: `${typeName} คณะวิศวกรรมศาสตร์`, alignment: "center" },
+          { text: "รายนามผู้ลาหยุดประจำปี", alignment: "center", margin: [0, 0, 0, 10] },
+          makePdfTable(users)
+        );
+      });
+
+      const docDefinition = {
+        content,
+        styles: {
+          th: { bold: true, fillColor: "#E5E7EB" },
+          thGray: { bold: true, fillColor: "#D1D5DB" },
+          thSub: { bold: true, fillColor: "#E5E7EB" },
+        },
+        defaultStyle: { font: "THSarabunNew", fontSize: 14 },
+      };
+
+      const pdfDoc = printer.createPdfKitDocument(docDefinition);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=org-report-${organizationId}.pdf`
+      );
+      pdfDoc.pipe(res);
+      pdfDoc.end();
+    } else if (format === "word") {
+      const sections = [];
+
+      const TYPE_ORDER = [
+        { key: "official",  label: "ลาราชการ" },
+        { key: "sick",      label: "ลาป่วย" },
+        { key: "personal",  label: "ลากิจ" },
+        { key: "vacation",  label: "ลาพักผ่อน" },
+        { key: "maternity", label: "ลาคลอดบุตร" },
+        { key: "monkhood",  label: "ลาบวช" },
+      ];
+
+      const td = (sum, k, f) => {
+        const s = sum?.[k];
+        if (!s) return "-";
+        const v = f === "times" ? s.count : s.days;
+        return (v === 0 || v) ? String(v) : "-";
+      };
+
+      const makeCell = (txt) => new TableCell({ children: [new Paragraph(String(txt))] });
+
+      const makeWordTable = (list) => {
+        const rows = [];
+
+        rows.push(new TableRow({
+          children: [
+            makeCell("ที่"),
+            makeCell("ชื่อ - สกุล"),
+            makeCell("สาย/ครั้ง"),
+            ...TYPE_ORDER.flatMap(t => [makeCell(t.label + "\nครั้ง"), makeCell("วัน")]),
+            makeCell("หมายเหตุ"),
+          ]
+        }));
+
+        list.forEach((u, idx) => {
+          rows.push(new TableRow({
+            children: [
+              makeCell(idx + 1),
+              makeCell(u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim()),
+              makeCell(u.lateTimes != null ? String(u.lateTimes) : "-"),
+              ...TYPE_ORDER.flatMap(t => [makeCell(td(u.leaveSummary, t.key, "times")), makeCell(td(u.leaveSummary, t.key, "days"))]),
+              makeCell(u.note || "-"),
+            ]
+          }));
+        });
+
+        return new Table({ rows });
+      };
+
+      Object.entries(reportData).forEach(([typeName, users]) => {
+        sections.push(
+          new Paragraph({ text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น", alignment: "center" }),
+          new Paragraph({ text: `${typeName} คณะวิศวกรรมศาสตร์`, alignment: "center" }),
+          new Paragraph({ text: "รายนามผู้ลาหยุดประจำปี", alignment: "center" }),
+          new Paragraph({ text: "" }),
+          makeWordTable(users),
+          new Paragraph({ text: "" }),
+        );
+      });
+
+      const doc = new Document({ sections: [{ children: sections }] });
+
+      const buffer = await Packer.toBuffer(doc);
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=org-report-${organizationId}.docx`
+      );
+      res.send(buffer);
+    } else {
+      res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
+    }
+  } catch (err) {
+    console.error("Export Report Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
