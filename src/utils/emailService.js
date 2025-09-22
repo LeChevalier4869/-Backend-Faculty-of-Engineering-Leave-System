@@ -4,25 +4,25 @@ const sgMail = require("@sendgrid/mail");
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const transporter = nodemailer.createTransport({
-  // service: "gmail",
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  // secure: true,
-  auth: {
-    // type: "OAuth2",
-    // user: process.env.EMAIL_USER_RMUTI,
-    user: process.env.EMAIL_USER,
-    pass: process.env.SENDGRID_API_KEY,
-    // pass: process.env.EMAIL_APP_PASS,
-    // clientId: process.env.OAUTH_CLIENT_ID_RMUTI,
-    // clientSecret: process.env.OAUTH_CLIENT_SECRET_RMUTI,
-    // refreshToken: process.env.OAUTH_REFRESH_TOKEN_RMUTI,
-  },
-  // tls: {
-  //   rejectUnauthorized: false,
-  // },
-});
+// const transporter = nodemailer.createTransport({
+//   // service: "gmail",
+//   host: process.env.EMAIL_HOST,
+//   port: process.env.EMAIL_PORT,
+//   // secure: true,
+//   auth: {
+//     // type: "OAuth2",
+//     // user: process.env.EMAIL_USER_RMUTI,
+//     user: process.env.EMAIL_USER,
+//     pass: process.env.SENDGRID_API_KEY,
+//     // pass: process.env.EMAIL_APP_PASS,
+//     // clientId: process.env.OAUTH_CLIENT_ID_RMUTI,
+//     // clientSecret: process.env.OAUTH_CLIENT_SECRET_RMUTI,
+//     // refreshToken: process.env.OAUTH_REFRESH_TOKEN_RMUTI,
+//   },
+//   // tls: {
+//   //   rejectUnauthorized: false,
+//   // },
+// });
 
 /**
  * ส่งอีเมลแจ้งเตือน (รองรับหลายเหตุการณ์)
