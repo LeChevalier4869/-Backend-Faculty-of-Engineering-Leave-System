@@ -52,7 +52,12 @@ class ReportService {
     ];
   }
   static async getOrganizationLeaveReport(organizationId) {
-    // ดึง user ทั้งหมดใน org
+    // 1. ดึง personnel type ทั้งหมด
+    const personnelTypes = await prisma.personnelType.findMany({
+      select: { id: true, name: true },
+    });
+
+    // 2. ดึง user ทั้งหมดใน org + personnelType
     const users = await prisma.user.findMany({
       where: {
         department: {
@@ -64,6 +69,7 @@ class ReportService {
         firstName: true,
         lastName: true,
         email: true,
+        personnelType: { select: { id: true, name: true } },
         LeaveRequest: {
           where: { status: "APPROVED" },
           select: {
@@ -75,27 +81,40 @@ class ReportService {
       },
     });
 
-    // สร้าง summary ต่อ user
-    return users.map((user) => {
+    // 3. เตรียม object โดยใส่ personnelType ทุกตัวไว้ก่อน
+    const grouped = {};
+    personnelTypes.forEach((pt) => {
+      grouped[pt.name] = [];
+    });
+
+    // 4. เติมข้อมูล user ลงใน group ที่ตรงกับ personnelType
+    users.forEach((user) => {
+      const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
+
       const summary = {};
       user.LeaveRequest.forEach((lr) => {
-        const typeName = lr.leaveType.name;
-        if (!summary[typeName]) {
-          summary[typeName] = { count: 0, days: 0 };
+        const leaveTypeName = lr.leaveType.name;
+        if (!summary[leaveTypeName]) {
+          summary[leaveTypeName] = { count: 0, days: 0 };
         }
-        summary[typeName].count += 1;
-        summary[typeName].days += lr.totalDays;
+        summary[leaveTypeName].count += 1;
+        summary[leaveTypeName].days += lr.totalDays;
       });
 
-      return {
+      if (!grouped[typeName]) {
+        grouped[typeName] = []; // กัน error ถ้ามี personnelType แปลก ๆ
+      }
+
+      grouped[typeName].push({
         userId: user.id,
-        name: `${user.firstName} ${user.lastName}`,
+        name: `${user.prefixName}${user.firstName} ${user.lastName}`,
         email: user.email,
         leaveSummary: summary,
-      };
+      });
     });
-  }
 
+    return grouped;
+  }
 }
 
 module.exports = ReportService;
