@@ -137,22 +137,22 @@ exports.createLeaveRequest = async (req, res, next) => {
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
-    // const user = await UserService.getUserByIdWithRoles(req.user.id);
+    const user = await UserService.getUserByIdWithRoles(req.user.id);
 
-    // if (user) {
-    //   const userEmail = user.email;
-    //   const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+    if (user) {
+      const userEmail = user.email;
+      const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
 
-    //   const subject = "ยืนยันการยื่นคำขอลา";
-    //   const message = `
-    //           <h3>สวัสดี ${userName}</h3>
-    //           <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
-    //           <p>จำนวนวันลา: ${requestedDays}</p>
-    //           <br/>
-    //           <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-    //       `;
-    //   await sendEmail(userEmail, subject, message);
-    // }
+      const subject = "ยืนยันการยื่นคำขอลา";
+      const message = `
+              <h3>สวัสดี ${userName}</h3>
+              <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
+              <p>จำนวนวันลา: ${requestedDays}</p>
+              <br/>
+              <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+          `;
+      await sendEmail(userEmail, subject, message);
+    }
 
     const file = req.files;
     if (file && file.length > 0) {
