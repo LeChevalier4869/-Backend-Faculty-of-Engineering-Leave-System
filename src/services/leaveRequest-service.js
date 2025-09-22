@@ -113,7 +113,7 @@ class LeaveRequestService {
           <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
         </div>
       `;
-      // await sendEmail(approverEmail, subject, message);
+      await sendEmail(approverEmail, subject, message);
     }
 
     return leaveRequest;
