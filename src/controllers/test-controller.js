@@ -6,7 +6,7 @@ const { sendEmailTest } = require('../utils/emailService');
 exports.sendEmailTest = async (req, res, next) => {
     const userId = parseInt(req.params.id);
 
-    try {    
+    try {
         if (!userId) {
             console.log("Debug userId: ", userId);
             return createError(400, 'User ID is empty');
@@ -41,3 +41,17 @@ exports.sendEmailTest = async (req, res, next) => {
         next(err);
     }
 }
+
+exports.sendEmailTest2 = async (req, res, next) => {
+    try {
+        await sendEmailTest(
+            'assawin.in@rmuti.ac.th', // เปลี่ยนเป็นอีเมลผู้รับที่ต้องการ
+            'ทดสอบส่งอีเมลผ่าน SendGrid SMTP',
+            '<p>สวัสดี นี่คืออีเมลทดสอบจากระบบ eLeave</p>'
+        );
+        res.status(200).json({ message: 'ส่งอีเมลสำเร็จ' });
+    } catch (err) {
+        console.error('ส่งอีเมลไม่สำเร็จ:', err);
+        next(err);
+    }
+};

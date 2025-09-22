@@ -4,6 +4,7 @@ const testController = require('../controllers/test-controller');
 
 const router = express.Router();
 
-router.post('/:id', authMiddleware.authenticate, testController.sendEmailTest);
+router.post('/test/:id', authMiddleware.authenticate, testController.sendEmailTest);
+router.post('/test2', testController.sendEmailTest2);
 
 module.exports = router;

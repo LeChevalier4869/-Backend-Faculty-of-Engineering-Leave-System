@@ -32,7 +32,7 @@ const sendEmail = async (toEmail, subject, message, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
       const mailOptions = {
-        from: `"ระบบจัดการวันลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER}>`,
+        from: `"ระบบจัดการวันลาคณะวิศวกรรมศาสตร์" <eleave.systemv1@gmail.com>`, // จำเป็นต้องใช้ email ที่ยืนยันแล้ว กับ sendgrid
         to: toEmail,
         subject,
         html: message,
@@ -51,7 +51,7 @@ const sendEmail = async (toEmail, subject, message, retries = 3) => {
 const sendEmailTest = async (toEmail, subject, message) => {
   try {
     const mailOptions = {
-      from: `"1+1=?" <${process.env.EMAIL_USER}>`,
+      from: `"ระบบจัดการวันลาคณะวิศวกรรมศาสตร์" <eleave.systemv1@gmail.com>`,
       to: toEmail,
       subject,
       html: message,
