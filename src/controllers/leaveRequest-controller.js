@@ -181,19 +181,6 @@ exports.createLeaveRequest = async (req, res, next) => {
   }
 };
 
-// exports.createLeaveRequestController = async (req, res) => {
-//   try {
-//     const result = await LeaveRequestService.createRequest(req.body);
-//     res.status(201).json({
-//       message: 'สร้างใบลาเรียบร้อยแล้ว',
-//       data: result,
-//     });
-//   } catch (error) {
-//     res.status(error.status || 500).json({ error: error.message });
-//   }
-// };
-
-//use (not mail)
 
 exports.getMyLeaveRequests = async (req, res) => {
   try {

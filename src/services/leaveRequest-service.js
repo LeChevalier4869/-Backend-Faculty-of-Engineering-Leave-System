@@ -34,20 +34,16 @@ class LeaveRequestService {
       throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
     }
 
-    const eligibility = await this.checkEligibility(
-      userId,
-      leaveTypeId,
-      requestedDays
-    );
+    // ตรวจสอบสิทธิ์และดึง verifier พร้อมกัน (refactor)
+    const [eligibility, verifier] = await Promise.all([
+      this.checkEligibility(userId, leaveTypeId, requestedDays),
+      UserService.getVerifier()
+    ]);
 
     if (!eligibility.success) throw createError(400, eligibility.message);
+    if (!verifier) throw createError(5001, "ไม่พบผู้ตรวจสอบในระบบ โปรดติดต่อผู้ดูแลระบบ");
 
-    const { balance } = eligibility;
-    const verifier = await UserService.getVerifier();
-
-    if (!verifier)
-      throw createError(500, "ไม่พบผู้ตรวจสอบ");
-
+    // สร้าง leaveRequest
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         documentNumber,
@@ -56,24 +52,25 @@ class LeaveRequestService {
         leaveTypeId: parseInt(leaveTypeId),
         startDate: start,
         endDate: end,
-        leavedDays: balance.usedDays,
+        leavedDays: eligibility.balance.usedDays,
         thisTimeDays: requestedDays,
-        totalDays: balance.usedDays + requestedDays,
-        balanceDays: balance.remainingDays,
+        totalDays: eligibility.balance.usedDays + requestedDays,
+        balanceDays: eligibility.balance.remainingDays,
         reason,
         contact,
-        verifierId:verifier.id,
+        verifierId: verifier.id,
         status: "PENDING",
       },
     });
 
-    // เพิ่ม approval step แรก
+    // ดึง user พร้อม department
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { department: true },
     });
     if (!user?.department?.headId) throw createError(500, "ไม่พบหัวหน้าสาขา");
-
+    
+    // เพิ่ม approval step แรก
     await prisma.leaveRequestDetail.create({
       data: {
         leaveRequestId: leaveRequest.id,
@@ -84,39 +81,48 @@ class LeaveRequestService {
     });
 
     // // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
-    const approver = await UserService.getUserByIdWithRoles(
-      user.department.headId
-    );
-    if (approver) {
-      const approverEmail = approver.email;
-      const approverName = `${approver.prefixName} ${approver.firstName} ${approver.lastName}`;
-
-      const subject = "ยืนยันการยื่นคำขอลา";
-      const message = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h3 style="color: #2c3e50;">เรียน ${approverName},</h3>
-          <p>คุณได้รับการแจ้งเตือนเกี่ยวกับคำขอลาใหม่จากระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          <p><strong>รายละเอียดคำขอลา:</strong></p>
-          <ul style="list-style: none; padding: 0;">
-            <li><strong>ผู้ยื่นคำขอ:</strong> ${user.prefixName} ${
-        user.firstName
-      } ${user.lastName}</li>
-            <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
-            <li><strong>เหตุผล:</strong> ${reason}</li>
-            ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
-          </ul>
-          <p>กรุณาตรวจสอบและดำเนินการในระบบตามขั้นตอนที่กำหนด</p>
-          <br/>
-          <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-          <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-          <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-        </div>
-      `;
-      await sendEmail(approverEmail, subject, message);
-    }
+    this.notifyApprover({
+      approverId: user.department.headId,
+      user,
+      requestedDays,
+      reason,
+      contact,
+    }).catch(console.error); // จับ error เพื่อไม่ให้กระทบการทำงานหลัก
 
     return leaveRequest;
+  }
+
+  //──────────────────────────────
+  // ฟังก์ชันย่อยสำหรับส่งอีเมลแจ้งเตือน (createRequest)
+  //─────────────────────────────
+
+  static async notifyApprover({ approverId, user, requestedDays, reason, contact }) {
+    const approver = await UserService.getUserByIdWithRoles(approverId);
+    if (!approver) return;
+
+    const approverEmail = approver.email;
+    const approverName = `${approver.prefixName} ${approver.firstName} ${approver.lastName}`;
+    const subject = "ยืนยันการยื่นคำขอลา";
+    const message = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <h3 style="color: #2c3e50;">เรียน ${approverName},</h3>
+      <p>คุณได้รับการแจ้งเตือนเกี่ยวกับคำขอลาใหม่จากระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+      <p><strong>รายละเอียดคำขอลา:</strong></p>
+      <ul style="list-style: none; padding: 0;">
+        <li><strong>ผู้ยื่นคำขอ:</strong> ${user.prefixName} ${user.firstName} ${user.lastName}</li>
+        <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
+        <li><strong>เหตุผล:</strong> ${reason}</li>
+        ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
+      </ul>
+      <p>กรุณาตรวจสอบและดำเนินการในระบบตามขั้นตอนที่กำหนด</p>
+      <br/>
+      <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
+      <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+      <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
+    </div>
+  `;
+    await sendEmail(approverEmail, subject, message);
   }
 
   //

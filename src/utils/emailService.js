@@ -31,8 +31,7 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
  * @param {string} message - เนื้อหาอีเมล (HTML)
  */
 
-const sendEmail = async (toEmail, subject, message, retries = 3) => {
-  for (let i = 0; i < retries; i++) {
+const sendEmail = async (toEmail, subject, message) => {
     try {
       // const mailOptions = {
       //   from: `"ระบบจัดการวันลาคณะวิศวกรรมศาสตร์" <eleave.systemv1@gmail.com>`, // จำเป็นต้องใช้ email ที่ยืนยันแล้ว กับ sendgrid
@@ -43,10 +42,7 @@ const sendEmail = async (toEmail, subject, message, retries = 3) => {
 
       const msg = {
         to: toEmail,
-        from: {
-          email: 'eleave.systemv1@gmail.com', // ต้องเป็นอีเมลที่ verify แล้วใน SendGrid
-          name: 'ระบบจัดการวันลาคณะวิศวกรรมศาสตร์'
-        },
+        from: `"ระบบจัดการวันลาคณะวิศวกรรมศาสตร์" <eleave.systemv1@gmail.com>`,
         subject,
         html: message,
       };
@@ -58,10 +54,8 @@ const sendEmail = async (toEmail, subject, message, retries = 3) => {
       // return info;
     } catch (error) {
       console.error("Error sending email: ", error);
-      if (i === retries - 1) throw error;
     }
-  }
-};
+  };
 
 const sendEmailTest = async (toEmail, subject, message) => {
   try {
