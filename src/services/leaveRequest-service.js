@@ -19,18 +19,23 @@ class LeaveRequestService {
     startDate,
     endDate,
     reason,
-    contact,
-    documentNumber,
-    documentIssuedDate
+    contact
   ) {
+
+    // validation
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
+
+    if (isNaN(start) || isNaN(end)) throw createError(400, "รูปแบบวันที่ไม่ถูกต้อง");
+    if (start > end) throw createError(400, "วันที่เริ่มต้นต้องไม่มากกว่าวันที่สิ้นสุด");
+
+    // คำนวณจำนวนวันลา
     const requestedDays = await calculateWorkingDays(start, end);
-    if (requestedDays <= 0) {
+    if (typeof requestedDays !== "number" || isNaN(requestedDays) || requestedDays <= 0) {
       throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
     }
 
@@ -44,43 +49,52 @@ class LeaveRequestService {
     if (!verifier) throw createError(5001, "ไม่พบผู้ตรวจสอบในระบบ โปรดติดต่อผู้ดูแลระบบ");
 
     // สร้าง leaveRequest
-    const leaveRequest = await prisma.leaveRequest.create({
-      data: {
-        documentNumber,
-        documentIssuedDate,
-        userId,
-        leaveTypeId: parseInt(leaveTypeId),
-        startDate: start,
-        endDate: end,
-        leavedDays: eligibility.balance.usedDays,
-        thisTimeDays: requestedDays,
-        totalDays: eligibility.balance.usedDays + requestedDays,
-        balanceDays: eligibility.balance.remainingDays,
-        reason,
-        contact,
-        verifierId: verifier.id,
-        status: "PENDING",
-      },
-    });
+    let leaveRequest;
+    try {
+      leaveRequest = await prisma.leaveRequest.create({
+        data: {
+          userId,
+          leaveTypeId: parseInt(leaveTypeId),
+          startDate: start,
+          endDate: end,
+          leavedDays: eligibility.balance.usedDays,
+          thisTimeDays: requestedDays,
+          totalDays: eligibility.balance.usedDays + requestedDays,
+          balanceDays: eligibility.balance.remainingDays,
+          reason,
+          contact,
+          verifierId: verifier.id,
+          status: "PENDING",
+        },
+      });
+    } catch (error) {
+      throw createError(500, "สร้างคำขอลาไม่สำเร็จ");
+    }
 
     // ดึง user พร้อม department
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { department: true },
     });
-    if (!user?.department?.headId) throw createError(500, "ไม่พบหัวหน้าสาขา");
-    
-    // เพิ่ม approval step แรก
-    await prisma.leaveRequestDetail.create({
-      data: {
-        leaveRequestId: leaveRequest.id,
-        approverId: user.department.headId,
-        stepOrder: 1,
-        status: "PENDING",
-      },
-    });
 
-    // // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
+    if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
+    if (!user.department || !user.department.headId) throw createError(500, "ไม่พบหัวหน้าสาขา");
+
+    // เพิ่ม approval step แรก
+    try {
+      await prisma.leaveRequestDetail.create({
+        data: {
+          leaveRequestId: leaveRequest.id,
+          approverId: user.department.headId,
+          stepOrder: 1,
+          status: "PENDING",
+        },
+      });
+    } catch (error) {
+      throw createError(500, "สร้าง approval step ไม่สำเร็จ");
+    }
+    
+    // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
     this.notifyApprover({
       approverId: user.department.headId,
       user,
@@ -88,6 +102,14 @@ class LeaveRequestService {
       reason,
       contact,
     }).catch(console.error); // จับ error เพื่อไม่ให้กระทบการทำงานหลัก
+
+    // ส่งอีเมลแจ้งเตือนกลับไปยัง user ที่ยื่นคำร้อง
+    this.notifyRequester({
+      user,
+      requestedDays,
+      reason,
+      contact,
+    }).catch(console.error);
 
     return leaveRequest;
   }
@@ -125,7 +147,31 @@ class LeaveRequestService {
     await sendEmail(approverEmail, subject, message);
   }
 
-  //
+  static async notifyRequester({ user, requestedDays, reason, contact }) {
+    if (!user?.email) return;
+    const subject = "แจ้งเตือนการยื่นคำขอลา";
+    const message = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <h3 style="color: #2c3e50;">เรียน ${user.prefixName} ${user.firstName} ${user.lastName},</h3>
+      <p>ระบบได้รับคำขอลาของคุณเรียบร้อยแล้ว</p>
+      <p><strong>รายละเอียดคำขอลา:</strong></p>
+      <ul style="list-style: none; padding: 0;">
+        <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
+        <li><strong>เหตุผล:</strong> ${reason}</li>
+        ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
+      </ul>
+      <p>กรุณารอการอนุมัติจากหัวหน้าสาขา</p>
+      <br/>
+      <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
+      <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+      <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
+    </div>
+  `;
+    await sendEmail(user.email, subject, message);
+  }
+
+  // ────────────────────────────────
   // 🔎 READ
   // ────────────────────────────────
 
@@ -213,7 +259,7 @@ class LeaveRequestService {
       },
     });
   }
-  
+
   static async getLastApprovedRequestIsMine(userId) {
     return await prisma.leaveRequest.findFirst({
       where: {
@@ -237,7 +283,7 @@ class LeaveRequestService {
       },
     });
   }
-  
+
 
   static async findByUserId(userId) {
     console.log("Received userId:", userId); // ช่วย debug
@@ -378,60 +424,58 @@ class LeaveRequestService {
       },
     });
   }
-  
+
   static async getApprovedLeaveRequestsByUser(userId) {
-  return await prisma.leaveRequest.findMany({
-    where: {
-      userId,
-      status: "APPROVED", // ✅ แสดงเฉพาะรายการที่อนุมัติแล้ว
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          prefixName: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          department: {
-            select: {
-              name: true,
+    return await prisma.leaveRequest.findMany({
+      where: {
+        userId,
+        status: "APPROVED", // ✅ แสดงเฉพาะรายการที่อนุมัติแล้ว
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            department: {
+              select: {
+                name: true,
+              },
             },
           },
         },
-      },
-      leaveType: true,
-      leaveRequestDetails: {
-        include: {
-          approver: {
-            select: {
-              id: true,
-              prefixName: true,
-              firstName: true,
-              lastName: true,
-              email: true,
+        leaveType: true,
+        leaveRequestDetails: {
+          include: {
+            approver: {
+              select: {
+                id: true,
+                prefixName: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
             },
           },
+          orderBy: {
+            stepOrder: 'asc',
+          },
         },
-        orderBy: {
-          stepOrder: 'asc',
-        },
+        files: true,
       },
-      files: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-}
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
 
   // ตรวจสอบสิทธิ์ลา
   static async checkEligibility(userId, leaveTypeId, requestedDays) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        personnelType: true,
-      },
+      include: { personnelType: true },
     });
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
 
@@ -441,9 +485,9 @@ class LeaveRequestService {
       user,
       leaveTypeIdInt
     );
-    console.log(user)
-    console.log("yyyyyyyyyyy",leaveTypeIdInt)
-    console.log("Rank:", rank); // debug
+    // console.log(user)
+    // console.log("yyyyyyyyyyy",leaveTypeIdInt)
+    // console.log("Rank:", rank); // debug
 
     if (!rank) {
       return {
@@ -485,6 +529,17 @@ class LeaveRequestService {
       },
       balance,
     };
+  }
+
+  // อัปเดตเลขที่เอกสาร (not used) (backup)
+  static async updateDocumentNumber(requestId, documentNumber) {
+    return await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: {
+        documentNumber,
+        documentIssuedDate: new Date(),
+      }
+    });
   }
 
   // get all leaveRequest

@@ -13,81 +13,27 @@ const prisma = require("../config/prisma");
 exports.createLeaveRequest = async (req, res, next) => {
   try {
     const { leaveTypeId, startDate, endDate, reason, contact } = req.body;
-    console.log("req.user.id = ", req.user);
-    // console.log("Debug leaveTypeId con: ", leaveTypeId);
-    // console.log("Debug req.user.id con: ", req.user.id);
 
-    if (!leaveTypeId || !startDate || !endDate) {
-      console.log(
-        "Debug createRequest leaveType, start, end",
-        leaveTypeId,
-        startDate,
-        endDate
-      );
-      throw createError(
-        400,
-        "กรุณาเลือกวันที่เริ่มและวันที่สิ้นสุดและ leave type"
-      );
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    // Validation: startDate ต้องไม่มากกว่า endDate
-    if (start > end) {
-      throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
-    }
-
-    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    // const requestedDays = await calculateWorkingDays(start, end);
-
-    if (requestedDays <= 0) {
-      throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
-    }
-
-    // console.log("Debug leaveBalance: ", leaveBalance);
-
-    // const eligibility = await LeaveRequestService.checkEligibility(
-    //   req.user.id,
-    //   leaveTypeId,
-    //   requestedDays
-    // );
-
-    // console.log("Debug eligibility: ", eligibility);
-    // if (!eligibility.success) {
-    //   throw createError(400, eligibility.message);
-    // }
-
-    const leaveBalance = await LeaveBalanceService.getUserBalance(
+    // ปรับปรุง controller ใหม่ การทำ validation, คำนวณวันลา, ตรวจสอบ leave balance ไปไว้ที่ service
+    const leaveRequest = await LeaveRequestService.createRequest(
       req.user.id,
-      leaveTypeId
+      leaveTypeId,
+      startDate,
+      endDate,
+      reason,
+      contact,
     );
 
-    if (
-      requestedDays > leaveBalance.remainingDays ||
-      requestedDays > leaveBalance.maxDays
-    ) {
-      throw createError(400, "วันลาคงเหลือไม่พอ");
-    }
+    if (!leaveRequest || !leaveRequest.id) throw createError(500, "สร้างคำขอลาไม่สำเร็จ");
 
-    if (!leaveBalance) {
-      throw createError(404, `Leave balance not found`);
-    }
-
-    //console.log(req.body);
-    // console.log("Debug req.user.id: ", req.user.id);
-
+    // สร้างเลขที่เอกสารหลังจากสร้าง leaveRequest สำเร็จ (ใช้ transaction)
     const runNumber = await settingService.getSettingByKey("runNumber");
-    console.log("Debug runNumber: ", runNumber);
-
+    // console.log("Debug runNumber: ", runNumber);
     const value = runNumber.value; // เช่น "คว.บล.0000/68"
-
     // แยกส่วนหมายเลขที่อยู่ตรงกลาง เช่น 0000
     const match = value.match(/^(.*\.)(\d+)(\/\d{2})$/);
 
-    if (!match) {
-      throw new Error("รูปแบบ runNumber ไม่ถูกต้อง");
-    }
+    if (!match) throw new Error("รูปแบบ runNumber ไม่ถูกต้อง");
 
     const prefix = match[1]; // "คว.บล."
     const number = match[2]; // "0000"
@@ -102,30 +48,32 @@ exports.createLeaveRequest = async (req, res, next) => {
     // ประกอบกลับเป็นเลขที่เอกสารใหม่
     const documentNumber = `${prefix}${nextNumberPadded}${suffix}`;
 
-    console.log("เลขเอกสารใหม่: ", documentNumber);
+    // console.log("เลขเอกสารใหม่: ", documentNumber);
 
-    await prisma.setting.update({
-      where: { id: runNumber.id },
-      data: {
-        value: documentNumber,
-      },
-    });
+    await prisma.$transaction([
+      prisma.setting.update({
+        where: { id: runNumber.id },
+        data: { value: documentNumber },
+      }),
+      // อัปเดต leaveRequest ด้วยเลขที่เอกสาร
+      prisma.leaveRequest.update({
+        where: { id: leaveRequest.id },
+        data: {
+          documentNumber,
+          documentIssuedDate: new Date(),
+        },
+      }),
+    ]);
 
-    const leaveRequest = await LeaveRequestService.createRequest(
-      req.user.id,
-      leaveTypeId,
-      startDate,
-      endDate,
-      reason,
-      contact,
-      documentNumber,
-      new Date(),
-    );
+    // อัปเดต pending leave balance
+    if (typeof leaveRequest.thisTimeDays !== "number" || isNaN(leaveRequest.thisTimeDays)) {
+      throw createError(500, "จำนวนวันลาทีผิดพลาด");
+    }
 
     await LeaveBalanceService.updatePendingLeaveBalance(
       req.user.id,
       leaveTypeId,
-      requestedDays
+      leaveRequest.thisTimeDays
     );
 
     // create log
@@ -137,45 +85,37 @@ exports.createLeaveRequest = async (req, res, next) => {
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
-    const user = await UserService.getUserByIdWithRoles(req.user.id);
+    // const user = await UserService.getUserByIdWithRoles(req.user.id);
 
-    if (user) {
-      const userEmail = user.email;
-      const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
+    // if (user) {
+    //   const userEmail = user.email;
+    //   const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
 
-      const subject = "ยืนยันการยื่นคำขอลา";
-      const message = `
-              <h3>สวัสดี ${userName}</h3>
-              <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
-              <p>จำนวนวันลา: ${requestedDays}</p>
-              <br/>
-              <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          `;
-      await sendEmail(userEmail, subject, message);
-    }
+    //   const subject = "ยืนยันการยื่นคำขอลา";
+    //   const message = `
+    //           <h3>สวัสดี ${userName}</h3>
+    //           <p>คุณได้ทำการยื่นคำขอลาเรียบร้อยแล้ว</p>
+    //           <p>จำนวนวันลา: ${leaveRequest.thisTimeDays}</p>
+    //           <br/>
+    //           <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+    //       `;
+    //   await sendEmail(userEmail, subject, message);
+    // }
 
+    // แนบไฟล์
     const file = req.files;
-    if (file && file.length > 0) {
-      const imagesPromiseArray = file.map((file) => {
-        return cloudUpload(file.path);
-      });
-
+    if (Array.isArray(file) && file.length > 0) {
+      const imagesPromiseArray = file.map((file) => cloudUpload(file.path));
       const imgUrlArray = await Promise.all(imagesPromiseArray);
-
-      const attachImages = imgUrlArray.map((imgUrl) => {
-        return {
-          type: "EVIDENT",
-          filePath: imgUrl,
-          leaveRequestId: leaveRequest.id,
-        };
-      });
-
-      LeaveRequestService.attachImages(attachImages);
+      const attachImages = imgUrlArray.map((imgUrl) => ({
+        type: "EVIDENT",
+        filePath: imgUrl,
+        leaveRequestId: leaveRequest.id,
+      }));
+      await LeaveRequestService.attachImages(attachImages);
     }
 
-    res
-      .status(201)
-      .json({ message: "คำขอลาได้ถูกสร้าง", requestId: leaveRequest.id });
+    res.status(201).json({ message: "คำขอลาได้ถูกสร้าง", requestId: leaveRequest.id });
   } catch (err) {
     next(err);
   }
@@ -210,7 +150,7 @@ exports.getMyApprovedLeaveRequests = async (req, res) => {
 exports.updateLeaveStatus = async (req, res, next) => {
   try {
     const requestId = parseInt(req.params.id);
-    const { status, remarks} = req.body;
+    const { status, remarks } = req.body;
     const approverId = req.user.id;
 
     if (!status) throw createError(400, "ต้องระบุสถานะ");
