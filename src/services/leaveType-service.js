@@ -56,7 +56,7 @@ class LeaveTypeService {
   // ดึงประเภทการลาที่ลาในระบบได้
   static async getAvailableLeaveTypes() {
     try {
-      return await prisma.LeaveType.findMany({
+      return await prisma.leaveType.findMany({
         where: {
           isAvailable: true,
         },

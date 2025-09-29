@@ -1,10 +1,11 @@
+const nodemailer = require("nodemailer");
 const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
-const LeaveRequestService = require("./leaveRequest-service");
+const cloudUpload = require("../utils/cloudUpload");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
+const LeaveRequestService = require("./leaveRequest-service");
 const LeaveBalanceService = require("./leaveBalance-service");
-const nodemailer = require("nodemailer");
-const cloudUpload = require("../utils/cloudUpload"); 
+const AuditLogService = require("./auditLog-service");
 
 class AdminService {
   // ✅ ดึงรายชื่อผู้ใช้งานที่มี role ADMIN
@@ -31,19 +32,55 @@ class AdminService {
   }
 
   // ✅ สร้างคำขอลาแทนผู้ใช้งาน (ใช้โดย ADMIN เท่านั้น)
-  static async createLeaveRequestForUser(data, adminId = null) {
-    const {
-      userId,
-      leaveTypeId,
-      startDate,
-      endDate,
-      reason,
-      verifierId,
-      contact,
-    } = data;
+  static async createLeaveRequestForUser(
+    userId,
+    leaveTypeId,
+    startDate,
+    endDate,
+    reason,
+    verifierId,
+    contact,
+    documentNumber,
+    documentIssuedDate,
+    adminId,
+  ) {
+
 
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
+    }
+
+    // ตรวจประเภทลา: อนุญาตเฉพาะประเภทที่ 'user ยื่นเองไม่ได้'
+    const leaveType = await prisma.leaveType.findUnique({
+      where: { id: leaveTypeId },
+    });
+    if (!leaveType) throw createError(404, "ไม่พบประเภทลา");
+    if (leaveType.isAvailable) throw createError(400, "ประเภทนี้ผู้ใช้งานต้องยื่นในระบบเอง");
+
+    // ตรวจเลขเอกสารจาก paper (บังคับต้องระบุ)
+    if (!documentNumber || !String(documentNumber).trim()) {
+      throw createError(400, "กรุณาระบุเลขที่เอกสาร");
+    }
+
+    // กันซ้ำแบบโค้ด (เพราะ DB ยังไม่ unique)
+    const dup = await prisma.leaveRequest.findFirst({ where: { documentNumber } });
+    if (dup) throw createError(400, "เลขที่เอกสารนี้ถูกใช้ไปแล้ว");
+
+    // แปลง/ตรวจ documentIssuedDate
+    let issuedAt = documentIssuedDate ? new Date(documentIssuedDate) : new Date();
+    if (Number.isNaN(issuedAt.getTime())) {
+      // รองรับกรณีส่งรูปแบบ dd/MM/yyyy หรือปี พ.ศ. (เช่น 25/09/2568)
+      const m = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/.exec(String(documentIssuedDate));
+      if (m) {
+        let [_, dd, mm, yyyy] = m;
+        let y = parseInt(yyyy, 10);
+        if (y > 2400) y -= 543;
+        issuedAt = new Date(y, parseInt(mm, 10)-1, parseInt(dd, 10));
+      }
+    }
+
+    if (Number.isNaN(issuedAt.getTime())) {
+      throw createError(400, "รูปแบบวันที่ออกเอกสารไม่ถูกต้อง");
     }
 
     const start = new Date(startDate);
@@ -65,7 +102,6 @@ class AdminService {
         startDate: start,
         endDate: end,
         reason,
-        isEmergency: Boolean(isEmergency),
         verifierId,
         contact,
         status: "APPROVED",
@@ -73,8 +109,8 @@ class AdminService {
         thisTimeDays: requestedDays,
         totalDays: eligibility.balance.usedDays + requestedDays,
         balanceDays: eligibility.balance.remainingDays,
-        documentNumber: `ADM-${Date.now()}`,
-        documentIssuedDate: new Date(),
+        documentNumber: documentNumber.trim(),
+        documentIssuedDate: issuedAt,
       },
     });
 
@@ -274,12 +310,12 @@ class AdminService {
       where: { id: departmentId },
     });
     if (!department) throw createError(404, "Department not found");
-  
+
     const user = await prisma.user.findUnique({
       where: { id: headId },
     });
     if (!user) throw createError(404, "User not found");
-  
+
     const updated = await prisma.department.update({
       where: { id: departmentId },
       data: {
@@ -288,7 +324,7 @@ class AdminService {
       },
       include: { head: true },
     });
-  
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -296,9 +332,9 @@ class AdminService {
         pass: process.env.EMAIL_APP_PASS2,
       },
     });
-  
+
     const email = user.email;
-  
+
     await transporter.sendMail({
       from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
       to: email,
@@ -310,10 +346,10 @@ class AdminService {
         <p>จากระบบการจัดการของคณะวิศวกรรมศาสตร์</p>
       `,
     });
-  
+
     return updated;
   }
-  
+
 
   //------------ Manage User -----------
   static async getUserById(id) {
@@ -336,7 +372,7 @@ class AdminService {
       },
     });
   }
-  
+
   static async createUserByAdmin(data, file = null) {
     const {
       prefixName,
@@ -383,7 +419,7 @@ class AdminService {
         where: { id: newUser.id },
         data: { profilePicturePath: imgUrl },
       });
-      fs.unlink(file.path, () => {});
+      fs.unlink(file.path, () => { });
     }
 
     return newUser;
@@ -394,29 +430,29 @@ class AdminService {
       where: { id: Number(userId) },
     });
     if (!existing) throw createError(404, "ไม่พบผู้ใช้งาน");
-  
+
     const updated = await prisma.user.update({
       where: { id: Number(userId) },
       data: {
-        prefixName:      updateData.prefixName,
-        firstName:       updateData.firstName,
-        lastName:        updateData.lastName,
-        email:           updateData.email,
-        phone:           updateData.phone,
-        sex:             updateData.sex,
-        position:        updateData.position,
-        hireDate:        new Date(updateData.hireDate),
-        employmentType:  updateData.employmentType,
-        inActive:        updateData.inActiveRaw === "true",
-  
+        prefixName: updateData.prefixName,
+        firstName: updateData.firstName,
+        lastName: updateData.lastName,
+        email: updateData.email,
+        phone: updateData.phone,
+        sex: updateData.sex,
+        position: updateData.position,
+        hireDate: new Date(updateData.hireDate),
+        employmentType: updateData.employmentType,
+        inActive: updateData.inActiveRaw === "true",
+
         // relations
         personnelType: { connect: { id: Number(updateData.personnelTypeId) } },
-        department:    { connect: { id: Number(updateData.departmentId) } },
+        department: { connect: { id: Number(updateData.departmentId) } },
       },
     });
-  
+
     return updated;
-  }  
+  }
 
   static async deleteUserById(userId) {
     const id = Number(userId);

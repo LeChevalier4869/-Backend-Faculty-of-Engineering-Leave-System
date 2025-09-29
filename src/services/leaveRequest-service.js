@@ -352,26 +352,6 @@ class LeaveRequestService {
     });
   }
 
-  // ใช้ logic กลาง updateRequestStatus
-  static async approveRequest(requestId, approverId, documentNumber = null) {
-    return await this.updateRequestStatus(
-      requestId,
-      "APPROVED",
-      approverId,
-      null,
-      documentNumber
-    );
-  }
-
-  static async rejectRequest(requestId, approverId, remarks = null) {
-    return await this.updateRequestStatus(
-      requestId,
-      "REJECTED",
-      approverId,
-      remarks
-    );
-  }
-
   // ────────────────────────────────
   //  ใช้สำหรับ updateRequestStatus
   // ────────────────────────────────
@@ -520,7 +500,7 @@ class LeaveRequestService {
 
     return {
       success: true,
-      message: "ผ่านการตรวจสอบสิทธิ์ลาพักผ่อน",
+      message: "ผ่านการตรวจสอบสิทธิ์การลา",
       rankInfo: {
         rank: rank.rank,
         receiveDays: rank.receiveDays,
