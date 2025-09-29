@@ -1,9 +1,12 @@
 const express = require('express');
 const LeaveTypeController = require('../controllers/leaveType-controller');
 const router = express.Router();
+const upload = require("../middlewares/upload");
+
 
 router.post('/', LeaveTypeController.createLeaveType);
-router.put('/:id', LeaveTypeController.updateLeaveType);
+// router.put('/:id', LeaveTypeController.updateLeaveType);
+router.put('/update/:id', upload.single('template'), LeaveTypeController.updateLeaveType);
 router.delete('/:id', LeaveTypeController.deleteLeaveType);
 router.get('/', LeaveTypeController.getAllLeaveType);
 router.get('/type/:id', LeaveTypeController.getLeaveTypeById);
