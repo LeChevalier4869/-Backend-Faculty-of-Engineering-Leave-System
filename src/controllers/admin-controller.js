@@ -66,15 +66,17 @@ exports.createRequestByAdmin = async (req, res, next) => {
       adminId
     );
 
-    // แนบไฟล์ถ้ามี
-    if (req.files?.length) {
-      const imgUrls = await Promise.all(req.files.map(f => cloudUpload(f.path)));
-      const attachData = imgUrls.map(url => ({
-        fileName: "attachment",
-        filePath: url,
-        leaveRequestId: leaveRequest.id
+    // แนบไฟล์
+    const file = req.files;
+    if (Array.isArray(file) && file.length > 0) {
+      const imagesPromiseArray = file.map((file) => cloudUpload(file.path));
+      const imgUrlArray = await Promise.all(imagesPromiseArray);
+      const attachImages = imgUrlArray.map((imgUrl) => ({
+        type: "EVIDENT",
+        filePath: imgUrl,
+        leaveRequestId: leaveRequest.id,
       }));
-      await LeaveRequestService.attachImages(attachData);
+      await LeaveRequestService.attachImages(attachImages);
     }
 
     return res.status(201).json({
