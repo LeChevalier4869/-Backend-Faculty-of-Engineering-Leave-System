@@ -58,13 +58,29 @@ class AdminService {
     if (leaveType.isAvailable) throw createError(400, "ประเภทนี้ผู้ใช้งานต้องยื่นในระบบเอง");
 
     // ตรวจเลขเอกสารจาก paper (บังคับต้องระบุ)
-    if (!documentNumber || !String(documentNumber).trim()) {
+    if (documentNumber == null) {
       throw createError(400, "กรุณาระบุเลขที่เอกสาร");
     }
+    const docNo = String(documentNumber).trim();
+    if (!docNo) throw createError(400, "กรุณาระบุเลขที่เอกสาร");
 
-    // กันซ้ำแบบโค้ด (เพราะ DB ยังไม่ unique)
-    const dup = await prisma.leaveRequest.findFirst({ where: { documentNumber } });
-    if (dup) throw createError(400, "เลขที่เอกสารนี้ถูกใช้ไปแล้ว");
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw createError(400, "รูปแบบวันที่ไม่ถูกต้อง");
+    }
+    if (start > end) throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
+
+    const requestedDays = await calculateWorkingDays(start, end);
+    if (requestedDays <= 0) throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
+
+    // ตรวจสิทธิ์การลา
+    const eligibility = await LeaveRequestService.checkEligibility(
+      userId,
+      leaveTypeId,
+      requestedDays
+    );
+    if (!eligibility.success) throw createError(400, eligibility.message);
 
     // แปลง/ตรวจ documentIssuedDate
     let issuedAt = documentIssuedDate ? new Date(documentIssuedDate) : new Date();
@@ -75,7 +91,7 @@ class AdminService {
         let [_, dd, mm, yyyy] = m;
         let y = parseInt(yyyy, 10);
         if (y > 2400) y -= 543;
-        issuedAt = new Date(y, parseInt(mm, 10)-1, parseInt(dd, 10));
+        issuedAt = new Date(y, parseInt(mm, 10) - 1, parseInt(dd, 10));
       }
     }
 
@@ -83,62 +99,70 @@ class AdminService {
       throw createError(400, "รูปแบบวันที่ออกเอกสารไม่ถูกต้อง");
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const requestedDays = await calculateWorkingDays(start, end);
-    if (requestedDays <= 0) throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
+    // --------- ทำงานแบบอะตอมมิกใน Transaction ----------
+    const leaveRequest = await prisma.$transaction(async (tx) => {
 
-    const eligibility = await LeaveRequestService.checkEligibility(
-      userId,
-      leaveTypeId,
-      requestedDays
-    );
-    if (!eligibility.success) throw createError(400, eligibility.message);
+      // กันเลขเอกสารซ้ำแบบ best-effort (ไม่มี unique ใน DB)
+      const dup = await tx.leaveRequest.findFirst({
+        where: { documentNumber: docNo },
+      });
+      if (dup) throw createError(400, "เลขที่เอกสารนี้ถูกใช้ไปแล้ว");
 
-    const leaveRequest = await prisma.leaveRequest.create({
-      data: {
+      // สร้างคำขอลา
+      const created = await tx.leaveRequest.create({
+        data: {
+          userId,
+          leaveTypeId,
+          startDate: start,
+          endDate: end,
+          reason: reason ? reason.trim() : null,
+          verifierId: verifierId ? verifierId : null,
+          contact: contact ? contact.trim() : null,
+          status: "APPROVED",
+          leavedDays: eligibility.balance.usedDays,
+          thisTimeDays: requestedDays,
+          totalDays: eligibility.balance.usedDays + requestedDays,
+          balanceDays: eligibility.balance.remainingDays,
+          documentNumber: docNo,
+          documentIssuedDate: issuedAt,
+        },
+      });
+
+      // ตัดวันลาออกจากสิทธิ์
+      await LeaveBalanceService.finalizeLeaveBalance(
         userId,
         leaveTypeId,
-        startDate: start,
-        endDate: end,
-        reason,
-        verifierId,
-        contact,
-        status: "APPROVED",
-        leavedDays: requestedDays,
-        thisTimeDays: requestedDays,
-        totalDays: eligibility.balance.usedDays + requestedDays,
-        balanceDays: eligibility.balance.remainingDays,
-        documentNumber: documentNumber.trim(),
-        documentIssuedDate: issuedAt,
-      },
-    });
-
-    await LeaveBalanceService.finalizeLeaveBalance(
-      userId,
-      leaveTypeId,
-      requestedDays
-    );
-
-    await prisma.leaveRequestDetail.create({
-      data: {
-        leaveRequestId: leaveRequest.id,
-        approverId: adminId || 0,
-        stepOrder: 0,
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        remarks: "บันทึกโดยผู้ดูแลระบบ",
-      },
-    });
-
-    if (adminId) {
-      await AuditLogService.createLog(
-        adminId,
-        "AdminCreateLeave",
-        leaveRequest.id,
-        `Admin created leave for userId=${userId}`
+        requestedDays,
+        { tx }
       );
-    }
+
+      // เพิ่มรายการประวัติการอนุมัติ (แบบข้ามขั้นตอน)
+      await tx.leaveRequestDetail.create({
+        data: {
+          leaveRequestId: created.id,
+          approverId: adminId || 0,
+          stepOrder: 0,
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          remarks: "บันทึกโดยผู้ดูแลระบบ",
+        },
+      });
+
+      // audit log
+      if (adminId) {
+        await tx.auditLog.create({
+          data: {
+            userId: adminId,
+            leaveRequestId: created.id,
+            action: "AdminCreateLeave",
+            details: `Admin created leave for userId=${userId}`,
+          },
+        });
+      }
+
+      return created;
+    }); // จบ transaction
+
     return leaveRequest;
   }
 

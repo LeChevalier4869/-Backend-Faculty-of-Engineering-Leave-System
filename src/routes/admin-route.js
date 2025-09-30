@@ -4,6 +4,7 @@ const adminController = require('../controllers/admin-controller');
 const upload = require('../middlewares/upload');
 const authController = require('../controllers/auth-controller');
 const { authenticate , authorize } = require('../middlewares/auth');
+const { leaveRequestLimiter } = require("../middlewares/rateLimit");
 
 /**
 //  * @swagger
@@ -37,7 +38,13 @@ const { authenticate , authorize } = require('../middlewares/auth');
 router.get('/list', authorize(["ADMIN"]), adminController.adminList);
 
 //-------------------------------------- leave request --------------------
-router.post('/leave-request', upload.array("images", 5), authorize(["ADMIN"]), adminController.createRequestByAdmin);
+router.post(
+  '/leave-requests',
+  leaveRequestLimiter, 
+  upload.array("images", 5), 
+  authorize(["ADMIN"]), 
+  adminController.createRequestByAdmin
+);
 
 //-------------------------------------- holiday -------------------- 
 router.get('/holiday', authorize(["USER", "ADMIN"]), adminController.getHoliday);

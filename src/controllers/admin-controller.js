@@ -32,47 +32,42 @@ exports.adminList = async (req, res, next) => {
 //-------------------------------------- leave request --------------------
 exports.createRequestByAdmin = async (req, res, next) => {
   try {
-    const { leaveTypeId, startDate, endDate, reason, status } = req.body;
-    const userId = req.user.id;           // ← ประกาศ userId มาจาก req.user
+    const adminId = req.user?.id;
+    if (!adminId) throw createError(401, "Unauthorized");
 
-    if (!leaveTypeId || !startDate || !endDate || !status) {
-      throw createError(400, "กรุณาเลือกวันที่เริ่ม, วันที่สิ้นสุด และ leave type");
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (start > end) {
-      throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
-    }
-
-    const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    
-    if (requestedDays <= 0) {
-      throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
-    }
-
-    const leaveBalance = await LeaveBalanceService.getUserBalance(userId, leaveTypeId);
-    if (!leaveBalance) {
-      throw createError(404, "ไม่พบ Leave balance");
-    }
-    if (requestedDays > leaveBalance.maxDays - leaveBalance.usedDays) {
-      throw createError(400, "Leave balance ไม่เพียงพอ");
-    }
-
-    await LeaveBalanceService.updatePendingLeaveBalance(userId, leaveTypeId, requestedDays);
-
-    // ← ส่ง object ให้ตรงกับที่ service คาดหวัง
-    const leaveRequest = await AdminService.createLeaveRequestForUser({
+    const {
       userId,
       leaveTypeId,
-      startDate: start,
-      endDate: end,
+      startDate,
+      endDate,
       reason,
-      status: status.trim().toUpperCase()
-    }, req.user.id /* ถ้า service ต้องการ adminId เพิ่ม */);
+      verifierId,
+      contact,
+      documentNumber,
+      documentIssuedDate
+    } = req.body;
+
+    //validate data
+    if (!userId || !leaveTypeId || !startDate || !endDate || documentNumber == null) {
+      throw createError(400, "กรุณาระบุ userId, leaveTypeId, startDate, endDate และ documentNumber");
+    }
+
+    // ← ส่ง object ให้ตรงกับที่ service คาดหวัง
+    const leaveRequest = await AdminService.createLeaveRequestForUser(
+      Number(userId),
+      Number(leaveTypeId),
+      startDate,
+      endDate,
+      reason ?? null,
+      verifierId ? Number(verifierId) : null,
+      contact ?? null,
+      documentNumber,
+      documentIssuedDate ?? null,
+      adminId
+    );
 
     // แนบไฟล์ถ้ามี
-    if (req.files && req.files.length) {
+    if (req.files?.length) {
       const imgUrls = await Promise.all(req.files.map(f => cloudUpload(f.path)));
       const attachData = imgUrls.map(url => ({
         fileName: "attachment",
