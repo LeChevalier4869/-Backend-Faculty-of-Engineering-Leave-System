@@ -86,6 +86,7 @@ const authenticate = async (req, res, next) => {
       include: {
         userRoles: { include: { role: true } },
         department: { include: { organization: true } },
+        personnelType: { select: { name: true } }
       },
     });
 
