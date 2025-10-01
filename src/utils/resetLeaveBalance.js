@@ -92,7 +92,8 @@ async function resetLeaveBalance() {
 // });
 
 cron.schedule("0 0 * * *", async () => {
-  const today = new Date();
+  // const today = new Date();
+  const today = new Date("2026-01-01T00:00:00");
   // ถ้าเป็นวันที่ 1 ตุลาคม ให้รีเซ็ต Leave Balance
   if (today.getMonth() === 9 && today.getDate() === 1) {
     console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
@@ -107,12 +108,56 @@ cron.schedule("0 0 * * *", async () => {
     // รีเซ็ต Leave Balance
     await resetLeaveBalance();
   }
-  // ถ้าเป็นวันที่ 1 มกราคม ให้รีเซ็ตปีใน setting
+  // ถ้าเป็นวันที่ 1 มกราคม ให้รีเซ็ตปีใน setting, เพิ่มวันหยุดใหม่
   if (today.getMonth() === 0 && today.getDate() === 1) {
-    const currentYear = await prisma.setting.update({
+    const currentYearSetting = await prisma.setting.update({
       where: { key: "currentYear" },
       data: { value: today.getFullYear().toString() },
     });
-    console.log("ปีปัจจุบัน", currentYear.value);
+    const currentYear = parseInt(currentYearSetting.value, 10);
+    console.log("ปีปัจจุบัน", currentYear);
+
+    // ดึง holiday ที่เป็น recurring
+    const recurringHolidays = await prisma.holiday.findMany({
+      where: { isRecurring: true },
+    });
+
+    for (const h of recurringHolidays) {
+      const oldDate = new Date(h.date);
+      const newDate = new Date(
+        currentYear,
+        oldDate.getMonth(),
+        oldDate.getDate()
+      );
+
+      // เช็กว่ามี holiday นี้อยู่แล้วในปี currentYear หรือยัง
+      const existing = await prisma.holiday.findFirst({
+        where: {
+          date: newDate,
+          description: h.description,
+          fiscalYear: currentYear,
+        },
+      });
+
+      if (!existing) {
+        await prisma.holiday.create({
+          data: {
+            date: newDate,
+            description: h.description,
+            fiscalYear: currentYear,
+            isRecurring: true,
+            holidayType: h.holidayType,
+          },
+        });
+
+        console.log(
+          `➕ เพิ่มวันหยุด ${h.description} (${newDate.toDateString()})`
+        );
+      } else {
+        console.log(
+          `⚠️ ข้าม ${h.description} (${newDate.toDateString()}) เพราะมีแล้ว`
+        );
+      }
+    }
   }
 });
