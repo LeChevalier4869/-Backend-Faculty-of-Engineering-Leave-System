@@ -85,6 +85,7 @@ const authenticate = async (req, res, next) => {
       where: { id: payload.userId },
       include: {
         userRoles: { include: { role: true } },
+        department: { include: { organization: true } },
       },
     });
 
@@ -103,9 +104,9 @@ const authenticate = async (req, res, next) => {
     
 
     //debug req.user
-    console.log("Authenticated User: ", req.user);
+    // console.log("Authenticated User: ", req.user);
     // console.log("User Roles: ", roleNames);
-    console.log("req.user.role: ", req.user.role);
+    // console.log("req.user.role: ", req.user.role);
 
     next();
   } catch (err) {
