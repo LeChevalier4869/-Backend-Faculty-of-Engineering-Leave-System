@@ -93,7 +93,7 @@ async function resetLeaveBalance() {
 
 cron.schedule("0 0 * * *", async () => {
   // const today = new Date();
-  const today = new Date("2026-01-01T00:00:00");
+  const today = new Date("2026-01-01");
   // ถ้าเป็นวันที่ 1 ตุลาคม ให้รีเซ็ต Leave Balance
   if (today.getMonth() === 9 && today.getDate() === 1) {
     console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
@@ -119,30 +119,48 @@ cron.schedule("0 0 * * *", async () => {
 
     // ดึง holiday ที่เป็น recurring
     const recurringHolidays = await prisma.holiday.findMany({
-      where: { isRecurring: true },
+      where: { isRecurring: true, fiscalYear: currentYear - 1 },
     });
+    console.log(recurringHolidays);
 
     for (const h of recurringHolidays) {
       const oldDate = new Date(h.date);
+      console.log(oldDate);
+
+      // ✅ Normalize เป็น local midnight
       const newDate = new Date(
         currentYear,
-        oldDate.getMonth(),
-        oldDate.getDate()
+        oldDate.getMonth(), // เดือนเดิม
+        oldDate.getDate(), // วันเดิม
+        oldDate.getHours(), // ชั่วโมงเดิม
+        oldDate.getMinutes(), // นาทีเดิม
+        oldDate.getSeconds(), // วินาทีเดิม
+        oldDate.getMilliseconds() // มิลลิวินาทีเดิม
       );
 
-      // เช็กว่ามี holiday นี้อยู่แล้วในปี currentYear หรือยัง
+      console.log(newDate.toISOString());
+
+      // ✅ ช่วงเวลาเริ่ม-จบของวัน (local time)
+      const startOfDay = new Date(newDate);
+      const endOfDay = new Date(newDate);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+
+      // ✅ เช็กว่ามี holiday นี้อยู่แล้วในปี currentYear หรือยัง
       const existing = await prisma.holiday.findFirst({
         where: {
-          date: newDate,
           description: h.description,
           fiscalYear: currentYear,
+          date: {
+            gte: startOfDay,
+            lt: endOfDay,
+          },
         },
       });
 
       if (!existing) {
         await prisma.holiday.create({
           data: {
-            date: newDate,
+            date: newDate, // ⬅️ local midnight
             description: h.description,
             fiscalYear: currentYear,
             isRecurring: true,
