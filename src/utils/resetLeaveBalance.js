@@ -92,8 +92,8 @@ async function resetLeaveBalance() {
 // });
 
 cron.schedule("0 0 * * *", async () => {
-  // const today = new Date();
-  const today = new Date("2026-01-01");
+  const today = new Date();
+  // const today = new Date("2026-01-01");
   // ถ้าเป็นวันที่ 1 ตุลาคม ให้รีเซ็ต Leave Balance
   if (today.getMonth() === 9 && today.getDate() === 1) {
     console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");

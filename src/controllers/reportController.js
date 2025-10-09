@@ -15,9 +15,10 @@ const {
   TableRow,
   TableCell,
   WidthType,
+  BorderStyle,
   AlignmentType,
   ShadingType,
-  BorderStyle,
+  TextRun,
 } = require("docx");
 
 const templateMap = {
@@ -460,8 +461,10 @@ exports.exportReport = async (req, res) => {
             paddingRight: () => 3,
             paddingTop: () => 2,
             paddingBottom: () => 2,
-            hLineColor: "#9CA3AF",
-            vLineColor: "#9CA3AF",
+            hLineColor: "#000000",
+            vLineColor: "#000000",
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
           },
           margin: [0, 10, 0, 20],
         };
@@ -476,8 +479,9 @@ exports.exportReport = async (req, res) => {
 
         content.push(
           {
-            text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น",
+            text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น",
             alignment: "center",
+            margin: [0, 16, 0, 0],
           },
           { text: `${typeName} คณะวิศวกรรมศาสตร์`, alignment: "center" },
           { text: "รายนามผู้ลาหยุดประจำปี", alignment: "center" },
@@ -511,16 +515,27 @@ exports.exportReport = async (req, res) => {
     // -------------------- Word --------------------
     else if (format === "word") {
       const makeCell = (txt, options = {}) => {
-        const { alignment = "center", fillColor = null, bold = false } = options;
+        const {
+          alignment = "center",
+          fillColor = null,
+          bold = false,
+        } = options;
         return new TableCell({
           children: [
             new Paragraph({
-              text: String(txt),
+              children: [
+                new TextRun({
+                  text: String(txt),
+                  font: "TH Sarabun New", // ✅ ฟอนต์
+                  bold,
+                }),
+              ],
               alignment: AlignmentType[alignment.toUpperCase()],
-              bold,
             }),
           ],
-          shading: fillColor ? { type: ShadingType.CLEAR, fill: fillColor } : undefined,
+          shading: fillColor
+            ? { type: ShadingType.CLEAR, fill: fillColor }
+            : undefined,
           verticalAlign: "center",
         });
       };
@@ -549,7 +564,9 @@ exports.exportReport = async (req, res) => {
               makeCell(""),
               makeCell(""),
               ...TYPE_ORDER.flatMap((name) => {
-                const isGray = ["ขาด ราชการ", "ลากิจ", "ลา คลอดบุตร"].includes(name);
+                const isGray = ["ขาด ราชการ", "ลากิจ", "ลา คลอดบุตร"].includes(
+                  name
+                );
                 return [
                   makeCell(name, { fillColor: isGray ? "D9D9D9" : null }),
                   makeCell(""),
@@ -568,7 +585,9 @@ exports.exportReport = async (req, res) => {
               makeCell(""),
               makeCell(""),
               ...TYPE_ORDER.flatMap((name) => {
-                const isGray = ["ขาด ราชการ", "ลากิจ", "ลา คลอดบุตร"].includes(name);
+                const isGray = ["ขาด ราชการ", "ลากิจ", "ลา คลอดบุตร"].includes(
+                  name
+                );
                 return [
                   makeCell("ครั้ง", { fillColor: isGray ? "D9D9D9" : null }),
                   makeCell("วัน", { fillColor: isGray ? "D9D9D9" : null }),
@@ -604,7 +623,7 @@ exports.exportReport = async (req, res) => {
             25, // ที่
             200, // ชื่อ - สกุล
             25, // สาย/ครั้ง
-            ...Array(TYPE_ORDER.length * 2).fill(25), // จำนวนวันลา
+            ...Array(TYPE_ORDER.length * 2).fill(25),
             70, // หมายเหตุ
           ],
           borders: {
@@ -612,8 +631,16 @@ exports.exportReport = async (req, res) => {
             bottom: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
             left: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
             right: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
-            insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
-            insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
+            insideHorizontal: {
+              style: BorderStyle.SINGLE,
+              size: 1,
+              color: "9CA3AF",
+            },
+            insideVertical: {
+              style: BorderStyle.SINGLE,
+              size: 1,
+              color: "9CA3AF",
+            },
           },
         });
       };
@@ -621,20 +648,77 @@ exports.exportReport = async (req, res) => {
       const sections = [];
       Object.entries(reportData).forEach(([typeName, users]) => {
         sections.push(
-          new Paragraph({ text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น", alignment: AlignmentType.CENTER }),
-          new Paragraph({ text: `${typeName} คณะวิศวกรรมศาสตร์`, alignment: AlignmentType.CENTER }),
-          new Paragraph({ text: "รายนามผู้ลาหยุดประจำปี", alignment: AlignmentType.CENTER }),
-          new Paragraph({ text: "" }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น",
+                font: "TH Sarabun New",
+                size: 28,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `${typeName} คณะวิศวกรรมศาสตร์`,
+                font: "TH Sarabun New",
+                size: 28,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "รายนามผู้ลาหยุดประจำปี",
+                font: "TH Sarabun New",
+                size: 28,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "----------|ครั้งที่ ? ตั้งแต่วันที่ ? เดือน 256X ถึงวันที่ ? เดือน 256X|----------",
+                font: "TH Sarabun New",
+                size: 28,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
+          }),
           makeWordTable(users),
           new Paragraph({ text: "" })
         );
       });
 
-      const doc = new Document({ sections: [{ children: sections }] });
+      // ✅ ใส่ default style ฟอนต์ไทยทั้งหมด
+      const doc = new Document({
+        styles: {
+          default: {
+            paragraph: {
+              run: {
+                font: "TH Sarabun New",
+                size: 28, // ~14pt
+              },
+            },
+          },
+        },
+        sections: [{ children: sections }],
+      });
+
       const buffer = await Packer.toBuffer(doc);
 
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", `attachment; filename=org-report-${organizationId}.docx`);
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=org-report-${organizationId}.docx`
+      );
       res.send(buffer);
     } else {
       res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
