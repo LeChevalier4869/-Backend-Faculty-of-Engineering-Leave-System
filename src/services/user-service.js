@@ -53,7 +53,7 @@ class UserService {
         personnelType: true,
         department: true,
         leaveBalances: true,
-        leaveRequest: {
+        LeaveRequest: {
           include: {
             leaveRequestDetails: true,
           },
