@@ -111,12 +111,43 @@ router.get(
     const { accessToken, refreshToken } = await AuthService.generateTokens(user.id);
 
     // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    console.log("Redirecting to:", `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`);
+    // const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    // console.log("Redirecting to:", `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`);
 
-    res.redirect(
-      `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`
-    );
+    // Redirect ไป frontend For 2 urls
+    // define allowed frontends: use always FRONTEND_URL in env
+    // add localhost for development purpose (NODE_ENV === 'development')
+    const allowedFrontends = [];
+    if (process.env.FRONTEND_URL) {
+      allowedFrontends.push(process.env.FRONTEND_URL.trim().replace(/\/+$/, ""));
+    }
+    if (process.env.NODE_ENV === "development") {
+      allowedFrontends.push("http://localhost:5173");
+    }
+
+    // if client sent a ?target=<url> check if it's allowed
+    const requestedTarget = req.query.target;
+    let targetOrigin = null;
+    if (requestedTarget) {
+      const clean = String(requestedTarget).trim().replace(/\/+$/, "");
+      if (allowedFrontends.includes(clean)) targetOrigin = clean
+    }
+
+    //use first allowed frontend as default
+    if (!targetOrigin) targetOrigin = allowedFrontends[0];
+
+    if (!targetOrigin) {
+      //protect against open redirect: if no allowed frontend, refuse to redirect
+      return res.status(500).send("No allowed frontend URL configured.");
+    }
+
+    const redirectUrl = `${targetOrigin}/callback?access=${encodeURIComponent(accessToken)}&refresh=${encodeURIComponent(refreshToken)}`;
+    console.log("Redirecting to:", redirectUrl);
+
+    // res.redirect(
+    //   `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`
+    // );
+    res.redirect(redirectUrl);
   }
 );
 
