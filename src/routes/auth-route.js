@@ -141,7 +141,15 @@ router.get(
       return res.status(500).send("No allowed frontend URL configured.");
     }
 
-    const redirectUrl = `${targetOrigin}/callback?access=${encodeURIComponent(accessToken)}&refresh=${encodeURIComponent(refreshToken)}`;
+    // set refresh token as HttpOnly cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    const redirectUrl = `${targetOrigin}/callback?access=${encodeURIComponent(accessToken)}`;
     console.log("Redirecting to:", redirectUrl);
 
     // res.redirect(
