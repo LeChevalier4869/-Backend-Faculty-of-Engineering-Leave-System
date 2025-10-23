@@ -129,7 +129,7 @@ router.get(
       : allowedFrontends[0]; // default to first allowed frontend
 
     if (targetOrigin.includes("localhost")) {
-      
+      targetOrigin = targetOrigin.replace(/https:\/\//, "http://"); // use http for localhost
     }
 
     if (!targetOrigin) {
