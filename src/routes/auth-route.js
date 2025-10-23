@@ -118,7 +118,7 @@ router.get(
     // define allowed frontends: use always FRONTEND_URL in env
     // add localhost for development purpose (NODE_ENV === 'development')
     const allowedFrontends = [
-      "https://localhost:5173",
+      "http://localhost:5173",
       process.env.FRONTEND_URL?.trim().replace(/\/+$/, ""),
     ].filter(Boolean); // remove undefined
 
@@ -127,6 +127,10 @@ router.get(
     let targetOrigin = allowedFrontends.includes(requestOrigin)
       ? requestOrigin
       : allowedFrontends[0]; // default to first allowed frontend
+
+    if (targetOrigin.includes("localhost")) {
+      
+    }
 
     if (!targetOrigin) {
       //protect against open redirect: if no allowed frontend, refuse to redirect
