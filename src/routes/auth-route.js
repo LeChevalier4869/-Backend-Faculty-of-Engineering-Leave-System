@@ -117,24 +117,16 @@ router.get(
     // Redirect ไป frontend For 2 urls
     // define allowed frontends: use always FRONTEND_URL in env
     // add localhost for development purpose (NODE_ENV === 'development')
-    const allowedFrontends = [];
-    if (process.env.FRONTEND_URL) {
-      allowedFrontends.push(process.env.FRONTEND_URL.trim().replace(/\/+$/, ""));
-    }
-    if (process.env.NODE_ENV === "development") {
-      allowedFrontends.push("http://localhost:5173");
-    }
+    const allowedFrontends = [
+      "https://localhost:5173",
+      process.env.FRONTEND_URL?.trim().replace(/\/+$/, ""),
+    ].filter(Boolean); // remove undefined
 
-    // if client sent a ?target=<url> check if it's allowed
-    const requestedTarget = req.query.target;
-    let targetOrigin = null;
-    if (requestedTarget) {
-      const clean = String(requestedTarget).trim().replace(/\/+$/, "");
-      if (allowedFrontends.includes(clean)) targetOrigin = clean
-    }
-
-    //use first allowed frontend as default
-    if (!targetOrigin) targetOrigin = allowedFrontends[0];
+    // determine target origin
+    const requestOrigin = req.headers.origin?.replace(/\/+$/, ""); // remove trailing slash
+    let targetOrigin = allowedFrontends.includes(requestOrigin)
+      ? requestOrigin
+      : allowedFrontends[0]; // default to first allowed frontend
 
     if (!targetOrigin) {
       //protect against open redirect: if no allowed frontend, refuse to redirect
