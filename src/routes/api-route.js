@@ -11,6 +11,6 @@ router.post("/export/:organizationId", reportController.exportReport);
 
 //contact admin
 router.get("/contact", apiController.getContactInfo);
-router.put("/contact/:key", authorize(["ADMIN"]), apiController.updateContactValue);
+router.put("/contact/:key", authenticate,authorize(["ADMIN"]), apiController.updateContactValue);
 
 module.exports = router;
