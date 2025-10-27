@@ -42,10 +42,8 @@ class AdminService {
     contact,
     documentNumber,
     documentIssuedDate,
-    adminId,
+    adminId
   ) {
-
-
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
     }
@@ -55,7 +53,8 @@ class AdminService {
       where: { id: leaveTypeId },
     });
     if (!leaveType) throw createError(404, "ไม่พบประเภทลา");
-    if (leaveType.isAvailable) throw createError(400, "ประเภทนี้ผู้ใช้งานต้องยื่นในระบบเอง");
+    if (leaveType.isAvailable)
+      throw createError(400, "ประเภทนี้ผู้ใช้งานต้องยื่นในระบบเอง");
 
     // ตรวจเลขเอกสารจาก paper (บังคับต้องระบุ)
     if (documentNumber == null) {
@@ -69,7 +68,8 @@ class AdminService {
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       throw createError(400, "รูปแบบวันที่ไม่ถูกต้อง");
     }
-    if (start > end) throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
+    if (start > end)
+      throw createError(400, "วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด");
 
     const requestedDays = await calculateWorkingDays(start, end);
     if (requestedDays <= 0) throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
@@ -83,10 +83,14 @@ class AdminService {
     if (!eligibility.success) throw createError(400, eligibility.message);
 
     // แปลง/ตรวจ documentIssuedDate
-    let issuedAt = documentIssuedDate ? new Date(documentIssuedDate) : new Date();
+    let issuedAt = documentIssuedDate
+      ? new Date(documentIssuedDate)
+      : new Date();
     if (Number.isNaN(issuedAt.getTime())) {
       // รองรับกรณีส่งรูปแบบ dd/MM/yyyy หรือปี พ.ศ. (เช่น 25/09/2568)
-      const m = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/.exec(String(documentIssuedDate));
+      const m = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/.exec(
+        String(documentIssuedDate)
+      );
       if (m) {
         let [_, dd, mm, yyyy] = m;
         let y = parseInt(yyyy, 10);
@@ -101,7 +105,6 @@ class AdminService {
 
     // --------- ทำงานแบบอะตอมมิกใน Transaction ----------
     const leaveRequest = await prisma.$transaction(async (tx) => {
-
       // กันเลขเอกสารซ้ำแบบ best-effort (ไม่มี unique ใน DB)
       const dup = await tx.leaveRequest.findFirst({
         where: { documentNumber: docNo },
@@ -239,26 +242,24 @@ class AdminService {
 
   //------------------------ Department -------------
   static async departmentList() {
-    return await prisma.department.findMany(
-      {
-        include: {
-          head: {
-            select: {
-              id: true,
-              prefixName: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-          organization: {
-            select: {
-              id: true,
-              name: true,
-            },
+    return await prisma.department.findMany({
+      include: {
+        head: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
           },
         },
-      }
-    );
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
   }
   static async createDepartment(data) {
     return await prisma.department.create({ data });
@@ -374,7 +375,6 @@ class AdminService {
     return updated;
   }
 
-
   //------------ Manage User -----------
   static async getUserById(id) {
     return await prisma.user.findUnique({
@@ -443,7 +443,7 @@ class AdminService {
         where: { id: newUser.id },
         data: { profilePicturePath: imgUrl },
       });
-      fs.unlink(file.path, () => { });
+      fs.unlink(file.path, () => {});
     }
 
     return newUser;
@@ -497,6 +497,31 @@ class AdminService {
     // Finally delete user
     await prisma.user.delete({ where: { id } });
     return { message: "User deleted successfully" };
+  }
+
+  // ดึงข้อมูลติดต่อทั้งหมด
+  static async getContactInfo() {
+    return await prisma.setting.findMany({
+      where: {
+        key: {
+          in: ["AdminName", "AdminPhone", "AdminMail"],
+        },
+      },
+      orderBy: { id: "asc" },
+    });
+  }
+
+  // แก้ไขค่า value ของ setting
+  static async updateContactValue(key, value) {
+    const setting = await prisma.setting.findUnique({ where: { key } });
+    if (!setting) {
+      throw new Error("NOT_FOUND");
+    }
+
+    return await prisma.setting.update({
+      where: { key },
+      data: { value },
+    });
   }
 }
 

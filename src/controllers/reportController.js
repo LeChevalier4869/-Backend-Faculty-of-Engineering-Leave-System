@@ -12,13 +12,17 @@ const {
   Packer,
   Paragraph,
   Table,
-  TableRow,
   TableCell,
+  TableRow,
   WidthType,
-  BorderStyle,
   AlignmentType,
+  BorderStyle,
   ShadingType,
   TextRun,
+  TableLayoutType,
+  TextDirection,
+  Header, // ✅ เพิ่มอันนี้
+  Footer, // ✅ ถ้าต้องการ footer ด้วย
 } = require("docx");
 
 const templateMap = {
@@ -310,6 +314,11 @@ exports.exportReport = async (req, res) => {
       "ลาบวช",
     ];
 
+    // กรองช่องว่างออกก่อน
+    const filteredTypeOrder = TYPE_ORDER.filter(
+      (name) => name && name.trim() !== ""
+    ).map((name) => name.replace(/\s+/g, ""));
+
     const td = (sum, name, f) => {
       const s = sum?.[name];
       if (!s) return "-";
@@ -471,27 +480,38 @@ exports.exportReport = async (req, res) => {
       };
 
       const content = [];
-      Object.entries(reportData).forEach(([typeName, users], index) => {
-        if (index > 0) {
-          // ขึ้นหน้าใหม่ ถ้าไม่ใช่หน้าแรก
-          content.push({ text: "", pageBreak: "before" });
-        }
+      const MAX_USERS_PER_PAGE = 25;
 
-        content.push(
-          {
-            text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น",
-            alignment: "center",
-            margin: [0, 16, 0, 0],
-          },
-          { text: `${typeName} คณะวิศวกรรมศาสตร์`, alignment: "center" },
-          { text: "รายนามผู้ลาหยุดประจำปี", alignment: "center" },
-          {
-            text: `----------|ครั้งที่ ? ตั้งแต่วันที่ ? เดือน 256X ถึงวันที่ ? เดือน 256X|----------`,
-            alignment: "center",
-            margin: [0, 0, 0, -10],
-          },
-          makePdfTable(users)
-        );
+      Object.entries(reportData).forEach(([typeName, users], index) => {
+        // แบ่ง users เป็น chunks
+        for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
+          const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
+          const isFirstChunk = i === 0;
+          console.log(chunk)
+
+          // ขึ้นหน้าใหม่ถ้าไม่ใช่ chunk แรกของ typeName หรือ index > 0
+          const pageBreakBefore =
+            !isFirstChunk || index > 0 ? "before" : undefined;
+
+          content.push({
+            stack: [
+              {
+                text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น",
+                alignment: "center",
+                margin: [0, 0, 0, 0],
+              },
+              { text: `${typeName} คณะวิศวกรรมศาสตร์`, alignment: "center" },
+              { text: "รายนามผู้ลาหยุดประจำปี", alignment: "center" },
+              {
+                text: `----------|ครั้งที่ ? ตั้งแต่วันที่ ? เดือน 256X ถึงวันที่ ? เดือน 256X|----------`,
+                alignment: "center",
+                margin: [0, 0, 0, -12],
+              },
+              makePdfTable(chunk),
+            ],
+            pageBreak: pageBreakBefore,
+          });
+        }
       });
 
       const docDefinition = {
@@ -519,15 +539,26 @@ exports.exportReport = async (req, res) => {
           alignment = "center",
           fillColor = null,
           bold = false,
+          columnSpan = 1,
+          verticalMerge,
+          textDirection,
+          width,
+          margins = { top: 100, bottom: 100, left: 100, right: 100 },
         } = options;
+
         return new TableCell({
+          columnSpan,
+          verticalMerge,
+          width: width ? { size: width, type: WidthType.DXA } : undefined,
+          margins,
           children: [
             new Paragraph({
               children: [
                 new TextRun({
-                  text: String(txt),
-                  font: "TH Sarabun New", // ✅ ฟอนต์
+                  text: String(txt ?? ""),
+                  font: "TH Sarabun New",
                   bold,
+                  size: 28,
                 }),
               ],
               alignment: AlignmentType[alignment.toUpperCase()],
@@ -537,176 +568,270 @@ exports.exportReport = async (req, res) => {
             ? { type: ShadingType.CLEAR, fill: fillColor }
             : undefined,
           verticalAlign: "center",
+          textDirection,
         });
       };
 
       const makeWordTable = (list) => {
-        const rows = [];
+        // กำหนดความกว้างแต่ละประเภทลา (หน่วย twip)
+        const typeWidths = {
+          ขาดราชการ: 500,
+          ลากิจ: 500,
+          ลาคลอดบุตร: 500,
+          ลาพักผ่อน: 500,
+          ลาป่วย: 500,
+          ลาบวช: 500,
+        };
 
-        // Header row 1
-        rows.push(
-          new TableRow({
-            children: [
-              makeCell("ที่"),
-              makeCell("ชื่อ - สกุล"),
-              makeCell("สาย/ครั้ง"),
-              ...TYPE_ORDER.flatMap(() => [makeCell(""), makeCell("")]),
-              makeCell("หมายเหตุ"),
-            ],
-          })
-        );
+        const makeHeaderRows = () => {
+          const rows = [];
 
-        // Header row 2 (type names)
-        rows.push(
-          new TableRow({
-            children: [
-              makeCell(""),
-              makeCell(""),
-              makeCell(""),
-              ...TYPE_ORDER.flatMap((name) => {
-                const isGray = ["ขาด ราชการ", "ลากิจ", "ลา คลอดบุตร"].includes(
-                  name
-                );
-                return [
-                  makeCell(name, { fillColor: isGray ? "D9D9D9" : null }),
-                  makeCell(""),
-                ];
-              }),
-              makeCell(""),
-            ],
-          })
-        );
-
-        // Header row 3 (ครั้ง / วัน)
-        rows.push(
-          new TableRow({
-            children: [
-              makeCell(""),
-              makeCell(""),
-              makeCell(""),
-              ...TYPE_ORDER.flatMap((name) => {
-                const isGray = ["ขาด ราชการ", "ลากิจ", "ลา คลอดบุตร"].includes(
-                  name
-                );
-                return [
-                  makeCell("ครั้ง", { fillColor: isGray ? "D9D9D9" : null }),
-                  makeCell("วัน", { fillColor: isGray ? "D9D9D9" : null }),
-                ];
-              }),
-              makeCell(""),
-            ],
-          })
-        );
-
-        // Body rows
-        list.forEach((u, idx) => {
+          // ✅ Row 1
           rows.push(
             new TableRow({
+              tableHeader: true,
               children: [
-                makeCell(idx + 1),
-                makeCell(u.name, { alignment: "left" }),
-                makeCell(u.lateTimes != null ? u.lateTimes : "-"),
-                ...TYPE_ORDER.flatMap((name) => [
-                  makeCell(td(u.leaveSummary, name, "times")),
-                  makeCell(td(u.leaveSummary, name, "days")),
-                ]),
-                makeCell(u.note || "-"),
+                makeCell("ที่", { verticalMerge: "restart" }),
+                makeCell("ชื่อ - สกุล", { verticalMerge: "restart" }),
+                makeCell("สาย/ครั้ง", {
+                  verticalMerge: "restart",
+                  textDirection: TextDirection.BOTTOM_TO_TOP_LEFT_TO_RIGHT, // ← หมุนข้อความ
+                }),
+                makeCell("จำนวนวันลา", {
+                  alignment: "center",
+                  bold: false,
+                  columnSpan: filteredTypeOrder.length * 2,
+                }),
+                makeCell("หมายเหตุ", { verticalMerge: "restart" }),
               ],
             })
           );
+
+          // ✅ Row 2 — ประเภทลา
+          rows.push(
+            new TableRow({
+              tableHeader: true,
+              children: [
+                makeCell("", { verticalMerge: "continue" }),
+                makeCell("", { verticalMerge: "continue" }),
+                makeCell("", { verticalMerge: "continue" }),
+                ...filteredTypeOrder.map((type) => {
+                  const w = typeWidths[type] || 1134;
+                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
+                    type
+                  );
+                  return makeCell(type, {
+                    columnSpan: 2,
+                    width: w * 2, // รวม 2 ช่อง
+                    fillColor: isGray ? "D9D9D9" : null,
+                    alignment: "center",
+                    bold: false,
+                  });
+                }),
+                makeCell("", { verticalMerge: "continue" }),
+              ],
+            })
+          );
+
+          // ✅ Row 3 — ครั้ง / วัน
+          rows.push(
+            new TableRow({
+              tableHeader: true,
+              children: [
+                makeCell("", { verticalMerge: "continue" }),
+                makeCell("", { verticalMerge: "continue" }),
+                makeCell("", { verticalMerge: "continue" }),
+                ...filteredTypeOrder.flatMap((type) => {
+                  const w = typeWidths[type] || 1134;
+                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
+                    type
+                  );
+                  return [
+                    makeCell("ครั้ง", {
+                      width: w,
+                      fillColor: isGray ? "D9D9D9" : null,
+                    }),
+                    makeCell("วัน", {
+                      width: w,
+                      fillColor: isGray ? "D9D9D9" : null,
+                    }),
+                  ];
+                }),
+                makeCell("", { verticalMerge: "continue" }),
+              ],
+            })
+          );
+
+          return rows;
+        };
+
+        // ✅ แบ่งหน้า
+        const MAX_ROWS_PER_PAGE = 25;
+        const chunks = [];
+        for (let i = 0; i < list.length; i += MAX_ROWS_PER_PAGE) {
+          chunks.push(list.slice(i, i + MAX_ROWS_PER_PAGE));
+        }
+
+        const tables = [];
+
+        chunks.forEach((chunk, pageIdx) => {
+          const rows = [...makeHeaderRows()];
+
+          chunk.forEach((u, idx) => {
+            rows.push(
+              new TableRow({
+                children: [
+                  makeCell(pageIdx * MAX_ROWS_PER_PAGE + idx + 1),
+                  makeCell(u.name, { alignment: "left" }),
+                  makeCell(u.lateTimes != null ? u.lateTimes : "-"),
+                  ...filteredTypeOrder.flatMap((name) => {
+                    const isGray = [
+                      "ขาดราชการ",
+                      "ลากิจ",
+                      "ลาคลอดบุตร",
+                    ].includes(name);
+                    return [
+                      makeCell(td(u.leaveSummary, name, "times"), {
+                        fillColor: isGray ? "D9D9D9" : null,
+                      }),
+                      makeCell(td(u.leaveSummary, name, "days"), {
+                        fillColor: isGray ? "D9D9D9" : null,
+                      }),
+                    ];
+                  }),
+                  makeCell(u.note || "-"),
+                ],
+              })
+            );
+          });
+
+          // ✅ คอลัมน์ทั้งหมด (รวมทุกประเภท)
+          const tableColumnWidths = [
+            500, // ที่
+            2800, // ชื่อ - สกุล
+            500, // สาย/ครั้ง
+            ...filteredTypeOrder.flatMap((name) => {
+              const w = typeWidths[name] || 600;
+              return [w, w];
+            }),
+            1200, // หมายเหตุ
+          ];
+
+          const table = new Table({
+            layout: TableLayoutType.FIXED, // ✅ บังคับความกว้างตายตัว
+            columnWidths: tableColumnWidths,
+            rows,
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
+              bottom: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
+              left: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
+              right: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
+              insideHorizontal: {
+                style: BorderStyle.SINGLE,
+                size: 12,
+                color: "000000",
+              },
+              insideVertical: {
+                style: BorderStyle.SINGLE,
+                size: 12,
+                color: "000000",
+              },
+            },
+          });
+
+          if (pageIdx > 0) {
+            tables.push(new Paragraph({ pageBreakBefore: true }));
+          }
+
+          tables.push(table);
         });
 
-        return new Table({
-          rows,
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          columnWidths: [
-            25, // ที่
-            200, // ชื่อ - สกุล
-            25, // สาย/ครั้ง
-            ...Array(TYPE_ORDER.length * 2).fill(25),
-            70, // หมายเหตุ
-          ],
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
-            left: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
-            right: { style: BorderStyle.SINGLE, size: 1, color: "9CA3AF" },
-            insideHorizontal: {
-              style: BorderStyle.SINGLE,
-              size: 1,
-              color: "9CA3AF",
-            },
-            insideVertical: {
-              style: BorderStyle.SINGLE,
-              size: 1,
-              color: "9CA3AF",
-            },
-          },
-        });
+        return tables;
       };
 
-      const sections = [];
-      Object.entries(reportData).forEach(([typeName, users]) => {
-        sections.push(
-          new Paragraph({
+      const sections = Object.entries(reportData).map(([typeName, users]) => ({
+        headers: {
+          default: new Header({
             children: [
-              new TextRun({
-                text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น",
-                font: "TH Sarabun New",
-                size: 28,
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น",
+                    font: "TH Sarabun New",
+                    size: 28,
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `${typeName} คณะวิศวกรรมศาสตร์`,
+                    font: "TH Sarabun New",
+                    size: 28,
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "รายนามผู้ลาหยุดประจำปี",
+                    font: "TH Sarabun New",
+                    size: 28,
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "----------|ครั้งที่ ? ตั้งแต่วันที่ ? เดือน 256X ถึงวันที่ ? เดือน 256X|----------",
+                    font: "TH Sarabun New",
+                    size: 28,
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 0 },
               }),
             ],
-            alignment: AlignmentType.CENTER,
           }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `${typeName} คณะวิศวกรรมศาสตร์`,
-                font: "TH Sarabun New",
-                size: 28,
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: "รายนามผู้ลาหยุดประจำปี",
-                font: "TH Sarabun New",
-                size: 28,
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: "----------|ครั้งที่ ? ตั้งแต่วันที่ ? เดือน 256X ถึงวันที่ ? เดือน 256X|----------",
-                font: "TH Sarabun New",
-                size: 28,
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-          }),
-          makeWordTable(users),
-          new Paragraph({ text: "" })
-        );
-      });
+        },
+        children: [
+          ...makeWordTable(users), // ตารางอยู่ใน body ปกติ
+          new Paragraph({ text: "" }),
+        ],
+      }));
 
-      // ✅ ใส่ default style ฟอนต์ไทยทั้งหมด
       const doc = new Document({
         styles: {
           default: {
             paragraph: {
               run: {
                 font: "TH Sarabun New",
-                size: 28, // ~14pt
+                size: 28,
               },
             },
           },
         },
-        sections: [{ children: sections }],
+        sections: sections.map((section) => ({
+          ...section,
+          properties: {
+            page: {
+              margin: {
+                top: 1440, // 1 inch = 1440 twip
+                bottom: 1440,
+                left: 543,
+                right: 1440,
+              },
+              size: {
+                orientation: "portrait", // หรือ "landscape"
+                width: 11906, // หน้ากว้างสำหรับ A4 portrait = 11906 twip
+                height: 16838, // หน้ายาว A4 = 16838 twip
+              },
+            },
+          },
+        })),
       });
 
       const buffer = await Packer.toBuffer(doc);

@@ -125,4 +125,9 @@ router.get('/setting/:id', authorize(["ADMIN"]), adminController.getSettingById)
 router.put('/setting/:id', authorize(["ADMIN"]), adminController.updateSetting);
 router.delete('/setting/:id', authorize(["ADMIN"]), adminController.deleteSetting);
 
+router.get("/contact", adminController.getContactInfo);
+
+// PUT แก้ไขค่า value ตาม key
+router.put("/contact/:key", adminController.updateContactValue);
+
 module.exports = router;
