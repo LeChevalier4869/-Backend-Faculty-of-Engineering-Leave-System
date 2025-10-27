@@ -23,7 +23,7 @@ const testRoute = require("./routes/test-route");
 const adminRoute = require("./routes/admin-route");
 const settingRoute = require("./routes/setting-route");
 const signatureRoute = require("./routes/signature-route");
-const reportRoutes = require("./routes/reportRoutes");
+const apiRoute = require("./routes/api-route");
 const lookupRoute = require("./routes/lookup-routes");
 const adminUserRoute = require("./routes/admin-user-route");
 //const reportRouter         = require('./routes/report-router');
@@ -94,7 +94,7 @@ app.use(
 );
 
 // Public & utility routes ------------------------------------------------------------
-app.use("/api", reportRoutes);
+app.use("/api", apiRoute);
 app.use("/public", express.static("public"));
 
 // Authentication & user management

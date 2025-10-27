@@ -256,22 +256,6 @@ exports.downloadReport = async (req, res) => {
   }
 };
 
-// 📍 Preview
-exports.previewReport = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const reportData = await ReportService.getReportData(userId);
-
-    res.json({
-      title: "รายงานการลา",
-      userId,
-      rows: reportData,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
 exports.previewOrganizationReport = async (req, res) => {
   try {
     const { organizationId } = req.params;

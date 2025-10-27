@@ -39,18 +39,6 @@ class ReportService {
   //     include: { user: true },
   //   });
   // }
-  // mock service ดึงข้อมูลรายงาน (จริงๆ จะไป query จาก Prisma หรือ DB)
-  static async getReportData(userId) {
-    return [
-      { date: "2025-09-01", type: "SICK", days: 5, remark: "เป็นไข้" },
-      {
-        date: "2025-09-05",
-        type: "VACATION",
-        days: 2,
-        remark: "ไปต่างจังหวัด",
-      },
-    ];
-  }
 
   static async getOrganizationLeaveReport(organizationId) { 
   // 1. ดึง personnel type ทั้งหมด
