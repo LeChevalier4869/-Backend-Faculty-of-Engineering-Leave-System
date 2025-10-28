@@ -256,16 +256,28 @@ exports.downloadReport = async (req, res) => {
   }
 };
 
-exports.previewOrganizationReport = async (req, res) => {
+exports.reportData = async (req, res) => {
   try {
-    const { organizationId } = req.params;
-    const reportData = await ReportService.getOrganizationLeaveReport(
-      organizationId
+    const { organizationId, startDate, endDate } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
+    }
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
+    }
+
+    const reportData = await ReportService.getReportData(
+      organizationId,
+      startDate,
+      endDate
     );
 
     res.json({
       title: "รายงานการลาของบุคลากรในคณะ",
       organizationId,
+      startDate,
+      endDate,
       rows: reportData,
     });
   } catch (err) {
@@ -277,15 +289,52 @@ exports.previewOrganizationReport = async (req, res) => {
 // 📍 Export PDF หรือ Word
 exports.exportReport = async (req, res) => {
   try {
-    const { organizationId } = req.params;
-    const { format } = req.body;
+    const {countReport, organizationId, startDate, endDate, format} = req.body;
+    if (!organizationId) {
+      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
+    }
+    if (!countReport) {
+      return res.status(400).json({ error: "กรุณาระบุ countReport" });
+    }
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
+    }
+    if (!format) {
+      return res.status(400).json({ error: "กรุณาระบุ format" });
+    }
 
-    const reportData = await ReportService.getOrganizationLeaveReport(
-      organizationId
+    const reportData = await ReportService.getReportData(
+      organizationId,
+      startDate,
+      endDate
     );
 
     if (!reportData || Object.keys(reportData).length === 0) {
       return res.status(404).json({ error: "ไม่พบข้อมูล" });
+    }
+
+    //แปลง Date
+    function formatThaiDateFull(dateStr) {
+      const thaiMonths = [
+        "มกราคม",
+        "กุมภาพันธ์",
+        "มีนาคม",
+        "เมษายน",
+        "พฤษภาคม",
+        "มิถุนายน",
+        "กรกฎาคม",
+        "สิงหาคม",
+        "กันยายน",
+        "ตุลาคม",
+        "พฤศจิกายน",
+        "ธันวาคม",
+      ];
+
+      const date = new Date(dateStr);
+      const day = date.getDate();
+      const month = thaiMonths[date.getMonth()]; // index 0 = มกราคม
+      const year = date.getFullYear() + 543; // ปีพุทธศักราช
+      return `${day} ${month} ${year}`;
     }
 
     // -------------------- กำหนดลำดับหัวข้อ --------------------
@@ -471,7 +520,7 @@ exports.exportReport = async (req, res) => {
         for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
           const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
           const isFirstChunk = i === 0;
-          console.log(chunk)
+          console.log(chunk);
 
           // ขึ้นหน้าใหม่ถ้าไม่ใช่ chunk แรกของ typeName หรือ index > 0
           const pageBreakBefore =
@@ -487,7 +536,9 @@ exports.exportReport = async (req, res) => {
               { text: `${typeName} คณะวิศวกรรมศาสตร์`, alignment: "center" },
               { text: "รายนามผู้ลาหยุดประจำปี", alignment: "center" },
               {
-                text: `----------|ครั้งที่ ? ตั้งแต่วันที่ ? เดือน 256X ถึงวันที่ ? เดือน 256X|----------`,
+                text: `ครั้งที่ ${countReport} ตั้งแต่วันที่ ${formatThaiDateFull(
+                  startDate
+                )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
                 alignment: "center",
                 margin: [0, 0, 0, -12],
               },
@@ -527,7 +578,7 @@ exports.exportReport = async (req, res) => {
           verticalMerge,
           textDirection,
           width,
-          margins = { top: 100, bottom: 100, left: 100, right: 100 },
+          margins = { top: 20, bottom: 0, left: 40, right: 40 },
         } = options;
 
         return new TableCell({
@@ -770,7 +821,9 @@ exports.exportReport = async (req, res) => {
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: "----------|ครั้งที่ ? ตั้งแต่วันที่ ? เดือน 256X ถึงวันที่ ? เดือน 256X|----------",
+                    text: `ครั้งที่ ${countReport} ตั้งแต่วันที่ ${formatThaiDateFull(
+                      startDate
+                    )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
                     font: "TH Sarabun New",
                     size: 28,
                   }),
@@ -790,10 +843,17 @@ exports.exportReport = async (req, res) => {
       const doc = new Document({
         styles: {
           default: {
-            paragraph: {
+            document: {
               run: {
                 font: "TH Sarabun New",
                 size: 28,
+                lang: "th-TH",
+              },
+              paragraph: {
+                run: {
+                  font: "TH Sarabun New",
+                  size: 28,
+                },
               },
             },
           },
