@@ -235,6 +235,20 @@ exports.userLanding = async (req, res) => {
   }
 };
 
+exports.getVerifier = async (req, res, next) => {
+  try {
+    const verifier = await UserService.getVerifier();
+
+    if (!verifier || verifier.length === 0) {
+      return createError(500, "verifier not found");
+    }
+
+    res.status(200).json({ verifier });
+  } catch (error) {
+    next(error);
+  }
+};
+
 //error
 exports.updateProfile = async (req, res, next) => {
   try {

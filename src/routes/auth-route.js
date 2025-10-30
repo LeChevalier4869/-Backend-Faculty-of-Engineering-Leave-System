@@ -24,6 +24,7 @@ router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.
 router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 router.get('/user-info/:id', authenticate, authController.getUserInfoById);
+router.get('/verifier', authenticate, authController.getVerifier);
 
 // ==============================
 // 🔐 Password Management
