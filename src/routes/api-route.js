@@ -13,4 +13,8 @@ router.post("/export/:organizationId", reportController.exportReport);
 router.get("/contact", apiController.getContactInfo);
 router.put("/contact/:key", authenticate, authorize(["ADMIN"]), apiController.updateContactValue);
 
+//dowload template from google drive
+router.get("/dowload-template", apiController.getDriveLink);
+router.put("/drive-link", apiController.updateDriveLink);
+
 module.exports = router;

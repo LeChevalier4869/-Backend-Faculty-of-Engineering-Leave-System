@@ -71,3 +71,10 @@ exports.deleteSetting = async (id) => {
     where: { id: parseInt(id) },
   });
 };
+
+exports.updateSettingByKey = async (key, value) => {
+  return await prisma.setting.update({
+    where: { key },
+    data: { value },
+  });
+};
