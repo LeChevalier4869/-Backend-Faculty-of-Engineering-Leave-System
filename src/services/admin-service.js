@@ -53,8 +53,6 @@ class AdminService {
       where: { id: leaveTypeId },
     });
     if (!leaveType) throw createError(404, "ไม่พบประเภทลา");
-    if (leaveType.isAvailable)
-      throw createError(400, "ประเภทนี้ผู้ใช้งานต้องยื่นในระบบเอง");
 
     // ตรวจเลขเอกสารจาก paper (บังคับต้องระบุ)
     if (documentNumber == null) {
