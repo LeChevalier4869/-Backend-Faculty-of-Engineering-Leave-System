@@ -1,7 +1,6 @@
 const prisma = require("../config/prisma");
-
 class APIService {
-  // ดึงข้อมูลติดต่อทั้งหมด
+  // ดึงข้อมูลติดต่อ Admin ทั้งหมด
   static async getContactInfo() {
     return await prisma.setting.findMany({
       where: {
@@ -13,7 +12,7 @@ class APIService {
     });
   }
 
-  // แก้ไขค่า value ของ setting
+  // แก้ไขข้อมูลติดต่อ Admin
   static async updateContactValue(key, value) {
     const setting = await prisma.setting.findUnique({ where: { key } });
     if (!setting) {
@@ -25,6 +24,13 @@ class APIService {
       data: { value },
     });
   }
+
+  // static async getSettingByKey(key) {
+  //   const setting = await prisma.setting.findUnique({
+  //     where: { key },
+  //   });
+  //   return setting;
+  // }
 }
 
 module.exports = APIService;
