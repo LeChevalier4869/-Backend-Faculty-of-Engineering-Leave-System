@@ -118,24 +118,28 @@ router.get(
     // Redirect ไป frontend For 2 urls
     // define allowed frontends: use always FRONTEND_URL in env
     // add localhost for development purpose (NODE_ENV === 'development')
-    const allowedFrontends = [
-      "http://localhost:5173",
-      process.env.FRONTEND_URL?.trim().replace(/\/+$/, ""),
-    ].filter(Boolean); // remove undefined
+   
+    const isDev = process.env.NODE_ENV !== "production";
+    const allowedOrigins = isDev
+      ? ["http://localhost:5173"]
+      : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
 
-    // determine target origin
-    const requestOrigin = req.headers.origin?.replace(/\/+$/, ""); // remove trailing slash
-    let targetOrigin = allowedFrontends.includes(requestOrigin)
-      ? requestOrigin
-      : allowedFrontends[0]; // default to first allowed frontend
-
-    if (targetOrigin.includes("localhost")) {
-      targetOrigin = targetOrigin.replace(/https:\/\//, "http://"); // use http for localhost
+    if (!allowedOrigins.length) {
+      console.error("No allowed origins configured in .env");
+      return res.status(500).send("No allowed frontend URL configured.");
     }
 
-    if (!targetOrigin) {
-      //protect against open redirect: if no allowed frontend, refuse to redirect
-      return res.status(500).send("No allowed frontend URL configured.");
+    const requestOrigin = req.headers.origin?.replace(/\/+$/, "");
+
+    let targetOrigin;
+    if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+      targetOrigin = requestOrigin;
+    } else {
+      targetOrigin = allowedOrigins[0];
+    }
+
+    if (targetOrigin.includes("localhost")) {
+      targetOrigin = targetOrigin.replace(/^https:\/\//, "http://");
     }
 
     // set refresh token as HttpOnly cookie
