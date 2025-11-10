@@ -44,7 +44,7 @@ jobs:
      run: npm ci
      
    - name: Generate Prisma Client
-     run: npx prisma Generate
+     run: npx prisma generate
 
    - name: Apply migrations
      run: |
