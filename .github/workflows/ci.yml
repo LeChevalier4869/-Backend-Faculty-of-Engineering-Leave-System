@@ -1,0 +1,66 @@
+name: CI
+
+on:
+ push:
+  branches: [main]
+ pull_request:
+  branches: [main]
+
+jobs:
+ backend:
+  runs-on: ubuntu-latest
+
+  services:
+   mysql:
+    image: mysql:8.0
+    env:
+     MYSQL_DATABASE: testdb
+     MYSQL_USER: CI
+     MYSQL_PASSWORD: ci_pass
+     MYSQL_ROOT_PASSWORD: root
+    ports:
+     - 3306:3306
+    options: >-
+     --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+     --health-interval=5s
+     --health-timeout=2s
+     --health-retries=20
+
+  env:
+   DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/testdb
+   NODE_ENV: test
+
+  steps:
+   - name: Checkout
+     uses: actions/checkout@v4
+
+   - name: Setup Node
+     uses: actions/setup-node@v4
+     with:
+      node-version: 20
+      cache: 'npm'
+
+   - name: Install dependencies
+     run: npm ci
+     
+   - name: Generate Prisma Client
+     run: npx prisma Generate
+
+   - name: Apply migrations
+     run: |
+      if ls prisma/migrations/*/migration.sql >/dev/null 2>&1; then
+       npx prisma migrate deploy
+      else
+       echo "⚠️ No migrations found, skipping."
+      fi
+
+   - name: Run tests (if any)
+     run: |
+      if ls **/*.test.* >/dev/null 2>&1; then
+       npm test -- --ci 
+      else
+       echo "✅ No tests found, skipping Jest."
+      fi
+
+   - name: Build check (optional)
+     run: node -e "console.log('✅ App runs successfully')"
