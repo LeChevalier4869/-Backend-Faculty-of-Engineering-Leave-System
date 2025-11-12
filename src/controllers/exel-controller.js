@@ -69,7 +69,7 @@ exports.uploadUserExcel = async (req, res) => {
         }
 
         // เช็ค domain email
-        if (!/@(rmuti\.ac\.th|google\.com)$/.test(normalizedEmail)) {
+        if (!/@(rmuti\.ac\.th|gmail\.com)$/.test(normalizedEmail)) {
           throw {
             email: normalizedEmail,
             reason: "โดเมนอีเมลล์ไม่ถูกต้อง",
