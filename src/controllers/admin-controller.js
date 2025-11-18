@@ -41,7 +41,6 @@ exports.createRequestByAdmin = async (req, res, next) => {
       startDate,
       endDate,
       reason,
-      verifierId,
       contact,
       documentNumber,
       documentIssuedDate
@@ -52,6 +51,10 @@ exports.createRequestByAdmin = async (req, res, next) => {
       throw createError(400, "กรุณาระบุ userId, leaveTypeId, startDate, endDate และ documentNumber");
     }
 
+    //get verifier (default)
+    const verifier = await UserService.getVerifier();
+    const verifierId = verifier?.id ?? null;
+
     // ← ส่ง object ให้ตรงกับที่ service คาดหวัง
     const leaveRequest = await AdminService.createLeaveRequestForUser(
       Number(userId),
@@ -59,7 +62,7 @@ exports.createRequestByAdmin = async (req, res, next) => {
       startDate,
       endDate,
       reason ?? null,
-      verifierId ? Number(verifierId) : null,
+      Number(verifierId),
       contact ?? null,
       documentNumber,
       documentIssuedDate ?? null,
