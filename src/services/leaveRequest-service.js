@@ -233,29 +233,24 @@ class LeaveRequestService {
     });
   }
 
-  static async getLastLeaveRequestByUserAndType(userId, leaveTypeId) {
-    console.log("🔍 getLastLeaveRequestByUserAndType:", userId, leaveTypeId); // debug
+  static async getLastLeaveBefore(userId, leaveTypeId, beforeDate) {
+    const cutoff = new Date(beforeDate);
+    if (Number.isNaN(cutoff.getTime())) throw createError(400, "beforeDate is invalid");
 
     return await prisma.leaveRequest.findFirst({
       where: {
         userId: Number(userId),
         leaveTypeId: Number(leaveTypeId),
-        status: "APPROVED", // เพิ่มเงื่อนไขสถานะเป็น "APPROVED"
+        status: "APPROVED",
+        startDate: { lt: cutoff },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        leaveRequestDetails: true,
-        leaveType: true,
-        user: {
-          select: {
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        files: true,
+      orderBy: { startDate: "desc" },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        totalDays: true,
+        thisTimeDays: true,
       },
     });
   }

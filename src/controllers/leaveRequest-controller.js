@@ -244,22 +244,29 @@ exports.getLeaveRequestIsMine = async (req, res, next) => {
   }
 };
 
-exports.getLastLeaveRequestByUserAndType = async (req, res) => {
-  const userId = req.params.userId;
-  const { leaveTypeId } = req.body;
+exports.getLastLeaveBefore = async (req, res) => {
+  const userId = Number(req.params.userId);
+  const { leaveTypeId, beforeDate } = req.body || {};
+
+  if (!Number.isInteger(userId)) {
+    return res.status(400).json({ message: "userId (params) is invalid" });
+  }
 
   if (!leaveTypeId) {
     return res.status(400).json({ message: "leaveTypeId is required in body" });
   }
 
   try {
-    const leaveRequest =
-      await LeaveRequestService.getLastLeaveRequestByUserAndType(
+    const cutoff = beforeDate ? new Date(beforeDate) : new Date();
+    const lastLeave =
+      await LeaveRequestService.getLastLeaveBefore(
         userId,
-        leaveTypeId
+        Number(leaveTypeId),
+        cutoff,
       );
-
-    res.status(200).json(leaveRequest);
+    //debug
+    console.log("Debugging Leave request", lastLeave);
+    res.status(200).json({ data: lastLeave ?? null });
   } catch (err) {
     console.error("❌ Error:", err);
     res.status(500).json({ message: "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์" });
