@@ -112,6 +112,21 @@ class ReportService {
 
     return grouped;
   }
+
+  static async downloadReport(userId) {
+    const user = await prisma.user.findUniqe({
+      where: { id: userId },
+      include: {
+        department: {
+          include: {
+            organization: true,
+          },
+        },
+      },
+    });
+
+    return user;
+  }
 }
 
 module.exports = ReportService;

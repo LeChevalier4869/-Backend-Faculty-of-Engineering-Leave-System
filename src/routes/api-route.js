@@ -5,7 +5,7 @@ const reportController = require('../controllers/reportController');
 const { authenticate , authorize } = require('../middlewares/auth');
 
 //report
-router.post('/download-report', authenticate,reportController.downloadReport);
+router.post('/download-report', authenticate, reportController.downloadReport);
 router.post("/report/data", reportController.reportData);
 router.post("/export-report", reportController.exportReport);
 

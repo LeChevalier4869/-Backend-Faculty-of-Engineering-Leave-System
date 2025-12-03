@@ -34,23 +34,8 @@ const templateMap = {
 exports.downloadReport = async (req, res) => {
   const leaveTypeId = Number(req.body.leaveTypeId);
   const userId = req.user.id;
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      department: {
-        include: {
-          organization: true,
-        },
-      },
-    },
-  });
-
-  const balances = await prisma.leaveBalance.findMany({
-    where: { userId },
-    include: {
-      leaveType: true, // ดึงชื่อประเภทวันลามาด้วย
-    },
-  });
+  const user = await ReportService.downloadReport(userId);
+  const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
 
   const sickBalance = balances.find((b) => b.leaveTypeId === 1);
   const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
