@@ -114,7 +114,7 @@ class ReportService {
   }
 
   static async downloadReport(userId) {
-    const user = await prisma.user.findUniqe({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
         department: {
