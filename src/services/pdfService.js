@@ -47,6 +47,9 @@ function getThaiMonthShort(month) {
 
 // แยกวัน เดือน ปี และแปลง ค.ศ. → พ.ศ.
 function parseDateToThai(dateStr) {
+  //debug dateStr
+  console.log("Parsing date:", dateStr);
+
   //กันเดสไม่มีค่า
   if (!dateStr || dateStr === "ไม่ระบุ") {
     return {
