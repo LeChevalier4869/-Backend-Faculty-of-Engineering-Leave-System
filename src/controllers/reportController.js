@@ -24,6 +24,7 @@ const {
   Header, // ✅ เพิ่มอันนี้
   Footer, // ✅ ถ้าต้องการ footer ด้วย
 } = require("docx");
+const LeaveRequestService = require("../services/leaveRequest-service");
 
 const templateMap = {
   1: "sick_template.pdf",
@@ -36,7 +37,7 @@ exports.downloadReport = async (req, res) => {
   const userId = req.user.id;
   const user = await ReportService.downloadReport(userId);
   const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
-  const currentLeave = await LeaveRe
+  const currentLeave = await LeaveRequestService();
 
   const sickBalance = balances.find((b) => b.leaveTypeId === 1);
   const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
