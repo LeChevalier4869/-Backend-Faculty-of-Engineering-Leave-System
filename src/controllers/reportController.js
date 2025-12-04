@@ -36,6 +36,7 @@ exports.downloadReport = async (req, res) => {
   const userId = req.user.id;
   const user = await ReportService.downloadReport(userId);
   const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
+  const currentLeave = await LeaveRe
 
   const sickBalance = balances.find((b) => b.leaveTypeId === 1);
   const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
@@ -43,12 +44,12 @@ exports.downloadReport = async (req, res) => {
   const personalBalance = balances.find((b) => b.leaveTypeId === 3);
   const personalLeaved = personalBalance ? personalBalance.usedDays : 0;
 
-  console.log("User data:", user);
-  console.log("Leave balance:", balances);
+  // console.log("User data:", user);
+  // console.log("Leave balance:", balances);
 
   const organizationId =
     user?.department?.organizationId || "ไม่พบข้อมูลองค์กร";
-  console.log(leaveTypeId);
+  // console.log(leaveTypeId);
   if (!Object.keys(templateMap).map(Number).includes(leaveTypeId)) {
     return res
       .status(400)

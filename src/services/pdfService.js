@@ -47,7 +47,81 @@ function getThaiMonthShort(month) {
 
 // แยกวัน เดือน ปี และแปลง ค.ศ. → พ.ศ.
 function parseDateToThai(dateStr) {
-  const [day, month, yearInput] = dateStr.split("-").map(Number);
+  //กันเดสไม่มีค่า
+  if (!dateStr || dateStr === "ไม่ระบุ") {
+    return {
+      day: "",
+      month: "",
+      monthText: "",
+      monthShortText: "",
+      year: "",
+    };
+  }
+
+  //ถ้า date obj.
+  if (dateStr instanceof Date) {
+    const d = dateStr.getDate();
+    const m = dateStr.getMonth() + 1; // เดือนใน JavaScript เริ่มต้นที่ 0
+    const y = dateStr.getFullYear();
+    const year = y < 2500 ? y + 543 : y;
+
+    return {
+      day: d.toString().padStart(2, "0"),
+      month: m.toString().padStart(2, "0"),
+      monthText: getThaiMonth(m),
+      monthShortText: getThaiMonthShort(m),
+      year: year.toString(),
+    };
+  }
+
+  // const [day, month, yearInput] = dateStr.split("-").map(Number);
+  // const year = yearInput < 2500 ? yearInput + 543 : yearInput;
+
+  // return {
+  //   day: day.toString().padStart(2, "0"),
+  //   month: month.toString().padStart(2, "0"),
+  //   monthText: getThaiMonth(month),
+  //   monthShortText: getThaiMonthShort(month),
+  //   year: year.toString(),
+  // };
+
+  let day, month, yearInput;
+
+  if (typeof dateStr === "string") {
+    //normalize string format "DD-MM-YYYY"
+    const normalized = dateStr.replace(/\//g, "-");
+    const parts = normalized.split("-");
+
+    if (parts.length === 3) {
+      // Assuming format is YYYY-MM-DD
+      if (parts[0].length === 4) {
+        [yearInput, month, day] = parts.map(Number);
+      } else {
+        // Assuming format is DD-MM-YYYY
+        [day, month, yearInput] = parts.map(Number);
+      }
+    } else {
+      // date parse fallback
+      const dObj = new Date(dateStr);
+      if (!isNaN(dObj)) {
+        day = dObj.getDate();
+        month = dObj.getMonth() + 1;
+        yearInput = dObj.getFullYear();
+      }
+    }
+  }
+
+  //ถ้ายัง parse ไม่ได้เลย ให้คืนค่าว่าง ป้องกัน error
+  if (!day || !month || !yearInput) {
+    return {
+      day: "",
+      month: "",
+      monthText: "",
+      monthShortText: "",
+      year: "",
+    };
+  }
+
   const year = yearInput < 2500 ? yearInput + 543 : yearInput;
 
   return {
@@ -742,7 +816,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       //ลาป่วย--------------------------------------
     } else if (leaveTypeId === 3) {
       // ลากิจ--------------------------------------
-            // เขียนที่
+      // เขียนที่
       firstPage.drawText(`${data.documentNumber}`, {
         x: 470,
         y: height - 43,
@@ -1370,7 +1444,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         size: 14,
         font: customFont,
       });
-      
+
       // ลากิจ--------------------------------------
     } else if (leaveTypeId === 4) {
       // ลาพักผ่อน----------------------------------

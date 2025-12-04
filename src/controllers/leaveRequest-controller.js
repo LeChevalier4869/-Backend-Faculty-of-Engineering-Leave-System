@@ -10,6 +10,7 @@ const { sendEmail, sendNotification } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const prisma = require("../config/prisma");
 
+/** create */
 exports.createLeaveRequest = async (req, res, next) => {
   try {
     const { leaveTypeId, startDate, endDate, reason, contact } = req.body;

@@ -471,6 +471,9 @@ class LeaveRequestService {
       };
     }
 
+    const rankReceiveDays = rank.receiveDays ?? requestedDays + 1;
+
+    //** change */
     if (requestedDays > rank.receiveDays) {
       return {
         success: false,
@@ -488,7 +491,7 @@ class LeaveRequestService {
     if (!balance) {
       return { success: false, message: "ไม่พบข้อมูล Leave Balance ของคุณ" };
     }
-
+    //* change */
     if (requestedDays > balance.remainingDays) {
       return { success: false, message: "วันลาคงเหลือไม่เพียงพอ" };
     }
