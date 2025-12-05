@@ -95,13 +95,37 @@ function parseDateToThai(dateStr) {
     const normalized = dateStr.replace(/\//g, "-");
     const parts = normalized.split("-");
 
-    if (parts.length === 3) {
-      // Assuming format is YYYY-MM-DD
-      if (parts[0].length === 4) {
-        [yearInput, month, day] = parts.map(Number);
+    // เคส 3 ส่วน เช่น:
+    // - "2025-11-20"       (YYYY-MM-DD)
+    // - "12-06-2568"       (DD-MM-YYYY)
+    // - "2025-11-20T..."   (YYYY-MM-DDTHH:mm:ss)
+
+    if (parts.length >= 3) {
+      const [p1, p2, p3Raw] = parts; 
+      const p3 = p3Raw.replace(/\D/g, ""); // ลบตัวอักษรที่ไม่ใช่ตัวเลข เช่น 'T'
+
+      if (/^\d{4}$/.test(p1) && /^\d{1,2}$/.test(p2) && /^\d{1,2}$/.test(p3)) {
+        // YYYY-MM-DD
+        yearInput = Number(p1);
+        month = Number(p2);
+        day = Number(p3);
+      } else if (
+        /^\d{1,2}$/.test(p1) &&
+        /^\d{1,2}$/.test(p2) &&
+        /^\d{4}$/.test(p3)
+      ) {
+        // DD-MM-YYYY
+        day = Number(p1);
+        month = Number(p2);
+        yearInput = Number(p3);
       } else {
-        // Assuming format is DD-MM-YYYY
-        [day, month, yearInput] = parts.map(Number);
+        // รูปแบบไม่ตรงกับที่คาดไว้
+        const dObj = new Date(dateStr);
+        if (!isNaN(dObj)) {
+          day = dObj.getDate();
+          month = dObj.getMonth() + 1;
+          yearInput = dObj.getFullYear();
+        }
       }
     } else {
       // date parse fallback
@@ -115,7 +139,15 @@ function parseDateToThai(dateStr) {
   }
 
   //ถ้ายัง parse ไม่ได้เลย ให้คืนค่าว่าง ป้องกัน error
-  if (!day || !month || !yearInput) {
+  if (
+    day == null ||
+    month == null ||
+    yearInput == null ||
+    isNaN(day) ||
+    isNaN(month) ||
+    isNaN(yearInput)
+  ) {
+    console.warn("parseDateToThai: parse fail for", dateStr);
     return {
       day: "",
       month: "",
