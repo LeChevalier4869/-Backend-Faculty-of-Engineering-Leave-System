@@ -101,7 +101,7 @@ function parseDateToThai(dateStr) {
     // - "2025-11-20T..."   (YYYY-MM-DDTHH:mm:ss)
 
     if (parts.length >= 3) {
-      const [p1, p2, p3Raw] = parts; 
+      const [p1, p2, p3Raw] = parts;
       const p3 = p3Raw.replace(/\D/g, ""); // ลบตัวอักษรที่ไม่ใช่ตัวเลข เช่น 'T'
 
       if (/^\d{4}$/.test(p1) && /^\d{1,2}$/.test(p2) && /^\d{1,2}$/.test(p3)) {
@@ -304,48 +304,64 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       }
 
       //ประเภทบุคลากร
-      firstPage.drawImage(checkImage, {
-        x: 124,
-        y: height - 192,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 124,
-        y: height - 211,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 124,
-        y: height - 230,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 209,
-        y: height - 192,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 396,
-        y: height - 192,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 395,
-        y: height - 211,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 395,
-        y: height - 230,
-        width: 12,
-        height: 12,
-      });
+      if (data.personnelTypeId === 1) {               //ข้าราชการ
+        firstPage.drawImage(checkImage, {
+          x: 124,
+          y: height - 192,
+          width: 12,
+          height: 12,
+        });
+      } else if (data.personnelTypeId === 2) {        //ลูกจ้างประจำ (ยังไม่ได้ข้อสรุป)
+
+      } else if (data.personnelTypeId === 3) {       //พนักงานราชการ
+        if (data.employmentType === "ACADEMIC") {
+          firstPage.drawImage(checkImage, {
+            x: 396,
+            y: height - 192,
+            width: 12,
+            height: 12,
+          });
+        } else {
+          firstPage.drawImage(checkImage, {
+            x: 395,
+            y: height - 211,
+            width: 12,
+            height: 12,
+          });
+        }
+      } else if (data.personnelTypeId === 4) {        //พนักงานในสถาบันอุดมศึกษา
+        if (data.employmentType === "ACADEMIC") {
+          firstPage.drawImage(checkImage, {
+            x: 209,
+            y: height - 192,
+            width: 12,
+            height: 12,
+          });
+        } else {
+          firstPage.drawImage(checkImage, {
+            x: 124,
+            y: height - 211,
+            width: 12,
+            height: 12,
+          });
+        }
+      } else {                                      //ลูกจ้างเงินรายได้
+        if (data.employmentType === "ACADEMIC") {
+          firstPage.drawImage(checkImage, {
+            x: 395,
+            y: height - 230,
+            width: 12,
+            height: 12,
+          });
+        } else {
+          firstPage.drawImage(checkImage, {
+            x: 124,
+            y: height - 230,
+            width: 12,
+            height: 12,
+          });
+        }
+      }
 
       //ขอลา
       if (leaveTypeId === 1) {
@@ -421,7 +437,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       });
 
       //มีกำหนด
-      firstPage.drawText(`${data.total}`, {
+      firstPage.drawText(`${data.thisTime}`, {
         x: 115,
         y: height - 337,
         size: 14,
@@ -465,7 +481,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       );
 
       //ถึงวันที่
-      const parsedlastLeaveEndDate = parseDateToThai(data.lastLeaveStartDate);
+      const parsedlastLeaveEndDate = parseDateToThai(data.lastLeaveEndDate);
       firstPage.drawText(
         `${parsedlastLeaveEndDate.day} ${parsedlastLeaveEndDate.monthText} ${parsedlastLeaveEndDate.year}`,
         {
@@ -477,7 +493,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       );
 
       //มีกำหนด
-      firstPage.drawText(`${data.lastLeaveTotal}`, {
+      firstPage.drawText(`${data.lastLeaveThisTime}`, {
         x: 235,
         y: height - 354,
         size: 14,
@@ -728,7 +744,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         font: customFont,
       });
 
-      //คำสั่ง
+      //คำสั่ง (ยังไม่เสร็จ)
       firstPage.drawImage(checkImage, {
         x: 181,
         y: height - 716,
@@ -797,7 +813,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         size: 14,
         font: customFont,
       });
-      firstPage.drawText(`${data.total}`, {
+      firstPage.drawText(`${data.thisTime}`, {
         x: 200,
         y: height - 550,
         size: 14,
@@ -809,6 +825,8 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         size: 14,
         font: customFont,
       });
+
+      //ยังไม่เสร็จ
 
       firstPage.drawText(`${data.personalLeaved}`, {
         x: 150,
@@ -828,6 +846,8 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         size: 14,
         font: customFont,
       });
+
+      //ยังไม่เสร็จ
 
       firstPage.drawText(`-`, {
         x: 150,
