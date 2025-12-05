@@ -304,16 +304,16 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       }
 
       //ประเภทบุคลากร
-      if (data.personnelTypeId === 1) {               //ข้าราชการ
+      if (data.personnelType === "ข้าราชการ") {               //ข้าราชการ
         firstPage.drawImage(checkImage, {
           x: 124,
           y: height - 192,
           width: 12,
           height: 12,
         });
-      } else if (data.personnelTypeId === 2) {        //ลูกจ้างประจำ (ยังไม่ได้ข้อสรุป)
+      } else if (data.personnelType === "ลูกจ้างประจำ") {        //ลูกจ้างประจำ (ยังไม่ได้ข้อสรุป)
 
-      } else if (data.personnelTypeId === 3) {       //พนักงานราชการ
+      } else if (data.personnelType === "พนักงานราชการ") {       //พนักงานราชการ
         if (data.employmentType === "ACADEMIC") {
           firstPage.drawImage(checkImage, {
             x: 396,
@@ -329,7 +329,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
             height: 12,
           });
         }
-      } else if (data.personnelTypeId === 4) {        //พนักงานในสถาบันอุดมศึกษา
+      } else if (data.personnelType === "พนักงานในสถาบันอุดมศึกษา") {        //พนักงานในสถาบันอุดมศึกษา
         if (data.employmentType === "ACADEMIC") {
           firstPage.drawImage(checkImage, {
             x: 209,
