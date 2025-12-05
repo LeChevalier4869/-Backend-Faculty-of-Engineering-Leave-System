@@ -109,6 +109,7 @@ exports.downloadReport = async (req, res) => {
         sickLeaved: sickLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
         personalLeaved: personalLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
       };
+      console.log("Sick leave data:", data);
       break;
 
     case 3: // ลากิจ
@@ -160,6 +161,7 @@ exports.downloadReport = async (req, res) => {
         sickLeaved: sickLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
         personalLeaved: personalLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
       };
+      console.log("Personal leave data:", data);
       break;
 
     case 4: // ลาพักร้อน
@@ -212,6 +214,7 @@ exports.downloadReport = async (req, res) => {
         date: req.body.date || new Date().toLocaleDateString(),
         doctorName: req.body.doctorName,
       };
+      console.log("Vacation leave data:", data);
       break;
   }
 
