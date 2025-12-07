@@ -3,6 +3,7 @@ const fontkit = require("fontkit");
 const fs = require("fs");
 const path = require("path");
 const prisma = require("../config/prisma");
+const { start } = require("repl");
 
 //แปลงวันที่
 const thaiMonths = [
@@ -216,898 +217,409 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
     );
     const checkImage = await pdfDoc.embedPng(checkImageBytes);
 
-    if (leaveTypeId === 1) {
-      // ลาป่วย-------------------------------------
+    // ---------------------- helper ------------------------
 
-      // เขียนที่
-      firstPage.drawText(`${data.documentNumber}`, {
-        x: 470,
-        y: height - 43,
+    //วันที่ เดือน ปี
+    const drawDateTriple = (page, parsed, y, xDay, xMonth, xYear) => {
+      page.drawText(parsed.day, {
+        x: xDay,
+        y,
         size: 14,
         font: customFont,
       });
+      page.drawText(parsed.monthText, {
+        x: xMonth,
+        y,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(parsed.year, {
+        x: xYear,
+        y,
+        size: 14,
+        font: customFont,
+      });
+    };
 
-      //วันที่
-      const documentDate = parseDateToThai(data.documentDate);
-      firstPage.drawText(documentDate.day, {
-        x: 382,
-        y: height - 62,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(documentDate.monthText, {
-        x: 440,
-        y: height - 62,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(documentDate.year, {
-        x: 525,
-        y: height - 62,
-        size: 14,
-        font: customFont,
-      });
+    // สังกัด
+    // ใช้ได้แต่ วิศวกรรมศาสตร์ ณ ตอนนี้
+    const drawOrganizationCheckboxs = (page, organizationId) => {
+      const orgId = Number(organizationId);
 
-      //เรื่อง
-      firstPage.drawText(`${data.title}`, {
-        x: 150,
-        y: height - 80,
-        size: 14,
-        font: customFont,
-      });
-
-      //ข้าพเจ้า
-      firstPage.drawText(`${data.name}`, {
-        x: 180,
-        y: height - 122,
-        size: 14,
-        font: customFont,
-      });
-
-      //ตำแหน่ง
-      firstPage.drawText(`${data.position}`, {
-        x: 400,
-        y: height - 122,
-        size: 14,
-        font: customFont,
-      });
-
-      //สังกัด
-      if (data.organizationId === 1) {
-        firstPage.drawImage(checkImage, {
+      if (orgId === 1) {
+        page.drawImage(checkImage, {
           x: 246,
           y: height - 142,
           width: 12,
           height: 12,
         });
-      } else if (data.organizationId === 2) {
-        firstPage.drawImage(checkImage, {
+      } else if (orgId === 2) {
+        page.drawImage(checkImage, {
           x: 123,
           y: height - 142,
           width: 12,
           height: 12,
         });
-      } else if (data.organizationId === 3) {
-        firstPage.drawImage(checkImage, {
+      } else if (orgId === 3) {
+        page.drawImage(checkImage, {
           x: 349,
           y: height - 142,
           width: 12,
           height: 12,
         });
-      } else if (data.organizationId === 4) {
-        firstPage.drawImage(checkImage, {
+      } else if (orgId === 4) {
+        page.drawImage(checkImage, {
           x: 124,
           y: height - 161,
           width: 12,
           height: 12,
         });
       }
+    };
 
-      //ประเภทบุคลากร
-      if (data.personnelType === "ข้าราชการ") {               //ข้าราชการ
-        firstPage.drawImage(checkImage, {
+    // ประเภทการลา
+    const drawLeaveTypeCheckboxs = (page, leaveTypeId) => {
+      const typeId = Number(leaveTypeId);
+
+      // sick / personal / vacation
+      if (typeId === 1) {
+        page.drawImage(checkImage, {
+          x: 122,
+          y: height - 261,
+          width: 12,
+          height: 12,
+        });
+      } else if (typeId === 3) {
+        page.drawImage(checkImage, {
+          x: 122,
+          y: height - 280,
+          width: 12,
+          height: 12,
+        });
+      } else if (typeId === 4) {
+        page.drawImage(checkImage, {
+          x: 122,
+          y: height - 299,
+          width: 12,
+          height: 12,
+        });
+      }
+    };
+
+    // contact
+    const drawContactBlock = (page, text) => {
+      const contactLines = wrapTextStrictMaxLines(
+        text,
+        customFont,
+        14,
+        140,
+        2
+      );
+
+      let startY = height - 354;
+      contactLines.forEach((line, i) => {
+        page.drawText(line, {
+          x: i === 0 ? 410 : 70,
+          y: startY - i * 18,
+          size: 14,
+          font: customFont,
+        });
+      });
+    };
+
+    // comment
+    const drawCommentBlock = (page, text, startY) => {
+      const lines = wrapTextStrictMaxLines(text, customFont, 14, 160, 2);
+      lines.forEach((line, i) => {
+        page.drawText(line, {
+          x: 350,
+          y: startY - i * 18,
+          size: 14,
+          font: customFont,
+        });
+      });
+    };
+
+    // comment left
+    const drawCommentBlockLeft = (page, text, startY) => {
+      const lines = wrapTextStrictMaxLines(text, customFont, 14, 160, 2);
+      lines.forEach((line, i) => {
+        page.drawText(line, {
+          x: 80,
+          y: startY - i * 18,
+          size: 14,
+          font: customFont,
+        });
+      });
+    };
+
+    // approver signature
+    const drawApproverSignature = (page, name, position, rawDate, baseY) => {
+      page.drawText(name, {
+        x: 400,
+        y: height - (baseY),
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(position, {
+        x: 400,
+        y: height - (baseY + 19),
+        size: 14,
+        font: customFont,
+      });
+
+      const parsed = parseDateToThai(rawDate);
+      drawDateTriple(page, parsed, height - (baseY + 39), 370, 415, 480);
+    };
+
+    // verifier block
+    const drawVerifierBlock = (page, signature, rawDate) => {
+      page.drawText(signature, {
+        x: 140,
+        y: height - 630,
+        size: 14,
+        font: customFont,
+      });
+
+      const parsed = parseDateToThai(rawDate);
+      drawDateTriple(page, parsed, height - 686, 128, 155, 200);
+    };
+
+    // summary counter
+    const drawSummaryCounters = (page, data, isSick) => {
+      // sick
+      page.drawText(`${data.sickLeaved}`, {
+        x: 150,
+        y: height - 550,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${isSick ? data.thisTime : data.total}`, {
+        x: 200,
+        y: height - 550,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${Number(data.sickLeaved) + Number(data.total)}`, {
+        x: 250,
+        y: height - 550,
+        size: 14,
+        font: customFont,
+      });
+
+      // personal ยังไม่เสร็จ (data from frontend)
+      page.drawText(`${data.personalLeaved}`, {
+        x: 150,
+        y: height - 570,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`-`, {
+        x: 200,
+        y: height - 570,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.personalLeaved}`, {
+        x: 250,
+        y: height - 570,
+        size: 14,
+        font: customFont,
+      });
+
+      // other leaves ยังไม่เสร็จ data(จาก DB)
+      page.drawText(`-`, {
+        x: 150,
+        y: height - 590,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`-`, {
+        x: 200,
+        y: height - 590,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`-`, {
+        x: 250,
+        y: height - 590,
+        size: 14,
+        font: customFont,
+      });
+    };
+
+    // ประเภทบุคลากร
+    const drawPersonnelCheckboxs = (page, data) => {
+      if (data.personnelType === "ข้าราชการ") {
+        page.drawImage(checkImage, {
           x: 124,
           y: height - 192,
           width: 12,
           height: 12,
         });
-      } else if (data.personnelType === "ลูกจ้างประจำ") {        //ลูกจ้างประจำ (ยังไม่ได้ข้อสรุป)
-
-      } else if (data.personnelType === "พนักงานราชการ") {       //พนักงานราชการ
+      } else if (data.personnelType === "ลูกจ้างประจำ") {
+        // ลูกจ้างประจำ (ยังไม่ได้ข้อสรุป) ยังไม่เสร็จ
+      } else if (data.personnelType === "พนักงานราชการ") {
         if (data.employmentType === "ACADEMIC") {
-          firstPage.drawImage(checkImage, {
+          page.drawImage(checkImage, {
             x: 396,
             y: height - 192,
             width: 12,
             height: 12,
           });
         } else {
-          firstPage.drawImage(checkImage, {
+          page.drawImage(checkImage, {
             x: 395,
             y: height - 211,
             width: 12,
             height: 12,
           });
         }
-      } else if (data.personnelType === "พนักงานในสถาบันอุดมศึกษา") {        //พนักงานในสถาบันอุดมศึกษา
+      } else if (data.personnelType === "พนักงานในสถาบันอุดมศึกษา") {
         if (data.employmentType === "ACADEMIC") {
-          firstPage.drawImage(checkImage, {
+          page.drawImage(checkImage, {
             x: 209,
             y: height - 192,
             width: 12,
             height: 12,
           });
         } else {
-          firstPage.drawImage(checkImage, {
+          page.drawImage(checkImage, {
             x: 124,
             y: height - 211,
             width: 12,
             height: 12,
           });
         }
-      } else {                                      //ลูกจ้างเงินรายได้
+      } else if (data.personnelType === "ลูกจ้างเงินรายได้") {
         if (data.employmentType === "ACADEMIC") {
-          firstPage.drawImage(checkImage, {
+          page.drawImage(checkImage, {
             x: 395,
             y: height - 230,
             width: 12,
             height: 12,
           });
         } else {
-          firstPage.drawImage(checkImage, {
-            x: 124,
+          page.drawImage(checkImage, {
+            x: 124, 
             y: height - 230,
             width: 12,
             height: 12,
           });
         }
       }
+    };
 
-      //ขอลา
-      if (leaveTypeId === 1) {
-        firstPage.drawImage(checkImage, {
-          x: 122,
-          y: height - 261,
-          width: 12,
-          height: 12,
-        });
-      } else if (leaveTypeId === 3) {
-        firstPage.drawImage(checkImage, {
-          x: 122,
-          y: height - 280,
-          width: 12,
-          height: 12,
-        });
-      } else if (leaveTypeId === 4) {
-        firstPage.drawImage(checkImage, {
-          x: 122,
-          y: height - 299,
-          width: 12,
-          height: 12,
-        });
-      }
-      //เนื่องจาก
-      firstPage.drawText(`${data.reason}`, {
-        x: 240,
-        y: height - 283,
-        size: 14,
-        font: customFont,
-      });
-
-      //ตั้งแต่วันที่
-      const start = parseDateToThai(data.startDate);
-      firstPage.drawText(start.day, {
-        x: 130,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(start.monthText, {
-        x: 200,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(start.year, {
-        x: 296,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-
-      //ถึงวันที่
-      const end = parseDateToThai(data.endDate);
-      firstPage.drawText(end.day, {
-        x: 368,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(end.monthText, {
-        x: 420,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(end.year, {
-        x: 500,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-
-      //มีกำหนด
-      firstPage.drawText(`${data.thisTime}`, {
-        x: 115,
-        y: height - 337,
-        size: 14,
-        font: customFont,
-      });
-
-      //ข้าพเจ้าได้ลา
-      if (leaveTypeId === 1) {
-        firstPage.drawImage(checkImage, {
-          x: 204,
-          y: height - 336,
-          width: 12,
-          height: 12,
-        });
-      } else if (leaveTypeId === 3) {
-        firstPage.drawImage(checkImage, {
-          x: 243,
-          y: height - 336,
-          width: 12,
-          height: 12,
-        });
-      } else if (leaveTypeId === 4) {
-        firstPage.drawImage(checkImage, {
-          x: 308,
-          y: height - 336,
-          width: 12,
-          height: 12,
-        });
-      }
-
-      //ลาครั้งสุดท้ายตั่งแต่วันที่
-      const parsedlastLeaveStartDate = parseDateToThai(data.lastLeaveStartDate);
-      firstPage.drawText(
-        `${parsedlastLeaveStartDate.day} ${parsedlastLeaveStartDate.monthText} ${parsedlastLeaveStartDate.year}`,
-        {
-          x: 460,
-          y: height - 337,
-          size: 14,
-          font: customFont,
-        }
-      );
-
-      //ถึงวันที่
-      const parsedlastLeaveEndDate = parseDateToThai(data.lastLeaveEndDate);
-      firstPage.drawText(
-        `${parsedlastLeaveEndDate.day} ${parsedlastLeaveEndDate.monthText} ${parsedlastLeaveEndDate.year}`,
-        {
-          x: 108,
-          y: height - 354,
-          size: 14,
-          font: customFont,
-        }
-      );
-
-      //มีกำหนด
-      firstPage.drawText(`${data.lastLeaveThisTime}`, {
-        x: 235,
-        y: height - 354,
-        size: 14,
-        font: customFont,
-      });
-
-      //ในระหว่างลา จะติดต่อได้ที่
-      const contactLines = wrapTextStrictMaxLines(
-        data.contact,
-        customFont,
-        14, // fontSize
-        140, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY = height - 354;
-
-      contactLines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 410 : 70, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //เบอร์โทรศัพท์
-      firstPage.drawText(`${data.phone}`, {
-        x: 410,
-        y: height - 373,
-        size: 14,
-        font: customFont,
-      });
-
-      //ลายเซ็น
-      firstPage.drawText(`${data.signature}`, {
-        x: 360,
-        y: height - 434,
-        size: 14,
-        font: customFont,
-      });
-
-      //ชื่อ
-      firstPage.drawText(`${data.name}`, {
-        x: 350,
-        y: height - 452,
-        size: 14,
-        font: customFont,
-      });
-
-      //ความเห็นผูบังคับบัญชา1
-      const commentApprover1Lines = wrapTextStrictMaxLines(
-        data.commentApprover1,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY2 = height - 494;
-
-      commentApprover1Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 350 : 350, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY2 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //ลายเซ็น1
-      firstPage.drawText(`${data.signatureApprover1}`, {
-        x: 400,
-        y: height - 534,
-        size: 14,
-        font: customFont,
-      });
-
-      //ตำแหน่ง1
-      firstPage.drawText(`${data.positionApprover1}`, {
-        x: 400,
-        y: height - 554,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่1
-      const dateApprover1 = parseDateToThai(data.DateApprover1);
-      firstPage.drawText(dateApprover1.day, {
-        x: 370,
-        y: height - 572,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover1.monthText, {
-        x: 415,
-        y: height - 572,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover1.year, {
-        x: 480,
-        y: height - 572,
-        size: 14,
-        font: customFont,
-      });
-
-      //ความเห็นผูบังคับบัญชา2
-      const commentApprover2Lines = wrapTextStrictMaxLines(
-        data.commentApprover2,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY3 = height - 614;
-
-      commentApprover2Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 350 : 350, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY3 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //ลายเซ็น ผูบังคับบัญชา2
-      firstPage.drawText(`${data.signatureApprover2}`, {
-        x: 400,
-        y: height - 654,
-        size: 14,
-        font: customFont,
-      });
-
-      //ตำแหน่ง2
-      firstPage.drawText(`${data.positionApprover2}`, {
-        x: 400,
-        y: height - 674,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่2
-      const dateApprover2 = parseDateToThai(data.DateApprover2);
-      firstPage.drawText(dateApprover2.day, {
-        x: 370,
-        y: height - 693,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover2.monthText, {
-        x: 415,
-        y: height - 693,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover2.year, {
-        x: 480,
-        y: height - 693,
-        size: 14,
-        font: customFont,
-      });
-
-      //ความเห็นผูบังคับบัญชา3
-      const commentApprover3Lines = wrapTextStrictMaxLines(
-        data.commentApprover3,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY4 = height - 734;
-
-      commentApprover3Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 350 : 350, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY4 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //ลายเซ็น ผูบังคับบัญชา3
-      firstPage.drawText(`${data.signatureApprover3}`, {
-        x: 400,
-        y: height - 776,
-        size: 14,
-        font: customFont,
-      });
-
-      //ตำแหน่ง2
-      firstPage.drawText(`${data.positionApprover3}`, {
-        x: 400,
-        y: height - 795,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่3
-      const dateApprover3 = parseDateToThai(data.DateApprover3);
-      firstPage.drawText(dateApprover3.day, {
-        x: 370,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover3.monthText, {
-        x: 415,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover3.year, {
-        x: 480,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-
-      //ลายเซ็น ผู้ตรวจสอบ
-      firstPage.drawText(`${data.signatureVerifier}`, {
-        x: 140,
-        y: height - 630,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่ ผู้ตรวจสอบ
-      const dateVerifier = parseDateToThai(data.DateVerifier);
-      firstPage.drawText(dateVerifier.day, {
-        x: 128,
-        y: height - 687,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateVerifier.monthText, {
-        x: 152,
-        y: height - 687,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateVerifier.year, {
-        x: 200,
-        y: height - 687,
-        size: 14,
-        font: customFont,
-      });
-
-      //คำสั่ง (ยังไม่เสร็จ)
-      firstPage.drawImage(checkImage, {
+    // command
+    const drawCommandCheckboxs = (page) => {
+      // คำสั่งยังไม่แยก case
+      page.drawImage(checkImage, {
         x: 181,
         y: height - 716,
         width: 12,
         height: 12,
       });
-      firstPage.drawImage(checkImage, {
+      page.drawImage(checkImage, {
         x: 109,
         y: height - 716,
         width: 12,
         height: 12,
       });
+    };
 
-      //ความเห็นผูบังคับบัญชา4
-      const commentApprover4Lines = wrapTextStrictMaxLines(
-        data.commentApprover4,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
+    // --------------------- function for sick + personnal ------------------
+    const drawSickOrPersonnalForm = (page, data, typeId) => {
+      const isSick = typeId === 1;
 
-      let startY5 = height - 734;
-
-      commentApprover4Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 80 : 80, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY5 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //ลายเซ็น ผูบังคับบัญชา4
-      firstPage.drawText(`${data.signatureApprover4}`, {
-        x: 140,
-        y: height - 776,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่4
-      const dateApprover4 = parseDateToThai(data.DateApprover4);
-      firstPage.drawText(dateApprover4.day, {
-        x: 100,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover4.monthText, {
-        x: 140,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover4.year, {
-        x: 220,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-
-      firstPage.drawText(`${data.sickLeaved}`, {
-        x: 150,
-        y: height - 550,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`${data.thisTime}`, {
-        x: 200,
-        y: height - 550,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`${Number(data.sickLeaved) + Number(data.total)}`, {
-        x: 250,
-        y: height - 550,
-        size: 14,
-        font: customFont,
-      });
-
-      //ยังไม่เสร็จ
-
-      firstPage.drawText(`${data.personalLeaved}`, {
-        x: 150,
-        y: height - 570,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`-`, {
-        x: 200,
-        y: height - 570,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`${data.personalLeaved}`, {
-        x: 250,
-        y: height - 570,
-        size: 14,
-        font: customFont,
-      });
-
-      //ยังไม่เสร็จ
-
-      firstPage.drawText(`-`, {
-        x: 150,
-        y: height - 590,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`-`, {
-        x: 200,
-        y: height - 590,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`-`, {
-        x: 250,
-        y: height - 590,
-        size: 14,
-        font: customFont,
-      });
-
-      //ลาป่วย--------------------------------------
-    } else if (leaveTypeId === 3) {
-      // ลากิจ--------------------------------------
-      // เขียนที่
-      firstPage.drawText(`${data.documentNumber}`, {
+      // ที่ 
+      page.drawText(`${data.documentNumber}`, {
         x: 470,
         y: height - 43,
         size: 14,
         font: customFont,
       });
 
-      //วันที่
+      // วันที่ 
       const documentDate = parseDateToThai(data.documentDate);
-      firstPage.drawText(documentDate.day, {
-        x: 382,
-        y: height - 62,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(documentDate.monthText, {
-        x: 440,
-        y: height - 62,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(documentDate.year, {
-        x: 525,
-        y: height - 62,
-        size: 14,
-        font: customFont,
-      });
+      drawDateTriple(page, documentDate, height - 62, 382, 440, 525);
 
-      //เรื่อง
-      firstPage.drawText(`${data.title}`, {
+      // เรื่อง
+      page.drawText(`${data.title}`, {
         x: 150,
         y: height - 80,
         size: 14,
         font: customFont,
       });
 
-      //ข้าพเจ้า
-      firstPage.drawText(`${data.name}`, {
+      // ข้าพเจ้า / ตำแหน่ง
+      page.drawText(`${data.name}`, {
         x: 180,
         y: height - 122,
         size: 14,
         font: customFont,
       });
-
-      //ตำแหน่ง
-      firstPage.drawText(`${data.position}`, {
+      page.drawText(`${data.position}`, {
         x: 400,
         y: height - 122,
         size: 14,
         font: customFont,
       });
 
-      //สังกัด
-      if (data.organizationId === 1) {
-        firstPage.drawImage(checkImage, {
-          x: 246,
-          y: height - 142,
-          width: 12,
-          height: 12,
-        });
-      } else if (data.organizationId === 2) {
-        firstPage.drawImage(checkImage, {
-          x: 123,
-          y: height - 142,
-          width: 12,
-          height: 12,
-        });
-      } else if (data.organizationId === 3) {
-        firstPage.drawImage(checkImage, {
-          x: 349,
-          y: height - 142,
-          width: 12,
-          height: 12,
-        });
-      } else if (data.organizationId === 4) {
-        firstPage.drawImage(checkImage, {
-          x: 124,
-          y: height - 161,
-          width: 12,
-          height: 12,
-        });
-      }
+      // สังกัด
+      drawOrganizationCheckboxs(page, data.organizationId);
 
-      //ประเภทบุคลากร
-      firstPage.drawImage(checkImage, {
-        x: 124,
-        y: height - 192,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 124,
-        y: height - 211,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 124,
-        y: height - 230,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 209,
-        y: height - 192,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 396,
-        y: height - 192,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 395,
-        y: height - 211,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 395,
-        y: height - 230,
-        width: 12,
-        height: 12,
-      });
+      // ประเภทบุคลากร
+      drawPersonnelCheckboxs(page, data);
 
-      //ขอลา
-      if (leaveTypeId === 1) {
-        firstPage.drawImage(checkImage, {
-          x: 122,
-          y: height - 261,
-          width: 12,
-          height: 12,
-        });
-      } else if (leaveTypeId === 3) {
-        firstPage.drawImage(checkImage, {
-          x: 122,
-          y: height - 280,
-          width: 12,
-          height: 12,
-        });
-      } else if (leaveTypeId === 4) {
-        firstPage.drawImage(checkImage, {
-          x: 122,
-          y: height - 299,
-          width: 12,
-          height: 12,
-        });
-      }
-      //เนื่องจาก
-      firstPage.drawText(`${data.reason}`, {
+      // ประเภทการลา (ป่วย / กิจ / พักผ่อน)
+      drawLeaveTypeCheckboxs(page, typeId);
+
+      // เนื่องจาก
+      page.drawText(`${data.reason}`, {
         x: 240,
         y: height - 283,
         size: 14,
         font: customFont,
       });
 
-      //ตั้งแต่วันที่
+      // ช่วงวันที่ลา
       const start = parseDateToThai(data.startDate);
-      firstPage.drawText(start.day, {
-        x: 130,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(start.monthText, {
-        x: 200,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(start.year, {
-        x: 296,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-
-      //ถึงวันที่
       const end = parseDateToThai(data.endDate);
-      firstPage.drawText(end.day, {
-        x: 368,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(end.monthText, {
-        x: 420,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(end.year, {
-        x: 500,
-        y: height - 318,
-        size: 14,
-        font: customFont,
-      });
 
-      //มีกำหนด
-      firstPage.drawText(`${data.total}`, {
+      drawDateTriple(page, start, height - 318, 130, 200, 296);
+      drawDateTriple(page, end, height - 318, 368, 420, 500);
+
+      // มีกำหนด (สำหรับลาป่วยใช้ thisTime, ลากิจใช้ total ปล.ยังไม่เสร็จ data)
+      page.drawText(`${isSick ? data.thisTime : data.total}`, {
         x: 115,
         y: height - 337,
         size: 14,
         font: customFont,
       });
 
-      //ข้าพเจ้าได้ลา
-      if (leaveTypeId === 1) {
-        firstPage.drawImage(checkImage, {
+      // ข้าพเจ้าได้ลา (ช่องสถิติลา)
+      if (typeId === 1) {
+        page.drawImage(checkImage, {
           x: 204,
           y: height - 336,
           width: 12,
           height: 12,
         });
-      } else if (leaveTypeId === 3) {
-        firstPage.drawImage(checkImage, {
+      } else if (typeId === 3) {
+        page.drawImage(checkImage, {
           x: 243,
-          y: height - 336,
-          width: 12,
-          height: 12,
-        });
-      } else if (leaveTypeId === 4) {
-        firstPage.drawImage(checkImage, {
-          x: 308,
           y: height - 336,
           width: 12,
           height: 12,
         });
       }
 
-      //ลาครั้งสุดท้ายตั่งแต่วันที่
-      const parsedlastLeaveStartDate = parseDateToThai(data.lastLeaveStartDate);
-      firstPage.drawText(
-        `${parsedlastLeaveStartDate.day} ${parsedlastLeaveStartDate.monthText} ${parsedlastLeaveStartDate.year}`,
+      // ลาครั้งสุดท้าย ตั้งแต่วันที่ ... ถึงวันที่ ...
+      const lastStart = parseDateToThai(data.lastLeaveStartDate);
+      const lastEnd = parseDateToThai(data.lastLeaveEndDate);
+
+      page.drawText(
+        `${lastStart.day} ${lastStart.monthText} ${lastStart.year}`,
         {
           x: 460,
           y: height - 337,
@@ -1116,10 +628,8 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         }
       );
 
-      //ถึงวันที่
-      const parsedlastLeaveEndDate = parseDateToThai(data.lastLeaveStartDate);
-      firstPage.drawText(
-        `${parsedlastLeaveEndDate.day} ${parsedlastLeaveEndDate.monthText} ${parsedlastLeaveEndDate.year}`,
+      page.drawText(
+        `${lastEnd.day} ${lastEnd.monthText} ${lastEnd.year}`,
         {
           x: 108,
           y: height - 354,
@@ -1128,392 +638,110 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         }
       );
 
-      //มีกำหนด
-      firstPage.drawText(`${data.lastLeaveTotal}`, {
-        x: 235,
-        y: height - 354,
-        size: 14,
-        font: customFont,
-      });
-
-      //ในระหว่างลา จะติดต่อได้ที่
-      const contactLines = wrapTextStrictMaxLines(
-        data.contact,
-        customFont,
-        14, // fontSize
-        140, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY = height - 354;
-
-      contactLines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 410 : 70, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY - i * 18,
+      // มีกำหนด (ของช่วงเวลาครั้งล่าสุด) ยังไม่เสร็จ data
+      page.drawText(
+        `${isSick ? data.lastLeaveThisTime : data.lastLeaveTotal}`,
+        {
+          x: 235,
+          y: height - 354,
           size: 14,
           font: customFont,
-        });
-      });
+        }
+      );
 
-      //เบอร์โทรศัพท์
-      firstPage.drawText(`${data.phone}`, {
+      // ในระหว่างลา ติดต่อได้ที่
+      drawContactBlock(page, data.contact);
+
+      // เบอร์โทรศัพท์
+      page.drawText(`${data.phone}`, {
         x: 410,
         y: height - 373,
-        size: 14,
+        size: 14, 
         font: customFont,
       });
 
-      //ลายเซ็น
-      firstPage.drawText(`${data.signature}`, {
+      // ลายเซ็นผู้ลา + ชื่อ
+      page.drawText(`${data.signature}`, {
         x: 360,
-        y: height - 434,
+        y: height - 434, 
         size: 14,
         font: customFont,
       });
-
-      //ชื่อ
-      firstPage.drawText(`${data.name}`, {
-        x: 350,
+      page.drawText(`${data.name}`, {
+        x: 350, 
         y: height - 452,
         size: 14,
         font: customFont,
       });
 
-      //ความเห็นผูบังคับบัญชา1
-      const commentApprover1Lines = wrapTextStrictMaxLines(
-        data.commentApprover1,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
+      // ความเห็นผู้บังคับบัญชา 1-3 (ข้อความ)
+      drawCommentBlock(page, data.commentApprover1, height - 494);
+      drawCommentBlock(page, data.commentApprover2, height - 614);
+      drawCommentBlock(page, data.commentApprover3, height - 734);
+
+      // ลายเซ็น / ตำแหน่ง / วันที่ ผู้บังคับบัญชา 1-3
+      drawApproverSignature(
+        page,
+        data.signatureApprover1,
+        data.positionApprover1,
+        data.DateApprover1,
+        534
+      );
+      drawApproverSignature(
+        page,
+        data.signatureApprover2,
+        data.positionApprover2,
+        data.DateApprover2,
+        654
+      );
+      drawApproverSignature(
+        page,
+        data.signatureApprover3,
+        data.positionApprover3,
+        data.DateApprover3,
+        775
       );
 
-      let startY2 = height - 494;
+      // ผู้ตรวจสอบ
+      drawVerifierBlock(page, data.signatureVerifier, data.DateVerifier);
 
-      commentApprover1Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 350 : 350, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY2 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
+      // คำสั่ง (ผ่าน / ไม่ผ่าน)
+      drawCommandCheckboxs(page);
 
-      //ลายเซ็น1
-      firstPage.drawText(`${data.signatureApprover1}`, {
-        x: 400,
-        y: height - 534,
-        size: 14,
-        font: customFont,
-      });
+      // ความเห็น ผบ. 4 + ลายเซ็น + วันที่
+      drawCommentBlockLeft(page, data.commentApprover4, height - 734);
 
-      //ตำแหน่ง1
-      firstPage.drawText(`${data.positionApprover1}`, {
-        x: 400,
-        y: height - 554,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่1
-      const dateApprover1 = parseDateToThai(data.DateApprover1);
-      firstPage.drawText(dateApprover1.day, {
-        x: 370,
-        y: height - 572,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover1.monthText, {
-        x: 415,
-        y: height - 572,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover1.year, {
-        x: 480,
-        y: height - 572,
-        size: 14,
-        font: customFont,
-      });
-
-      //ความเห็นผูบังคับบัญชา2
-      const commentApprover2Lines = wrapTextStrictMaxLines(
-        data.commentApprover2,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY3 = height - 614;
-
-      commentApprover2Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 350 : 350, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY3 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //ลายเซ็น ผูบังคับบัญชา2
-      firstPage.drawText(`${data.signatureApprover2}`, {
-        x: 400,
-        y: height - 654,
-        size: 14,
-        font: customFont,
-      });
-
-      //ตำแหน่ง2
-      firstPage.drawText(`${data.positionApprover2}`, {
-        x: 400,
-        y: height - 674,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่2
-      const dateApprover2 = parseDateToThai(data.DateApprover2);
-      firstPage.drawText(dateApprover2.day, {
-        x: 370,
-        y: height - 693,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover2.monthText, {
-        x: 415,
-        y: height - 693,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover2.year, {
-        x: 480,
-        y: height - 693,
-        size: 14,
-        font: customFont,
-      });
-
-      //ความเห็นผูบังคับบัญชา3
-      const commentApprover3Lines = wrapTextStrictMaxLines(
-        data.commentApprover3,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY4 = height - 734;
-
-      commentApprover3Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 350 : 350, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY4 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //ลายเซ็น ผูบังคับบัญชา3
-      firstPage.drawText(`${data.signatureApprover3}`, {
-        x: 400,
-        y: height - 776,
-        size: 14,
-        font: customFont,
-      });
-
-      //ตำแหน่ง2
-      firstPage.drawText(`${data.positionApprover3}`, {
-        x: 400,
-        y: height - 795,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่3
-      const dateApprover3 = parseDateToThai(data.DateApprover3);
-      firstPage.drawText(dateApprover3.day, {
-        x: 370,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover3.monthText, {
-        x: 415,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover3.year, {
-        x: 480,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-
-      //ลายเซ็น ผู้ตรวจสอบ
-      firstPage.drawText(`${data.signatureVerifier}`, {
-        x: 140,
-        y: height - 630,
-        size: 14,
-        font: customFont,
-      });
-
-      //วันที่ ผู้ตรวจสอบ
-      const dateVerifier = parseDateToThai(data.DateVerifier);
-      firstPage.drawText(dateVerifier.day, {
-        x: 128,
-        y: height - 687,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateVerifier.monthText, {
-        x: 152,
-        y: height - 687,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateVerifier.year, {
-        x: 200,
-        y: height - 687,
-        size: 14,
-        font: customFont,
-      });
-
-      //คำสั่ง
-      firstPage.drawImage(checkImage, {
-        x: 181,
-        y: height - 716,
-        width: 12,
-        height: 12,
-      });
-      firstPage.drawImage(checkImage, {
-        x: 109,
-        y: height - 716,
-        width: 12,
-        height: 12,
-      });
-
-      //ความเห็นผูบังคับบัญชา4
-      const commentApprover4Lines = wrapTextStrictMaxLines(
-        data.commentApprover4,
-        customFont,
-        14, // fontSize
-        160, // maxWidth ที่คุณต้องการ
-        2 // จำนวนบรรทัดสูงสุด
-      );
-
-      let startY5 = height - 734;
-
-      commentApprover4Lines.forEach((line, i) => {
-        firstPage.drawText(line, {
-          x: i === 0 ? 80 : 80, // แถวแรกอยู่ขวา แถวถัดไปอยู่ซ้าย
-          y: startY5 - i * 18,
-          size: 14,
-          font: customFont,
-        });
-      });
-
-      //ลายเซ็น ผูบังคับบัญชา4
-      firstPage.drawText(`${data.signatureApprover4}`, {
+      page.drawText(`${data.signatureApprover4}`, {
         x: 140,
         y: height - 776,
         size: 14,
         font: customFont,
       });
 
-      //วันที่4
       const dateApprover4 = parseDateToThai(data.DateApprover4);
-      firstPage.drawText(dateApprover4.day, {
-        x: 100,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover4.monthText, {
-        x: 140,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(dateApprover4.year, {
-        x: 220,
-        y: height - 813,
-        size: 14,
-        font: customFont,
-      });
+      drawDateTriple(page, dateApprover4, height - 813, 100, 140, 220);
 
-      firstPage.drawText(`${data.sickLeaved}`, {
-        x: 150,
-        y: height - 550,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`${data.total}`, {
-        x: 200,
-        y: height - 550,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`${Number(data.sickLeaved) + Number(data.total)}`, {
-        x: 250,
-        y: height - 550,
-        size: 14,
-        font: customFont,
-      });
+      // ส่วนสรุปสถิติด้านล่าง
+      drawSummaryCounters(page, data, isSick);
+    };
 
-      firstPage.drawText(`${data.personalLeaved}`, {
-        x: 150,
-        y: height - 570,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`-`, {
-        x: 200,
-        y: height - 570,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`${data.personalLeaved}`, {
-        x: 250,
-        y: height - 570,
-        size: 14,
-        font: customFont,
-      });
+      // -------------------- เลือกวาดตามประเภทการลา ------------------
 
-      firstPage.drawText(`-`, {
-        x: 150,
-        y: height - 590,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`-`, {
-        x: 200,
-        y: height - 590,
-        size: 14,
-        font: customFont,
-      });
-      firstPage.drawText(`-`, {
-        x: 250,
-        y: height - 590,
-        size: 14,
-        font: customFont,
-      });
+      if (leaveTypeId === 1 || leaveTypeId === 3) {
+        // sick + personnal --> same form
+        drawSickOrPersonnalForm(firstPage, data, leaveTypeId);
+      } else if (leaveTypeId === 4) {
+        // vacation (placeholder) ยังไม่เสร็จ
+        firstPage.drawText(`test`, {
+          x: 50,
+          y: height - 200,
+          size: 14,
+          font: customFont,
+        });
+      }
 
-      // ลากิจ--------------------------------------
-    } else if (leaveTypeId === 4) {
-      // ลาพักผ่อน----------------------------------
-      firstPage.drawText(`test`, {
-        x: 50,
-        y: height - 200,
-        size: 14,
-        font: customFont,
-      });
-      // ลาพักผ่อน----------------------------------
-    }
-
-    const pdfBytes = await pdfDoc.save();
-    fs.writeFileSync(outputPath, pdfBytes);
+      const pdfBytes = await pdfDoc.save();
+      fs.writeFileSync(outputPath, pdfBytes);
 
     console.log(`ไฟล์ PDF ถูกสร้างที่: ${outputPath}`);
   } catch (err) {

@@ -33,197 +33,99 @@ const templateMap = {
   4: "vacation_template.pdf",
 };
 
+const ALLOWED_LEAVE_TYPES = new Set([1, 3, 4]);
+
 exports.downloadReport = async (req, res) => {
-  const leaveTypeId = Number(req.body.leaveTypeId);
-  const userId = req.user.id;
-  const user = await ReportService.downloadReport(userId);
-  const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
-  const currentLeave = await LeaveRequestService.getLeaveRequestsByUser(userId);
-
-  const sickBalance = balances.find((b) => b.leaveTypeId === 1);
-  const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
-
-  const personalBalance = balances.find((b) => b.leaveTypeId === 3);
-  const personalLeaved = personalBalance ? personalBalance.usedDays : 0;
-
-  // console.log("User data:", user);
-  // console.log("Leave balance:", balances);
-
-  const organizationId =
-    user?.department?.organizationId || "ไม่พบข้อมูลองค์กร";
-  // console.log(leaveTypeId);
-  if (!Object.keys(templateMap).map(Number).includes(leaveTypeId)) {
-    return res
-      .status(400)
-      .json({ error: "leaveTypeId ต้อง 1 หรือ 3 หรือ 4 เท่านั้น" });
-  }
-
-  let data = {};
-  switch (leaveTypeId) {
-    case 1: // ลาป่วย
-      if (!req.body.name || !req.body.description || !req.body.doctorName) {
-        return res.status(400).json({ error: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-      }
-      data = {
-        documentNumber: req.body.documentNumber || "ไม่ระบุ",
-        documentDate: req.body.documentDate || "ไม่ระบุ",
-        title: req.body.title || "ไม่ระบุ",
-        name: req.body.name || "ไม่ระบุ",
-        position: req.body.position || "ไม่ระบุ",
-        organizationId: organizationId || "ไม่ระบุ",
-        personalType: req.body.personalType || "ไม่ระบุ",
-        employmentType: user?.employmentType || "ไม่ระบุ",
-        leaveType: req.body.leaveType || "ไม่ระบุ",
-        reason: req.body.reason || "ไม่ระบุ",
-        startDate: req.body.startDate || "ไม่ระบุ",
-        endDate: req.body.endDate || "ไม่ระบุ",
-        total: req.body.total || "ไม่ระบุ",
-        thisTime: req.body.thisTime || "ไม่ระบุ",
-        lastLeave: req.body.lastLeave || "ไม่ระบุ",
-        lastLeaveStartDate: req.body.lastLeaveStartDate || "ไม่ระบุ",
-        lastLeaveEndDate: req.body.lastLeaveEndDate || "ไม่ระบุ",
-        lastLeaveTotal: req.body.lastLeaveTotal || "ไม่ระบุ",
-        lastLeaveThisTime: req.body.lastLeaveThisTime || "ไม่ระบุ",
-        contact: req.body.contact || "ไม่ระบุ",
-        phone: req.body.phone || "ไม่ระบุ",
-        signature: req.body.signature || "ไม่ระบุ",
-        commentApprover1: req.body.commentApprover1 || "ไม่ระบุ",
-        commentApprover2: req.body.commentApprover2 || "ไม่ระบุ",
-        commentApprover3: req.body.commentApprover3 || "ไม่ระบุ",
-        commentApprover4: req.body.commentApprover4 || "ไม่ระบุ",
-        signatureVerifier: req.body.signatureVerifier || "ไม่ระบุ",
-        signatureApprover1: req.body.signatureApprover1 || "ไม่ระบุ",
-        signatureApprover2: req.body.signatureApprover2 || "ไม่ระบุ",
-        signatureApprover3: req.body.signatureApprover3 || "ไม่ระบุ",
-        signatureApprover4: req.body.signatureApprover4 || "ไม่ระบุ",
-        positionApprover1: req.body.positionApprover1 || "ไม่ระบุ",
-        positionApprover2: req.body.positionApprover2 || "ไม่ระบุ",
-        positionApprover3: req.body.positionApprover3 || "ไม่ระบุ",
-        DateVerifier: req.body.DateVerifier || "ไม่ระบุ",
-        DateApprover1: req.body.DateApprover1 || "ไม่ระบุ",
-        DateApprover2: req.body.DateApprover2 || "ไม่ระบุ",
-        DateApprover3: req.body.DateApprover3 || "ไม่ระบุ",
-        DateApprover4: req.body.DateApprover4 || "ไม่ระบุ",
-        isApprove: req.body.isApprove || "ไม่ระบุ",
-        date: req.body.date || new Date().toLocaleDateString(),
-        sickLeaved: sickLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
-        personalLeaved: personalLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
-      };
-      console.log("Sick leave data:", data);
-      break;
-
-    case 3: // ลากิจ
-      if (!req.body.name || !req.body.description || !req.body.reason) {
-        return res.status(400).json({ error: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-      }
-      data = {
-        documentNumber: req.body.documentNumber || "ไม่ระบุ",
-        documentDate: req.body.documentDate || "ไม่ระบุ",
-        title: req.body.title || "ไม่ระบุ",
-        name: req.body.name || "ไม่ระบุ",
-        position: req.body.position || "ไม่ระบุ",
-        organizationId: organizationId || "ไม่ระบุ",
-        personalType: req.body.personalType || "ไม่ระบุ",
-        employmentType: user?.employmentType || "ไม่ระบุ",
-        leaveType: req.body.leaveType || "ไม่ระบุ",
-        reason: req.body.reason || "ไม่ระบุ",
-        startDate: req.body.startDate || "ไม่ระบุ",
-        endDate: req.body.endDate || "ไม่ระบุ",
-        total: req.body.total || "ไม่ระบุ",
-        thisTime: req.body.thisTime || "ไม่ระบุ",
-        lastLeave: req.body.lastLeave || "ไม่ระบุ",
-        lastLeaveStartDate: req.body.lastLeaveStartDate || "ไม่ระบุ",
-        lastLeaveEndDate: req.body.lastLeaveEndDate || "ไม่ระบุ",
-        lastLeaveTotal: req.body.lastLeaveTotal || "ไม่ระบุ",
-        lastLeaveThisTime: req.body.lastLeaveThisTime || "ไม่ระบุ",
-        contact: req.body.contact || "ไม่ระบุ",
-        phone: req.body.phone || "ไม่ระบุ",
-        signature: req.body.signature || "ไม่ระบุ",
-        commentApprover1: req.body.commentApprover1 || "ไม่ระบุ",
-        commentApprover2: req.body.commentApprover2 || "ไม่ระบุ",
-        commentApprover3: req.body.commentApprover3 || "ไม่ระบุ",
-        commentApprover4: req.body.commentApprover4 || "ไม่ระบุ",
-        signatureVerifier: req.body.signatureVerifier || "ไม่ระบุ",
-        signatureApprover1: req.body.signatureApprover1 || "ไม่ระบุ",
-        signatureApprover2: req.body.signatureApprover2 || "ไม่ระบุ",
-        signatureApprover3: req.body.signatureApprover3 || "ไม่ระบุ",
-        signatureApprover4: req.body.signatureApprover4 || "ไม่ระบุ",
-        positionApprover1: req.body.positionApprover1 || "ไม่ระบุ",
-        positionApprover2: req.body.positionApprover2 || "ไม่ระบุ",
-        positionApprover3: req.body.positionApprover3 || "ไม่ระบุ",
-        DateVerifier: req.body.DateVerifier || "ไม่ระบุ",
-        DateApprover1: req.body.DateApprover1 || "ไม่ระบุ",
-        DateApprover2: req.body.DateApprover2 || "ไม่ระบุ",
-        DateApprover3: req.body.DateApprover3 || "ไม่ระบุ",
-        DateApprover4: req.body.DateApprover4 || "ไม่ระบุ",
-        isApprove: req.body.isApprove || "ไม่ระบุ",
-        date: req.body.date || new Date().toLocaleDateString(),
-        sickLeaved: sickLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
-        personalLeaved: personalLeaved, // จำนวนวันที่ลาป่วยที่ใช้ไป
-      };
-      console.log("Personal leave data:", data);
-      break;
-
-    case 4: // ลาพักร้อน
-      if (!req.body.name || !req.body.startDate || !req.body.endDate) {
-        return res.status(400).json({ error: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-      }
-      data = {
-        documentNumber: req.body.documentNumber || "ไม่ระบุ",
-        documentDate: req.body.documentDate || "ไม่ระบุ",
-        title: req.body.title || "ไม่ระบุ",
-        name: req.body.name || "ไม่ระบุ",
-        position: req.body.position || "ไม่ระบุ",
-        organization: req.body.organization || "ไม่ระบุ",
-        personalType: req.body.personalType || "ไม่ระบุ",
-        employmentType: user?.employmentType || "ไม่ระบุ",
-        leaveType: req.body.leaveType || "ไม่ระบุ",
-        reason: req.body.reason || "ไม่ระบุ",
-        startDate: req.body.startDate || "ไม่ระบุ",
-        endDate: req.body.endDate || "ไม่ระบุ",
-        total: req.body.total || "ไม่ระบุ",
-        thisTime: req.body.thisTime || "ไม่ระบุ",
-        lastLeave: req.body.lastLeave || "ไม่ระบุ",
-        lastLeaveStartDate: req.body.lastLeaveStartDate || "ไม่ระบุ",
-        lastLeaveEndDate: req.body.lastLeaveEndDate || "ไม่ระบุ",
-        lastLeaveTotal: req.body.lastLeaveTotal || "ไม่ระบุ",
-        lastLeaveThisTime: req.body.lastLeaveThisTime || "ไม่ระบุ",
-        contact: req.body.contact || "ไม่ระบุ",
-        phone: req.body.phone || "ไม่ระบุ",
-        signature: req.body.signature || "ไม่ระบุ",
-        commentApprover1: req.body.commentApprover1 || "ไม่ระบุ",
-        commentApprover2: req.body.commentApprover2 || "ไม่ระบุ",
-        commentApprover3: req.body.commentApprover3 || "ไม่ระบุ",
-        commentApprover4: req.body.commentApprover4 || "ไม่ระบุ",
-        signatureVerifier: req.body.signatureVerifier || "ไม่ระบุ",
-        signatureApprover1: req.body.signatureApprover1 || "ไม่ระบุ",
-        signatureApprover2: req.body.signatureApprover2 || "ไม่ระบุ",
-        signatureApprover3: req.body.signatureApprover3 || "ไม่ระบุ",
-        signatureApprover4: req.body.signatureApprover4 || "ไม่ระบุ",
-        positionApprover1: req.body.positionApprover1 || "ไม่ระบุ",
-        positionApprover2: req.body.positionApprover2 || "ไม่ระบุ",
-        positionApprover3: req.body.positionApprover3 || "ไม่ระบุ",
-        DateVerifier: req.body.DateVerifier || "ไม่ระบุ",
-        DateApprover1: req.body.DateApprover1 || "ไม่ระบุ",
-        DateApprover2: req.body.DateApprover2 || "ไม่ระบุ",
-        DateApprover3: req.body.DateApprover3 || "ไม่ระบุ",
-        DateApprover4: req.body.DateApprover4 || "ไม่ระบุ",
-        isApprove: req.body.isApprove || "ไม่ระบุ",
-
-        description: req.body.description,
-        date: req.body.date || new Date().toLocaleDateString(),
-        doctorName: req.body.doctorName,
-      };
-      console.log("Vacation leave data:", data);
-      break;
-  }
-
-  console.log("ข้อมูลที่ใช้สร้าง PDF:", data);
-  const templatePath = `./templates/${templateMap[leaveTypeId]}`;
-  const fileName = `report${Date.now()}.pdf`;
-  const outputPath = `./public/reports/${fileName}`;
-
   try {
+    const leaveTypeId = Number(req.body.leaveTypeId);
+    const userId = req.user.id;
+
+    if (!ALLOWED_LEAVE_TYPES.has(leaveTypeId)) {
+      return res
+        .status(400)
+        .json({ error: "leaveTypeId ต้อง 1 หรือ 3 หรือ 4 เท่านั้น" });
+    }
+
+    // ดึงข้อมูลผู้ใช้และยอดคงเหลือการลา
+    const user = await ReportService.downloadReport(userId);
+    const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
+    //const currentLeave = await LeaveRequestService.getLeaveRequestsByUser(userId);
+
+    const sickBalance = balances.find((b) => b.leaveTypeId === 1);
+    const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
+
+    const personalBalance = balances.find((b) => b.leaveTypeId === 3);
+    const personalLeaved = personalBalance ? personalBalance.usedDays : 0;
+
+    // console.log("User data:", user);
+    // console.log("Leave balance:", balances);
+
+    const organizationId =
+      user?.department?.organizationId || "ไม่พบข้อมูลองค์กร";
+    // console.log(leaveTypeId);
+    // if (!Object.keys(templateMap).map(Number).includes(leaveTypeId)) {
+    //   return res
+    //     .status(400)
+    //     .json({ error: "leaveTypeId ต้อง 1 หรือ 3 หรือ 4 เท่านั้น" });
+    // }
+
+    // base data
+    const data = {
+      documentNumber: req.body.documentNumber || "ไม่ระบุ",
+      documentDate: req.body.documentDate || "ไม่ระบุ",
+      title: req.body.title || "ไม่ระบุ",
+      name: req.body.name || "ไม่ระบุ",
+      position: req.body.position || "ไม่ระบุ",
+      personalType: req.body.personalType || "ไม่ระบุ",
+      employmentType: user?.employmentType || "ไม่ระบุ",
+      leaveType: req.body.leaveType || "ไม่ระบุ",
+      reason: req.body.reason || "ไม่ระบุ",
+      startDate: req.body.startDate || "ไม่ระบุ",
+      endDate: req.body.endDate || "ไม่ระบุ",
+      total: req.body.total || "ไม่ระบุ",
+      thisTime: req.body.thisTime || "ไม่ระบุ",
+      lastLeave: req.body.lastLeave || "ไม่ระบุ",
+      lastLeaveStartDate: req.body.lastLeaveStartDate || "ไม่ระบุ",
+      lastLeaveEndDate: req.body.lastLeaveEndDate || "ไม่ระบุ",
+      lastLeaveTotal: req.body.lastLeaveTotal || "ไม่ระบุ",
+      lastLeaveThisTime: req.body.lastLeaveThisTime || "ไม่ระบุ",
+      contact: req.body.contact || "ไม่ระบุ",
+      phone: req.body.phone || "ไม่ระบุ",
+      signature: req.body.signature || "ไม่ระบุ",
+      commentApprover1: req.body.commentApprover1 || "ไม่ระบุ",
+      commentApprover2: req.body.commentApprover2 || "ไม่ระบุ",
+      commentApprover3: req.body.commentApprover3 || "ไม่ระบุ",
+      commentApprover4: req.body.commentApprover4 || "ไม่ระบุ",
+      signatureVerifier: req.body.signatureVerifier || "ไม่ระบุ",
+      signatureApprover1: req.body.signatureApprover1 || "ไม่ระบุ",
+      signatureApprover2: req.body.signatureApprover2 || "ไม่ระบุ",
+      signatureApprover3: req.body.signatureApprover3 || "ไม่ระบุ",
+      signatureApprover4: req.body.signatureApprover4 || "ไม่ระบุ",
+      positionApprover1: req.body.positionApprover1 || "ไม่ระบุ",
+      positionApprover2: req.body.positionApprover2 || "ไม่ระบุ",
+      positionApprover3: req.body.positionApprover3 || "ไม่ระบุ",
+      DateVerifier: req.body.DateVerifier || "ไม่ระบุ",
+      DateApprover1: req.body.DateApprover1 || "ไม่ระบุ",
+      DateApprover2: req.body.DateApprover2 || "ไม่ระบุ",
+      DateApprover3: req.body.DateApprover3 || "ไม่ระบุ",
+      DateApprover4: req.body.DateApprover4 || "ไม่ระบุ",
+      isApprove: req.body.isApprove || "ไม่ระบุ",
+      date: req.body.date || new Date().toLocaleDateString(),
+
+      // ส่วนที่เคยต่างกัน เอามาใส่รวมกันได้เลย
+      organizationId: organizationId || "ไม่ระบุ",
+      organization: req.body.organization || "ไม่ระบุ", // ถ้า template ใช้ตัวนี้แทน
+      sickLeaved,
+      personalLeaved,
+      description: req.body.description || "ไม่ระบุ",
+    };
+    //con.
+
+    console.log("ข้อมูลที่ใช้สร้าง PDF:", data);
+    const templatePath = `./templates/${templateMap[leaveTypeId]}`;
+    const fileName = `report${Date.now()}.pdf`;
+    const outputPath = `./public/reports/${fileName}`;
+
     await fillPDFTemplate(data, templatePath, outputPath, leaveTypeId); // ส่ง leaveTypeId ไปด้วยถ้า template ต้องการจัดตำแหน่งต่างกัน
 
     //const safeName = data.name.replace(/[^\wก-๙\s\-]/gi, "").replace(/\s+/g, "_");
@@ -289,7 +191,7 @@ exports.reportData = async (req, res) => {
 // 📍 Export PDF หรือ Word
 exports.exportReport = async (req, res) => {
   try {
-    const {countReport, organizationId, startDate, endDate, format} = req.body;
+    const { countReport, organizationId, startDate, endDate, format } = req.body;
     if (!organizationId) {
       return res.status(400).json({ error: "กรุณาระบุ organizationId" });
     }
