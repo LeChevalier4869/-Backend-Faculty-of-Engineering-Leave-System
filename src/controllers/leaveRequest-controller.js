@@ -266,7 +266,7 @@ exports.getLastLeaveBefore = async (req, res) => {
         cutoff,
       );
     //debug
-    console.log("Debugging Leave request", lastLeave);
+    // console.log("Debugging Leave request", lastLeave);
     res.status(200).json({ data: lastLeave ?? null });
   } catch (err) {
     console.error("❌ Error:", err);

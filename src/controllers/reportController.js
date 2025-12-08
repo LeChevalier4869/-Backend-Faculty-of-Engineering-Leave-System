@@ -39,6 +39,7 @@ exports.downloadReport = async (req, res) => {
   try {
     const leaveTypeId = Number(req.body.leaveTypeId);
     const userId = req.user.id;
+    const { beforeDate } = req.body;
 
     if (!ALLOWED_LEAVE_TYPES.has(leaveTypeId)) {
       return res
@@ -46,16 +47,29 @@ exports.downloadReport = async (req, res) => {
         .json({ error: "leaveTypeId ต้อง 1 หรือ 3 หรือ 4 เท่านั้น" });
     }
 
+    const cutoff = beforeDate ? new Date(beforeDate) : new Date();
+
     // ดึงข้อมูลผู้ใช้และยอดคงเหลือการลา
     const user = await ReportService.downloadReport(userId);
     const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
+    const leaves = await LeaveRequestService.getRecentLeaveBefore(userId, cutoff)
+    // console.log("debug balances: ", balances);
+    console.log("debug leaves: ", leaves);
     //const currentLeave = await LeaveRequestService.getLeaveRequestsByUser(userId);
 
     const sickBalance = balances.find((b) => b.leaveTypeId === 1);
     const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
 
+    const sickLeaves = leaves.find((l) => l.leaveTypeId === 1);
+    const lastSickLeaved = sickLeaves ? sickLeaves.leavedDays : "-";
+    const sickLeaveTotal = sickLeaves ? sickLeaves.totalDays : "-";
+
     const personalBalance = balances.find((b) => b.leaveTypeId === 3);
     const personalLeaved = personalBalance ? personalBalance.usedDays : 0;
+
+    const personnalLeaves = leaves.find((l) => l.leaveTypeId === 3);
+    const lastPersonnalLeaved = personnalLeaves ? personnalLeaves.leavedDays : "-";
+    const personnalLeaveTotal = personnalLeaves ? personnalLeaves.totalDays : "-";
 
     // console.log("User data:", user);
     // console.log("Leave balance:", balances);
@@ -117,6 +131,10 @@ exports.downloadReport = async (req, res) => {
       organization: req.body.organization || "ไม่ระบุ", // ถ้า template ใช้ตัวนี้แทน
       sickLeaved,
       personalLeaved,
+      lastSickLeaved,
+      lastPersonnalLeaved,
+      sickLeaveTotal,
+      personnalLeaveTotal,
       description: req.body.description || "ไม่ระบุ",
     };
     //con.

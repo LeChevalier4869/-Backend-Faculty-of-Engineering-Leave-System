@@ -388,39 +388,39 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
     // summary counter
     const drawSummaryCounters = (page, data, isSick) => {
       // sick
-      page.drawText(`${data.sickLeaved}`, {
+      page.drawText(`${isSick ? data.lastSickLeaved : Number(data.sickLeaveTotal)}`, {
         x: 150,
         y: height - 550,
         size: 14,
         font: customFont,
       });
-      page.drawText(`${isSick ? data.thisTime : data.total}`, {
+      page.drawText(`${isSick ? data.thisTime : "-"}`, {
         x: 200,
         y: height - 550,
         size: 14,
         font: customFont,
       });
-      page.drawText(`${Number(data.sickLeaved) + Number(data.total)}`, {
+      page.drawText(`${data.sickLeaveTotal}`, {
         x: 250,
         y: height - 550,
         size: 14,
-        font: customFont,
+        font: customFont, 
       });
 
       // personal ยังไม่เสร็จ (data from frontend)
-      page.drawText(`${data.personalLeaved}`, {
+      page.drawText(`${isSick ? data.personnalLeaveTotal : data.lastPersonnalLeaved}`, {
         x: 150,
         y: height - 570,
         size: 14,
         font: customFont,
       });
-      page.drawText(`-`, {
+      page.drawText(`${isSick ? "-" : data.thisTime}`, {
         x: 200,
         y: height - 570,
         size: 14,
         font: customFont,
       });
-      page.drawText(`${data.personalLeaved}`, {
+      page.drawText(`${data.personnalLeaveTotal}`, {
         x: 250,
         y: height - 570,
         size: 14,
@@ -589,8 +589,8 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       drawDateTriple(page, start, height - 318, 130, 200, 296);
       drawDateTriple(page, end, height - 318, 368, 420, 500);
 
-      // มีกำหนด (สำหรับลาป่วยใช้ thisTime, ลากิจใช้ total ปล.ยังไม่เสร็จ data)
-      page.drawText(`${isSick ? data.thisTime : data.total}`, {
+      // มีกำหนด
+      page.drawText(`${data.thisTime}`, {
         x: 115,
         y: height - 337,
         size: 14,
@@ -638,9 +638,9 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         }
       );
 
-      // มีกำหนด (ของช่วงเวลาครั้งล่าสุด) ยังไม่เสร็จ data
+      // มีกำหนด (ของช่วงเวลาครั้งล่าสุด)
       page.drawText(
-        `${isSick ? data.lastLeaveThisTime : data.lastLeaveTotal}`,
+        `${data.lastLeaveThisTime}`,
         {
           x: 235,
           y: height - 354,

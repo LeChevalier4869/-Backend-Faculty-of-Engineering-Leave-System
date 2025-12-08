@@ -1637,6 +1637,27 @@ class LeaveRequestService {
       rejectedDetail: updatedDetail,
     };
   }
+
+  static async getRecentLeaveBefore(userId, beforeDate) {
+    const cutoff = new Date(beforeDate);
+    if (Number.isNaN(cutoff.getTime())) throw createError(400, "beforeDate is invalid");
+
+    return await prisma.leaveRequest.findMany({
+      where: {
+        userId: Number(userId),
+        status: "APPROVED",
+        startDate: { lte: cutoff },
+      },
+      orderBy: { startDate: "desc" },
+      select: {
+        id: true,
+        leaveTypeId: true,
+        leavedDays: true,
+        totalDays: true,
+        thisTimeDays: true,
+      },
+    });
+  }
 }
 
 module.exports = LeaveRequestService;
