@@ -219,6 +219,42 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
 
     // ---------------------- helper ------------------------
 
+    // for ลาพักผ่อน
+    const drawDebugGrid = (page) => {
+      const step = 50;
+      const size = 7;
+
+      for (let x = 0; x <= width; x += step) {
+        page.drawText(String(x), {
+          x: Math.min(x + 2, width - 20),
+          y: height - 14,
+          size,
+          font: customFont,
+        });
+        page.drawText(String(x), {
+          x: Math.min(x + 2, width - 20),
+          y: 2,
+          size,
+          font: customFont,
+        });
+      }
+
+      for (let y = 0; y <= height; y += step) {
+        page.drawText(String(y), {
+          x: 2,
+          y: Math.min(y + 2, height - 10),
+          size,
+          font: customFont,
+        });
+        page.drawText(String(y), {
+          x: Math.max(width - 28, 2),
+          y: Math.min(y + 2, height - 10),
+          size,
+          font: customFont,
+        });
+      }
+    };
+
     //วันที่ เดือน ปี
     const drawDateTriple = (page, parsed, y, xDay, xMonth, xYear) => {
       page.drawText(parsed.day, {
@@ -281,7 +317,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
     const drawLeaveTypeCheckboxs = (page, leaveTypeId) => {
       const typeId = Number(leaveTypeId);
 
-      // sick / personal / vacation
+      // sick / personal / คลอดบุุตร
       if (typeId === 1) {
         page.drawImage(checkImage, {
           x: 122,
@@ -296,7 +332,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
           width: 12,
           height: 12,
         });
-      } else if (typeId === 4) {
+      } else if (typeId === 2) {
         page.drawImage(checkImage, {
           x: 122,
           y: height - 299,
@@ -401,18 +437,18 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         font: customFont,
       });
       page.drawText(`${isSick
-        ? data.sickLeaveTotal === "-" 
+        ? data.sickLeaveTotal === "-"
           ? data.thisTime
           : data.sickLeaveTotal
         : data.sickLeaveTotal
-      }`, {
+        }`, {
         x: 250,
         y: height - 550,
         size: 14,
-        font: customFont, 
+        font: customFont,
       });
 
-      // personal ยังไม่เสร็จ (data from frontend)
+      // personal
       page.drawText(`${isSick ? data.personnalLeaveTotal : data.lastPersonnalLeaved}`, {
         x: 150,
         y: height - 570,
@@ -425,10 +461,10 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         size: 14,
         font: customFont,
       });
-      page.drawText(`${isSick 
-        ? data.personnalLeaveTotal 
-        : data.personnalLeaveTotal === "-" 
-          ? data.thisTime 
+      page.drawText(`${isSick
+        ? data.personnalLeaveTotal
+        : data.personnalLeaveTotal === "-"
+          ? data.thisTime
           : data.personnalLeaveTotal
         }`, {
         x: 250,
@@ -437,20 +473,20 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         font: customFont,
       });
 
-      // other leaves ยังไม่เสร็จ data(จาก DB)
-      page.drawText(`-`, {
+      // คลอดบุตร ยังไม่เสร็จ data(จาก DB)
+      page.drawText(`-`, { // data.maternityLeaved
         x: 150,
         y: height - 590,
         size: 14,
         font: customFont,
       });
-      page.drawText(`-`, {
+      page.drawText(`-`, { // data.thisTime
         x: 200,
         y: height - 590,
         size: 14,
         font: customFont,
       });
-      page.drawText(`-`, {
+      page.drawText(`-`, { // data.maternityLeaveTotal
         x: 250,
         y: height - 590,
         size: 14,
@@ -467,8 +503,6 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
           width: 12,
           height: 12,
         });
-      } else if (data.personalType === "ลูกจ้างประจำ") {
-        // ลูกจ้างประจำ (ยังไม่ได้ข้อสรุป) ยังไม่เสร็จ
       } else if (data.personalType === "พนักงานราชการ") {
         if (data.employmentType === "ACADEMIC") {
           page.drawImage(checkImage, {
@@ -511,7 +545,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
           });
         } else {
           page.drawImage(checkImage, {
-            x: 124, 
+            x: 124,
             y: height - 230,
             width: 12,
             height: 12,
@@ -523,23 +557,23 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
     // command
     const drawCommandCheckboxs = (page, data) => {
       data.isApprove === true
-      ?
-      page.drawImage(checkImage, {
-        x: 109,
-        y: height - 716,
-        width: 12,
-        height: 12,
-      })
-      :
-      page.drawImage(checkImage, {
-        x: 181,
-        y: height - 716,
-        width: 12,
-        height: 12,
-      });
+        ?
+        page.drawImage(checkImage, {
+          x: 109,
+          y: height - 716,
+          width: 12,
+          height: 12,
+        })
+        :
+        page.drawImage(checkImage, {
+          x: 181,
+          y: height - 716,
+          width: 12,
+          height: 12,
+        });
     };
 
-    // --------------------- function for sick + personnal ------------------
+    // --------------------- function for sick + personnal (Form) ------------------
     const drawSickOrPersonnalForm = (page, data, typeId) => {
       const isSick = typeId === 1;
 
@@ -583,7 +617,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       // ประเภทบุคลากร
       drawPersonnelCheckboxs(page, data);
 
-      // ประเภทการลา (ป่วย / กิจ / พักผ่อน)
+      // ประเภทการลา (ป่วย / กิจ / คลอดบุตร)
       drawLeaveTypeCheckboxs(page, typeId);
 
       // เนื่องจาก
@@ -620,6 +654,13 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       } else if (typeId === 3) {
         page.drawImage(checkImage, {
           x: 243,
+          y: height - 336,
+          width: 12,
+          height: 12,
+        });
+      } else if (typeId === 2) {  // คลอดบุุตร (ยังไม่เสร็จ) 
+        page.drawImage(checkImage, {
+          x: 320,
           y: height - 336,
           width: 12,
           height: 12,
@@ -668,19 +709,19 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       page.drawText(`${data.phone}`, {
         x: 410,
         y: height - 373,
-        size: 14, 
+        size: 14,
         font: customFont,
       });
 
       // ลายเซ็นผู้ลา + ชื่อ
       page.drawText(`${data.signature}`, {
         x: 360,
-        y: height - 434, 
+        y: height - 434,
         size: 14,
         font: customFont,
       });
       page.drawText(`${data.name}`, {
-        x: 350, 
+        x: 350,
         y: height - 452,
         size: 14,
         font: customFont,
@@ -737,23 +778,161 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       drawSummaryCounters(page, data, isSick);
     };
 
-      // -------------------- เลือกวาดตามประเภทการลา ------------------
+    // --------------------- Helper Vacation -------------------------
 
-      if (leaveTypeId === 1 || leaveTypeId === 3) {
-        // sick + personnal --> same form
-        drawSickOrPersonnalForm(firstPage, data, leaveTypeId);
-      } else if (leaveTypeId === 4) {
-        // vacation (placeholder) ยังไม่เสร็จ
-        firstPage.drawText(`test`, {
-          x: 50,
-          y: height - 200,
-          size: 14,
-          font: customFont,
+    // ประเภทบุคลากร
+    const drawPersonalCheckboxsLeave4 = (page, data) => {
+      const personType = data.personalType;
+
+      if (personType === "ข้าราชการ") {
+        page.drawImage(checkImage, {
+          x: 72,
+          y: height - 174,
+          width: 12,
+          height: 12,
+        });
+      } else if (personType === "ลูกจ้างประจำ") {
+        page.drawImage(checkImage, {
+          x: 142,
+          y: height - 174,
+          width: 12,
+          height: 12,
+        });
+      } else if (personType === "พนักงานในสถาบันอุดมศึกษา") {
+        page.drawImage(checkImage, {
+          x: 227,
+          y: height - 173,
+          width: 12,
+          height: 12,
+        });
+      } else if (personType === "พนักงานราชการ") {
+        page.drawImage(checkImage, {
+          x: 369.5,
+          y: height - 171,
+          width: 12,
+          height: 12,
+        });
+      } else if (personType === "ลูกจ้างเงินรายได้") {
+        page.drawImage(checkImage, {
+          x: 467,
+          y: height - 171,
+          width: 12,
+          height: 12,
         });
       }
+    };
 
-      const pdfBytes = await pdfDoc.save();
-      fs.writeFileSync(outputPath, pdfBytes);
+    // สังกัด
+    const drawOrganizationCheckboxsLeave4 = (page, organizationId) => {
+      const orgId = Number(organizationId);
+
+      if (orgId === 1) { // eng.
+        page.drawImage(checkImage, {
+          x: 247,
+          y: height - 191,
+          width: 12,
+          height: 12,
+        });
+      } else if (orgId === 2) {
+        page.drawImage(checkImage, {
+          x: 103,
+          y: height - 191,
+          width: 12,
+          height: 12,
+        });
+      } else if (orgId === 3) {
+        page.drawImage(checkImage, {
+          x: 366,
+          y: height - 190,
+          width: 12,
+          height: 12,
+        });
+      } else if (orgId === 4) {
+        page.drawImage(checkImage, {
+          x: 104,
+          y: height - 210,
+          width: 12,
+          height: 12,
+        });
+      }
+    };
+
+    // --------------------- function for vacation (Form) --------------------------
+
+    const drawVacationForm = (page, data) => {
+      page.drawText(`${data.documentNumber}`, {
+        x: 470,
+        y: height - 70,
+        size: 14,
+        font: customFont,
+      });
+
+      const documentDate = parseDateToThai(data.documentDate);
+      drawDateTriple(page, documentDate, height - 90, 370, 435, 515);
+
+      // title ไม่ต้องวาด เนื่องจาก template มี title อยู่แล้ว
+
+      // page.drawText(`${data.title}`, {
+      //   x: 150,
+      //   y: height - 80,
+      //   size: 14,
+      //   font: customFont,
+      // });
+
+      // ข้าพเจ้า
+      page.drawText(`${data.name}`, {
+        x: 180,
+        y: height - 150,
+        size: 14,
+        font: customFont,
+      });
+
+      // ตำแหน่ง
+      page.drawText(`${data.position}`, {
+        x: 450,
+        y: height - 148,
+        size: 14,
+        font: customFont,
+      });
+
+      // ประเภทบุคลากร
+      drawPersonalCheckboxsLeave4(page, data);
+
+      // สังกัด
+      drawOrganizationCheckboxsLeave4(page, data.organizationId);
+
+      // ยังไม่เสร็จ (ต่อ)
+
+      // ช่วงวันที่ลา
+      const start = parseDateToThai(data.startDate);
+      const end = parseDateToThai(data.endDate);
+      drawDateTriple(page, start, height - 264, 223, 275, 341);
+      drawDateTriple(page, end, height - 263, 405, 460, 530);
+
+      // มีกำหนด
+      page.drawText(`${data.thisTime}`, {
+        x: 125,
+        y: height - 284,
+        size: 14,
+        font: customFont,
+      });
+    };
+
+    // -------------------- เลือกวาดตามประเภทการลา ------------------
+
+    if (leaveTypeId === 1 || leaveTypeId === 3) {
+      // sick + personnal --> same form
+      drawSickOrPersonnalForm(firstPage, data, leaveTypeId);
+    } else if (leaveTypeId === 4) {
+      drawVacationForm(firstPage, data);
+    }
+
+    if (process.env.PDF_DEBUG_GRID === "1") {
+      drawDebugGrid(firstPage);
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    fs.writeFileSync(outputPath, pdfBytes);
 
     console.log(`ไฟล์ PDF ถูกสร้างที่: ${outputPath}`);
   } catch (err) {

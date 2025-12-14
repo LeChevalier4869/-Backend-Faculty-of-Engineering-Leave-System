@@ -71,6 +71,13 @@ exports.downloadReport = async (req, res) => {
     const lastPersonnalLeaved = personnalLeaves ? personnalLeaves.leavedDays : "-";
     const personnalLeaveTotal = personnalLeaves ? personnalLeaves.totalDays : "-";
 
+    const vacationBalance = balances.find((b) => b.leaveTypeId === 4);
+    const vacationLeaved = vacationBalance ? vacationBalance.usedDays : 0;
+
+    const vacationLeaves = leaves.find((l) => l.leaveTypeId === 4);
+    const lastVacationLeaved = vacationLeaves ? vacationLeaves.leavedDays : "-";
+    const vacationLeaveTotal = vacationLeaves ? vacationLeaves.totalDays : "-";
+
     // console.log("User data:", user);
     // console.log("Leave balance:", balances);
 
@@ -131,10 +138,13 @@ exports.downloadReport = async (req, res) => {
       organization: req.body.organization || "-", // ถ้า template ใช้ตัวนี้แทน
       sickLeaved,
       personalLeaved,
+      vacationLeaved,
       lastSickLeaved,
       lastPersonnalLeaved,
+      lastVacationLeaved,
       sickLeaveTotal,
       personnalLeaveTotal,
+      vacationLeaveTotal,
       description: req.body.description || "-",
     };
     // console.log("Debug isApprove: ", data.isApprove);

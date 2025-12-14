@@ -37,13 +37,22 @@ async function resetLeaveBalance() {
   });
   console.log(`👥 พบผู้ใช้ทั้งหมด ${users.length} คน`);
 
-  // 4. วนลูปสร้าง user_Rank และ leaveBalance ใหม่
+  
+  // 4. วนลูปสร้าง user_Rank และ leaveBalance ใหม่ (แก้ตรงนี้ ยังไม่เสร็จ)
   for (const user of users) {
     const { id, personnelTypeId, hireDate } = user;
     if (!personnelTypeId || !hireDate) continue;
-
+    
     await UserService.assignRankToUser(id, personnelTypeId, new Date(hireDate));
+    
+    // ดึง balance เก่ามาทบ เฉพาะของ ลาพักผ่อน (leaveType === 4)
+    const balanceVacation = await prisma.leaveBalance.findFirst({
+      where: { userId: id, leaveTypeId: 4, year: year - 1 },
+      select: { remainingDays: true },
+    });
 
+    const carryOverDays = balanceVacation?.remainingDays ?? 0;
+    
     const userRanks = await prisma.userRank.findMany({
       where: { userId: id },
       include: { rank: true },
@@ -52,6 +61,11 @@ async function resetLeaveBalance() {
     for (const ur of userRanks) {
       const { leaveTypeId, maxDays, receiveDays } = ur.rank;
       if (!leaveTypeId || maxDays === null) continue;
+
+      const newRemainingDays =
+        Number(leaveTypeId) === 4
+          ? receiveDays + carryOverDays
+          : receiveDays;
 
       const key = `${id}-${leaveTypeId}`;
       if (!existingMap.has(key)) {
@@ -63,7 +77,7 @@ async function resetLeaveBalance() {
             maxDays,
             usedDays: 0,
             pendingDays: 0,
-            remainingDays: receiveDays,
+            remainingDays: newRemainingDays >= maxDays ? maxDays : newRemainingDays,
             year,
           },
         });
