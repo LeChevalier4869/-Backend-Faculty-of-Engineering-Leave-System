@@ -896,3 +896,12 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+exports.getAllApprover = async (req, res) => {
+  try {
+    const approvers = await UserService.getAllApprover();
+    res.status(200).json({ success: true, data: approvers });
+  } catch (err) {
+    res.status(400).json({message: err.message});
+  }
+};
+

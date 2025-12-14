@@ -635,6 +635,19 @@ class UserService {
       });
     }
   }
+
+  static async getAllApprover() {
+    return await prisma.user.findMany({
+      where: {
+        userRoles: {
+          some: {
+            roleId: { in: [3, 4, 5, 6, 7] },
+          },
+        },
+      },
+      include: { userRoles: { include: { role: true } }, department: true },
+    });
+  }
 }
 
 module.exports = UserService;

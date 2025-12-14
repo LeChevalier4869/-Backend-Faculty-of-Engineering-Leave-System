@@ -49,14 +49,14 @@ function getThaiMonthShort(month) {
 // แยกวัน เดือน ปี และแปลง ค.ศ. → พ.ศ.
 function parseDateToThai(dateStr) {
   //debug dateStr
-  console.log("Parsing date:", dateStr);
+  // console.log("Parsing date:", dateStr);
 
   //กันเดสไม่มีค่า
-  if (!dateStr || dateStr === "ไม่ระบุ") {
+  if (!dateStr || dateStr === "-") {
     return {
       day: "",
       month: "",
-      monthText: "",
+      monthText: "-",
       monthShortText: "",
       year: "",
     };
@@ -400,7 +400,12 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         size: 14,
         font: customFont,
       });
-      page.drawText(`${data.sickLeaveTotal}`, {
+      page.drawText(`${isSick
+        ? data.sickLeaveTotal === "-" 
+          ? data.thisTime
+          : data.sickLeaveTotal
+        : data.sickLeaveTotal
+      }`, {
         x: 250,
         y: height - 550,
         size: 14,
@@ -420,7 +425,12 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         size: 14,
         font: customFont,
       });
-      page.drawText(`${data.personnalLeaveTotal}`, {
+      page.drawText(`${isSick 
+        ? data.personnalLeaveTotal 
+        : data.personnalLeaveTotal === "-" 
+          ? data.thisTime 
+          : data.personnalLeaveTotal
+        }`, {
         x: 250,
         y: height - 570,
         size: 14,
@@ -450,16 +460,16 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
 
     // ประเภทบุคลากร
     const drawPersonnelCheckboxs = (page, data) => {
-      if (data.personnelType === "ข้าราชการ") {
+      if (data.personalType === "ข้าราชการ" || data.personalType === "ลูกจ้างประจำ") {
         page.drawImage(checkImage, {
           x: 124,
           y: height - 192,
           width: 12,
           height: 12,
         });
-      } else if (data.personnelType === "ลูกจ้างประจำ") {
+      } else if (data.personalType === "ลูกจ้างประจำ") {
         // ลูกจ้างประจำ (ยังไม่ได้ข้อสรุป) ยังไม่เสร็จ
-      } else if (data.personnelType === "พนักงานราชการ") {
+      } else if (data.personalType === "พนักงานราชการ") {
         if (data.employmentType === "ACADEMIC") {
           page.drawImage(checkImage, {
             x: 396,
@@ -475,7 +485,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
             height: 12,
           });
         }
-      } else if (data.personnelType === "พนักงานในสถาบันอุดมศึกษา") {
+      } else if (data.personalType === "พนักงานในสถาบันอุดมศึกษา") {
         if (data.employmentType === "ACADEMIC") {
           page.drawImage(checkImage, {
             x: 209,
@@ -491,7 +501,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
             height: 12,
           });
         }
-      } else if (data.personnelType === "ลูกจ้างเงินรายได้") {
+      } else if (data.personalType === "ลูกจ้างเงินรายได้") {
         if (data.employmentType === "ACADEMIC") {
           page.drawImage(checkImage, {
             x: 395,
@@ -511,16 +521,18 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
     };
 
     // command
-    const drawCommandCheckboxs = (page) => {
-      // คำสั่งยังไม่แยก case
+    const drawCommandCheckboxs = (page, data) => {
+      data.isApprove === true
+      ?
       page.drawImage(checkImage, {
-        x: 181,
+        x: 109,
         y: height - 716,
         width: 12,
         height: 12,
-      });
+      })
+      :
       page.drawImage(checkImage, {
-        x: 109,
+        x: 181,
         y: height - 716,
         width: 12,
         height: 12,
@@ -642,7 +654,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       page.drawText(
         `${data.lastLeaveThisTime}`,
         {
-          x: 235,
+          x: data.lastLeaveThisTime === "-" ? 238 : 235,
           y: height - 354,
           size: 14,
           font: customFont,
@@ -705,8 +717,8 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       // ผู้ตรวจสอบ
       drawVerifierBlock(page, data.signatureVerifier, data.DateVerifier);
 
-      // คำสั่ง (ผ่าน / ไม่ผ่าน)
-      drawCommandCheckboxs(page);
+      // คำสั่ง (ผ่าน / ไม่ผ่าน) (ยังไม่เสร็จ)
+      drawCommandCheckboxs(page, data);
 
       // ความเห็น ผบ. 4 + ลายเซ็น + วันที่
       drawCommentBlockLeft(page, data.commentApprover4, height - 734);

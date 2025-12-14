@@ -982,7 +982,7 @@ class LeaveRequestService {
       data: {
         approverId: approver.userId,
         leaveRequestId: updatedDetail.leaveRequestId,
-        stepOrder: 3,
+        stepOrder: 4,
         status: "PENDING",
       },
     });
@@ -1113,7 +1113,7 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 3,
+        stepOrder: 4,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1165,7 +1165,7 @@ class LeaveRequestService {
       data: {
         approverId: approver.userId,
         leaveRequestId: updatedDetail.leaveRequestId,
-        stepOrder: 4,
+        stepOrder: 5,
         status: "PENDING",
       },
     });
@@ -1218,7 +1218,7 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 3,
+        stepOrder: 4,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1296,7 +1296,7 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 4,
+        stepOrder: 5,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1348,7 +1348,7 @@ class LeaveRequestService {
       data: {
         approverId: approver.userId,
         leaveRequestId: updatedDetail.leaveRequestId,
-        stepOrder: 5,
+        stepOrder: 6,
         status: "PENDING",
       },
     });
@@ -1401,7 +1401,7 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 4,
+        stepOrder: 5,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1479,7 +1479,7 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 5,
+        stepOrder: 6,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1569,7 +1569,7 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 5,
+        stepOrder: 6,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
