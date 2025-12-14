@@ -188,7 +188,7 @@ exports.updateLeaveStatus = async (req, res, next) => {
 exports.getLeaveRequest = async (req, res, next) => {
   try {
     const requestId = parseInt(req.params.id);
-    console.log("Debug requestId11:", requestId);
+    // console.log("Debug requestId11:", requestId);
     const user = req.user;
 
     // const leaveRequests = await LeaveRequestService.getRequests(whereCondition);

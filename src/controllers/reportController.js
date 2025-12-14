@@ -54,7 +54,7 @@ exports.downloadReport = async (req, res) => {
     const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
     const leaves = await LeaveRequestService.getRecentLeaveBefore(userId, cutoff)
     // console.log("debug balances: ", balances);
-    console.log("debug leaves: ", leaves);
+    // console.log("debug leaves: ", leaves);
     //const currentLeave = await LeaveRequestService.getLeaveRequestsByUser(userId);
 
     const sickBalance = balances.find((b) => b.leaveTypeId === 1);

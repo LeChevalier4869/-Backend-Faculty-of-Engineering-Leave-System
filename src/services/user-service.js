@@ -354,7 +354,7 @@ class UserService {
       throw createError(400, "Invalid department ID");
     }
     departmentId = Number(departmentId);
-    console.log("Debug department id: ", departmentId);
+    // console.log("Debug department id: ", departmentId);
 
     const department = await prisma.department.findUnique({
       where: { id: departmentId },
