@@ -36,9 +36,11 @@ class LeaveBalanceService {
           },
         },
       },
-      orderBy: {
-        leaveTypeId: 'asc',
-      },
+      orderBy: [
+        { leaveTypeId: 'asc' },
+        { year : 'desc' },
+        { id : 'desc' },
+      ],
     });
   }
   /**

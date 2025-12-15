@@ -398,7 +398,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
         font: customFont,
       });
       page.drawText(position, {
-        x: 400,
+        x: 395,
         y: height - (baseY + 19),
         size: 14,
         font: customFont,
@@ -786,36 +786,36 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
 
       if (personType === "ข้าราชการ") {
         page.drawImage(checkImage, {
-          x: 72,
-          y: height - 174,
+          x: 74,
+          y: height - 165,
           width: 12,
           height: 12,
         });
       } else if (personType === "ลูกจ้างประจำ") {
         page.drawImage(checkImage, {
-          x: 142,
-          y: height - 174,
+          x: 144,
+          y: height - 165,
           width: 12,
           height: 12,
         });
       } else if (personType === "พนักงานในสถาบันอุดมศึกษา") {
         page.drawImage(checkImage, {
-          x: 227,
-          y: height - 173,
+          x: 228,
+          y: height - 165,
           width: 12,
           height: 12,
         });
       } else if (personType === "พนักงานราชการ") {
         page.drawImage(checkImage, {
-          x: 369.5,
-          y: height - 171,
+          x: 372,
+          y: height - 165,
           width: 12,
           height: 12,
         });
       } else if (personType === "ลูกจ้างเงินรายได้") {
         page.drawImage(checkImage, {
-          x: 467,
-          y: height - 171,
+          x: 468,
+          y: height - 165,
           width: 12,
           height: 12,
         });
@@ -828,33 +828,138 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
 
       if (orgId === 1) { // eng.
         page.drawImage(checkImage, {
-          x: 247,
-          y: height - 191,
+          x: 248,
+          y: height - 186,
           width: 12,
           height: 12,
         });
       } else if (orgId === 2) {
         page.drawImage(checkImage, {
-          x: 103,
-          y: height - 191,
+          x: 104,
+          y: height - 186,
           width: 12,
           height: 12,
         });
       } else if (orgId === 3) {
         page.drawImage(checkImage, {
-          x: 366,
-          y: height - 190,
+          x: 368,
+          y: height - 186,
           width: 12,
           height: 12,
         });
       } else if (orgId === 4) {
         page.drawImage(checkImage, {
-          x: 104,
-          y: height - 210,
+          x: 105,
+          y: height - 206,
           width: 12,
           height: 12,
         });
       }
+    };
+
+    // boss comment
+    const drawCommentBlockLeave4 = (page, text, startY) => {
+      const lines = wrapTextStrictMaxLines(text, customFont, 14, 160, 2);
+      lines.forEach((line, i) => {
+        page.drawText(line, {
+          x: 350,
+          y: startY - i * 18,
+          size: 14,
+          font: customFont,
+        });
+      });
+    };
+
+    // approver signature
+    const drawApproverSignatureLeave4 = (page, name, position, rawDate, baseY) => {
+      page.drawText(name, {
+        x: 390,
+        y: height - (baseY + 2),
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(position, {
+        x: 385,
+        y: height - (baseY + 23),
+        size: 14,
+        font: customFont,
+      });
+
+      const parsed = parseDateToThai(rawDate);
+      drawDateTriple(page, parsed, height - (baseY + 45), 365, 400, 450);
+    };
+
+    // verifer draw
+    const drawVerifierBlockLeave4 = (page, sig, rawDate) => {
+      page.drawText(sig, {
+        x: 130,
+        y: height - 568,
+        size: 14,
+        font: customFont,
+      });
+
+      const parsed = parseDateToThai(rawDate);
+      drawDateTriple(page, parsed, height - 631, 105, 144, 195);
+    };
+
+    // commandCheckboxs
+    const drawCommandCheckboxesLeave4 = (page, data) => {
+      data.isApprove === true
+      ?
+      page.drawImage(checkImage, {
+        x: 107,
+        y: height - 710,
+        width: 12,
+        height: 12,
+      })
+      :
+      page.drawImage(checkImage, {
+        x: 177,
+        y: height - 710,
+        width: 12,
+        height: 12,
+      });
+    };
+
+    // commentBlockLeft
+    const drawCommentLeftLeave4 = (page, text, startY) => {
+      const lines = wrapTextStrictMaxLines(text, customFont, 14, 160, 2);
+      lines.forEach((line, i) => {
+        page.drawText(line, {
+          x: 80,
+          y: startY - i * 18,
+          size: 14,
+          font: customFont,
+        });
+      });
+    };
+
+    // summary counters Leave4
+    const drawSummaryCountersLeave4 = (page, data) => {
+      page.drawText(`${data.vacationLeaved}`, {
+        x: 98,
+        y: height - 512,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.thisTime}`, {
+        x: 152,
+        y: height - 512,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.vacationLeaveTotal}`, {
+        x: 205,
+        y: height - 512,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.vacationRemainingCurYear}`, {
+        x: 257,
+        y: height - 512,
+        size: 14,
+        font: customFont,
+      });
     };
 
     // --------------------- function for vacation (Form) --------------------------
@@ -862,13 +967,13 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
     const drawVacationForm = (page, data) => {
       page.drawText(`${data.documentNumber}`, {
         x: 470,
-        y: height - 70,
+        y: height - 53,
         size: 14,
         font: customFont,
       });
 
       const documentDate = parseDateToThai(data.documentDate);
-      drawDateTriple(page, documentDate, height - 90, 370, 435, 515);
+      drawDateTriple(page, documentDate, height - 75, 370, 435, 515);
 
       // title ไม่ต้องวาด เนื่องจาก template มี title อยู่แล้ว
 
@@ -882,7 +987,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       // ข้าพเจ้า
       page.drawText(`${data.name}`, {
         x: 180,
-        y: height - 150,
+        y: height - 140,
         size: 14,
         font: customFont,
       });
@@ -890,7 +995,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       // ตำแหน่ง
       page.drawText(`${data.position}`, {
         x: 450,
-        y: height - 148,
+        y: height - 140,
         size: 14,
         font: customFont,
       });
@@ -901,22 +1006,135 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       // สังกัด
       drawOrganizationCheckboxsLeave4(page, data.organizationId);
 
-      // ยังไม่เสร็จ (ต่อ)
+      // ยอดลาพักผ่อนสะสม
+      page.drawText(`${data.vacationRemainingPrevYear}`, {
+        x: 262,
+        y: height - 225,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.vacationReceiveDays}`, {
+        x: 485,
+        y: height - 225,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.vacationRemainingCurYear}`, {
+        x: 120,
+        y: height - 246,
+        size: 14,
+        font: customFont,
+      });
 
       // ช่วงวันที่ลา
       const start = parseDateToThai(data.startDate);
       const end = parseDateToThai(data.endDate);
-      drawDateTriple(page, start, height - 264, 223, 275, 341);
-      drawDateTriple(page, end, height - 263, 405, 460, 530);
+      drawDateTriple(page, start, height - 274, 223, 275, 341);
+      drawDateTriple(page, end, height - 274, 405, 460, 530);
 
-      // มีกำหนด
+      // มีกำหนด (ยังไม่เสร็จ) บัคๆอยู่ เรื่อง ลาคงเหลือ
       page.drawText(`${data.thisTime}`, {
         x: 125,
-        y: height - 284,
+        y: height - 295,
         size: 14,
         font: customFont,
       });
+      page.drawText(`${data.vacationRemainingCurYear}`, {
+        x: 328,
+        y: height - 295,
+        size: 14,
+        font: customFont,
+      });
+
+      // ติดต่อ - เบอร์โทร
+      page.drawText(`${data.contact}`, {
+        x: 232,
+        y: height - 316,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.phone}`, {
+        x: 478,
+        y: height - 316,
+        size: 14,
+        font: customFont,
+      });
+
+      // ลายเซ็นผู้ลา + ชื่อ 
+      page.drawText(`${data.signature}`, {
+        x: 348,
+        y: height - 380,
+        size: 14,
+        font: customFont,
+      });
+      page.drawText(`${data.name}`, {
+        x: 348,
+        y: height - 400,
+        size: 14,
+        font: customFont,
+      });
+
+      // ความคิดเห็นผู้บังคับบัญชา 1-3 (ข้อความ)
+      drawCommentBlockLeave4(page, data.commentApprover1, height - 448);
+      drawCommentBlockLeave4(page, data.commentApprover2, height - 587);
+      drawCommentBlockLeave4(page, data.commentApprover3, height - 728);
+
+      // ลายเซ็น / ตำแหน่ง / วันที่ ผบ. 1-3 (ยังไม่เสร็จ)
+      drawApproverSignatureLeave4(
+        page,
+        data.signatureApprover1,
+        data.positionApprover1,
+        data.DateApprover1,
+        503
+      );
+      drawApproverSignatureLeave4(
+        page,
+        data.signatureApprover2,
+        data.positionApprover2,
+        data.DateApprover2,
+        642
+      );
+      drawApproverSignatureLeave4(
+        page,
+        data.signatureApprover3,
+        data.positionApprover3,
+        data.DateApprover3,
+        781
+      );
+
+      // approver 3 form date "วันที่................./................./................."
+      const formDateVision = "วันที่................./................./................."
+      page.drawText(`${formDateVision}`, {
+        x: 328,
+        y: height - 828,
+        size: 16,
+        font: customFont,
+      });
+
+      // verifier
+      drawVerifierBlockLeave4(page, data.signatureVerifier, data.DateVerifier);
+
+      // command (pass / reject) (req bug ยังไม่เสร็จ) รอจัดการ add request by admin
+      drawCommandCheckboxesLeave4(page, data);
+
+      // comment approver4 + sig + date
+      drawCommentLeftLeave4(page, data.commentApprover4, height - 728);
+
+      page.drawText(`${data.signatureApprover4}`, {
+        x: 140,
+        y: height - 783,
+        size: 14,
+        font: customFont,
+      });
+
+      const parsed = parseDateToThai(data.DateApprover4);
+      drawDateTriple(page, parsed, height - 826, 105, 140, 190);
+
+      // summary counter
+      drawSummaryCountersLeave4(page, data);
+
     };
+
 
     // -------------------- เลือกวาดตามประเภทการลา ------------------
 

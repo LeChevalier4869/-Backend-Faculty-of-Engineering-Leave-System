@@ -41,6 +41,12 @@ exports.downloadReport = async (req, res) => {
     const userId = req.user.id;
     const { beforeDate } = req.body;
 
+    const getFiscalYear = (date) => {
+      const d = date instanceof Date ? date : new Date(date);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.getMonth() >= 9 ? d.getFullYear() + 1 : d.getFullYear();
+    };
+
     if (!ALLOWED_LEAVE_TYPES.has(leaveTypeId)) {
       return res
         .status(400)
@@ -57,26 +63,50 @@ exports.downloadReport = async (req, res) => {
     // console.log("debug leaves: ", leaves);
     //const currentLeave = await LeaveRequestService.getLeaveRequestsByUser(userId);
 
-    const sickBalance = balances.find((b) => b.leaveTypeId === 1);
+    const baseDate = req.body.startDate ?? req.body.documentDate ?? new Date();
+    const currentYear = getFiscalYear(baseDate) ?? (new Date().getMonth() >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear());
+
+    const sickBalance = balances.find((b) => b.leaveTypeId === 1 && Number(b.year) === currentYear);
     const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
 
     const sickLeaves = leaves.find((l) => l.leaveTypeId === 1);
     const lastSickLeaved = sickLeaves ? sickLeaves.leavedDays : "-";
     const sickLeaveTotal = sickLeaves ? sickLeaves.totalDays : "-";
 
-    const personalBalance = balances.find((b) => b.leaveTypeId === 3);
+    const personalBalance = balances.find((b) => b.leaveTypeId === 3 && Number(b.year) === currentYear);
     const personalLeaved = personalBalance ? personalBalance.usedDays : 0;
 
     const personnalLeaves = leaves.find((l) => l.leaveTypeId === 3);
     const lastPersonnalLeaved = personnalLeaves ? personnalLeaves.leavedDays : "-";
     const personnalLeaveTotal = personnalLeaves ? personnalLeaves.totalDays : "-";
 
-    const vacationBalance = balances.find((b) => b.leaveTypeId === 4);
-    const vacationLeaved = vacationBalance ? vacationBalance.usedDays : 0;
+    // ทำ default balance เผื่อกรณี่ที่ระบบรันครั้งแรก
+    const DEFAULT_BALANCE = { remainingDays: 0, usedDays: 0 };
+    
+    // vacation
+    const vacationBalances = balances.filter((b) => b.leaveTypeId === 4);
+    const vacationBalanceCurYear = vacationBalances.find((b) => Number(b.year) === currentYear);
+    const vacationBalancePrevYear = vacationBalances.find((b) => Number(b.year) === currentYear - 1);
+    
+    const cur = vacationBalanceCurYear ? vacationBalanceCurYear : DEFAULT_BALANCE;
+    const prev = vacationBalancePrevYear ? vacationBalancePrevYear : DEFAULT_BALANCE;
+
+    // remaining prev year
+    const vacationRemainingPrevYear = prev.remainingDays;
+    // total
+    const vacationRemainingCurYear = cur.remainingDays;
+    // received
+    const vacationReceiveDays = vacationRemainingCurYear - vacationRemainingPrevYear;
+    // used
+    const vacationLeaved = cur.usedDays;
 
     const vacationLeaves = leaves.find((l) => l.leaveTypeId === 4);
-    const lastVacationLeaved = vacationLeaves ? vacationLeaves.leavedDays : "-";
-    const vacationLeaveTotal = vacationLeaves ? vacationLeaves.totalDays : "-";
+    const lastVacationLeaved = vacationLeaves ? vacationLeaves.leavedDays : 0;
+    const vacationLeaveTotal = vacationLeaves ? vacationLeaves.totalDays : 0;
+
+    // console.log("Debug vacation balance current year: ", vacationBalanceCurYear);
+    // console.log("Debug vacation balance previous year: ", vacationBalancePrevYear);
+    // console.log("Debug vacation leave: ", vacationLeaves);
 
     // console.log("User data:", user);
     // console.log("Leave balance:", balances);
@@ -144,6 +174,11 @@ exports.downloadReport = async (req, res) => {
       lastVacationLeaved,
       sickLeaveTotal,
       personnalLeaveTotal,
+      vacationRemainingPrevYear,
+      vacationRemainingCurYear,
+      vacationReceiveDays,
+      vacationLeaved,
+      lastVacationLeaved,
       vacationLeaveTotal,
       description: req.body.description || "-",
     };
