@@ -43,7 +43,8 @@ exports.createRequestByAdmin = async (req, res, next) => {
       reason,
       contact,
       documentNumber,
-      documentIssuedDate
+      documentIssuedDate,
+      approvalDetails
     } = req.body;
 
     //validate data
@@ -66,7 +67,8 @@ exports.createRequestByAdmin = async (req, res, next) => {
       contact ?? null,
       documentNumber,
       documentIssuedDate ?? null,
-      adminId
+      adminId,
+      approvalDetails
     );
 
     // แนบไฟล์

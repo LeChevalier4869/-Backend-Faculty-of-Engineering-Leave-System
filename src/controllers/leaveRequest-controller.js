@@ -5,7 +5,6 @@ const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
 const cloudUpload = require("../utils/cloudUpload");
 const UserService = require("../services/user-service");
-const settingService = require("../services/setting-service");
 const { sendEmail, sendNotification } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const prisma = require("../config/prisma");
@@ -26,45 +25,6 @@ exports.createLeaveRequest = async (req, res, next) => {
     );
 
     if (!leaveRequest || !leaveRequest.id) throw createError(500, "สร้างคำขอลาไม่สำเร็จ");
-
-    // สร้างเลขที่เอกสารหลังจากสร้าง leaveRequest สำเร็จ (ใช้ transaction)
-    const runNumber = await settingService.getSettingByKey("runNumber");
-    // console.log("Debug runNumber: ", runNumber);
-    const value = runNumber.value; // เช่น "คว.บล.0000/68"
-    // แยกส่วนหมายเลขที่อยู่ตรงกลาง เช่น 0000
-    const match = value.match(/^(.*\.)(\d+)(\/\d{2})$/);
-
-    if (!match) throw new Error("รูปแบบ runNumber ไม่ถูกต้อง");
-
-    const prefix = match[1]; // "คว.บล."
-    const number = match[2]; // "0000"
-    const suffix = match[3]; // "/68"
-
-    // แปลงเป็นตัวเลข แล้วบวก 1
-    const nextNumber = parseInt(number, 10) + 1;
-
-    // เติม 0 ข้างหน้าให้เท่ากับความยาวเดิม (4 หลัก)
-    const nextNumberPadded = nextNumber.toString().padStart(number.length, "0");
-
-    // ประกอบกลับเป็นเลขที่เอกสารใหม่
-    const documentNumber = `${prefix}${nextNumberPadded}${suffix}`;
-
-    // console.log("เลขเอกสารใหม่: ", documentNumber);
-
-    await prisma.$transaction([
-      prisma.setting.update({
-        where: { id: runNumber.id },
-        data: { value: documentNumber },
-      }),
-      // อัปเดต leaveRequest ด้วยเลขที่เอกสาร
-      prisma.leaveRequest.update({
-        where: { id: leaveRequest.id },
-        data: {
-          documentNumber,
-          documentIssuedDate: new Date(),
-        },
-      }),
-    ]);
 
     // อัปเดต pending leave balance
     if (typeof leaveRequest.thisTimeDays !== "number" || isNaN(leaveRequest.thisTimeDays)) {

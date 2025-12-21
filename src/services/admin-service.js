@@ -42,7 +42,8 @@ class AdminService {
     contact,
     documentNumber,
     documentIssuedDate,
-    adminId
+    adminId,
+    approvalDetails
   ) {
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
@@ -101,6 +102,53 @@ class AdminService {
       throw createError(400, "รูปแบบวันที่ออกเอกสารไม่ถูกต้อง");
     }
 
+    // new code (mark for understanding)
+
+    const normalizeApprovalDetails = (input, fallbackDate) => {
+      const steps = [1, 2, 4, 5, 6];
+      const byStep = new Map();
+      (Array.isArray(input) ? input : []).forEach((d) => {
+        const stepOrder = Number(d?.stepOrder);
+        if (!steps.includes(stepOrder)) return;
+        byStep.set(stepOrder, {
+          stepOrder,
+          comment: d?.comment != null && String(d.comment).trim() ? String(d.comment).trim() : null,
+          remarks: d?.remarks != null && String(d.remarks).trim() ? String(d.remarks).trim() : null,
+          reviewedAt: d?.reviewedAt ? new Date(d.reviewedAt) : null,
+        });
+      });
+
+      // seed steps
+      steps.forEach((s) => {
+        if (!byStep.has(s)) byStep.set(s, { stepOrder: s, comment: null, remarks: null, reviewedAt: null });
+      });
+
+      // normalize invalid dates -> null
+      steps.forEach((s) => {
+        const v = byStep.get(s);
+        if (v.reviewedAt && Number.isNaN(v.reviewedAt.getTime())) v.reviewedAt = null;
+      });
+
+      // backfill rule: if missing date => use next step date; if none => fallbackDate
+      for (let i = steps.length - 1; i >= 0; i--) {
+        const s = steps[i];
+        const cur = byStep.get(s);
+        if (cur.reviewedAt) continue;
+        const next = steps.slice(i + 1).map((k) => byStep.get(k)).find((x) => x?.reviewedAt);
+        cur.reviewedAt = next?.reviewedAt ? next.reviewedAt : fallbackDate;
+      }
+
+      // defaults for text
+      steps.forEach((s) => {
+        const v = byStep.get(s);
+        if (!v.comment) v.comment = "โปรดพิจารณา";
+        if (!v.remarks) v.remarks = "อนุมัติ";
+      });
+
+      return steps.map((s) => byStep.get(s));
+    };
+    // end new code
+
     // --------- ทำงานแบบอะตอมมิกใน Transaction ----------
     const leaveRequest = await prisma.$transaction(async (tx) => {
       // กันเลขเอกสารซ้ำแบบ best-effort (ไม่มี unique ใน DB)
@@ -137,17 +185,78 @@ class AdminService {
         { tx }
       );
 
-      // เพิ่มรายการประวัติการอนุมัติ (แบบข้ามขั้นตอน)
-      await tx.leaveRequestDetail.create({
-        data: {
-          leaveRequestId: created.id,
-          approverId: adminId || 0,
-          stepOrder: 0,
-          status: "APPROVED",
-          reviewedAt: new Date(),
-          remarks: "บันทึกโดยผู้ดูแลระบบ",
+      const adminCreatedAt = new Date();
+
+      // Resolve approvers for each step
+      const user = await tx.user.findUnique({
+        where: { id: Number(userId) },
+        select: {
+          id: true,
+          department: {
+            select: {
+              headId: true,
+            },
+          },
         },
       });
+      const approver1Id = user?.department?.headId;
+      if (!approver1Id) throw createError(400, "ไม่พบหัวหน้าสาขา (Approver1) ของผู้ใช้งาน");
+
+      const approver2 = await tx.userRole.findFirst({
+        where: { role: { name: "APPROVER_2" } },
+        orderBy: { id: "asc" },
+      });
+      const approver3 = await tx.userRole.findFirst({
+        where: { role: { name: "APPROVER_3" } },
+        orderBy: { id: "asc" },
+      });
+      const approver4 = await tx.userRole.findFirst({
+        where: { role: { name: "APPROVER_4" } },
+        orderBy: { id: "asc" },
+      });
+
+      if (!verifierId) throw createError(400, "ไม่พบผู้ตรวจสอบ (VERIFIER)");
+      if (!approver2?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_2)");
+      if (!approver3?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_3)");
+      if (!approver4?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_4)");
+
+      const normalized = normalizeApprovalDetails(approvalDetails, adminCreatedAt);
+
+      const detailRows = [
+        {
+          approverId: Number(approver1Id),
+          stepOrder: 1,
+        },
+        {
+          approverId: Number(verifierId),
+          stepOrder: 2,
+        },
+        {
+          approverId: Number(approver2.userId),
+          stepOrder: 4,
+        },
+        {
+          approverId: Number(approver3.userId),
+          stepOrder: 5,
+        },
+        {
+          approverId: Number(approver4.userId),
+          stepOrder: 6,
+        },
+      ].map((base) => {
+        const meta = normalized.find((x) => x.stepOrder === base.stepOrder);
+        return {
+          leaveRequestId: created.id,
+          approverId: base.approverId,
+          stepOrder: base.stepOrder,
+          status: "APPROVED",
+          reviewedAt: meta?.reviewedAt ?? adminCreatedAt,
+          remarks: meta?.remarks ?? "อนุมัติ",
+          comment: meta?.comment ?? "โปรดพิจารณา",
+        };
+      });
+
+      await tx.leaveRequestDetail.createMany({ data: detailRows });
 
       // audit log
       if (adminId) {

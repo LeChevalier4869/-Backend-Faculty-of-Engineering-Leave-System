@@ -209,7 +209,20 @@ class LeaveRequestService {
           },
         },
         leaveType: true,
-        leaveRequestDetails: true,
+        leaveRequestDetails: {
+          include: {
+            approver: {
+              select: {
+                id: true,
+                prefixName: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: { stepOrder: "asc" },
+        },
         files: true,
       },
     });
@@ -757,7 +770,11 @@ class LeaveRequestService {
       );
     }
 
-    // 2. อัปเดตรายการคำขอลา
+    if (existingDetail.stepOrder !== 1) {
+      throw createError(400, "ขั้นตอนการอนุมัติไม่ถูกต้อง");
+    }
+
+    // 2. อัปเดตรายการคำขอลา (step 1)
     const updatedDetail = await prisma.leaveRequestDetail.update({
       where: { id: Number(id) },
       data: {
@@ -943,19 +960,70 @@ class LeaveRequestService {
       );
     }
 
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
+    const parseRunNumber = (value) => {
+      const match = String(value || "").match(/^(.*\.)(\d+)(\/\d{2})$/);
+      if (!match) return null;
+      return {
+        prefix: match[1],
+        number: match[2],
+        suffix: match[3],
+      };
+    };
+
+    // 2. รันเลขเอกสารเมื่อ verifier กดผ่าน (เฉพาะกรณียังไม่มีเลข)
+    const updatedDetail = await prisma.$transaction(async (tx) => {
+      const detail = await tx.leaveRequestDetail.findUnique({
+        where: { id: Number(id) },
+        include: { leaveRequest: true },
+      });
+      if (!detail || detail.stepOrder !== 2) throw createError(404, "ไม่พบรายการคำขอลา");
+      if (detail.status !== "PENDING") {
+        throw createError(400, "รายการคำขอนี้ไม่อยู่ในสถานะรอดำเนินการ (PENDING)");
+      }
+
+      if (!detail.leaveRequest.documentNumber) {
+        const locked = await tx.$queryRaw`
+          SELECT * FROM setting WHERE \`key\` = 'runNumber' LIMIT 1 FOR UPDATE
+        `;
+        const runSetting = Array.isArray(locked) ? locked[0] : null;
+        if (!runSetting?.id) throw createError(500, "ไม่พบ setting: runNumber");
+
+        const parsed = parseRunNumber(runSetting.value);
+        if (!parsed) throw createError(500, "รูปแบบ runNumber ไม่ถูกต้อง");
+
+        const nextNumber = parseInt(parsed.number, 10) + 1;
+        const nextNumberPadded = nextNumber
+          .toString()
+          .padStart(parsed.number.length, "0");
+        const documentNumber = `${parsed.prefix}${nextNumberPadded}${parsed.suffix}`;
+
+        await tx.setting.update({
+          where: { id: runSetting.id },
+          data: { value: documentNumber },
+        });
+
+        await tx.leaveRequest.update({
+          where: { id: detail.leaveRequestId },
+          data: {
+            documentNumber,
+            documentIssuedDate: new Date(),
+          },
+        });
+      }
+
+      return await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId,
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
     });
 
     // บันทึก log การทำงาน
