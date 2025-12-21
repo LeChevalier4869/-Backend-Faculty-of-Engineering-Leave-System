@@ -424,7 +424,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
     // summary counter
     const drawSummaryCounters = (page, data, isSick) => {
       // sick
-      page.drawText(`${isSick ? data.lastSickLeaved : Number(data.sickLeaveTotal)}`, {
+      page.drawText(`${isSick ? data.lastSickLeaved : Number(data.sickLeaveTotal) || "-"}`, {
         x: 150,
         y: height - 550,
         size: 14,
@@ -449,7 +449,7 @@ async function fillPDFTemplate(data, templatePath, outputPath, leaveTypeId) {
       });
 
       // personal
-      page.drawText(`${isSick ? data.personnalLeaveTotal : data.lastPersonnalLeaved}`, {
+      page.drawText(`${isSick ? data.personnalLeaveTotal || "-" : data.lastPersonnalLeaved}`, {
         x: 150,
         y: height - 570,
         size: 14,

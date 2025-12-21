@@ -46,6 +46,18 @@ router.post(
   adminController.createRequestByAdmin
 );
 
+router.get(
+  '/leave-requests/approvers/:userId',
+  authorize(["ADMIN"]),
+  adminController.getApproverPreviewForUser
+);
+
+router.get(
+  '/leave-balances/:userId',
+  authorize(["ADMIN"]),
+  adminController.getLeaveBalancesForUser
+);
+
 //-------------------------------------- holiday -------------------- 
 router.get('/holiday', authorize(["USER", "ADMIN"]), adminController.getHoliday);
 router.post('/holiday', upload.none(), authorize(["ADMIN"]), adminController.addHoliday);
