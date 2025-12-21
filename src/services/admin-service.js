@@ -6,6 +6,7 @@ const { calculateWorkingDays } = require("../utils/dateCalculate");
 const LeaveRequestService = require("./leaveRequest-service");
 const LeaveBalanceService = require("./leaveBalance-service");
 const AuditLogService = require("./auditLog-service");
+const UserService = require("./user-service");
 
 class AdminService {
   // ✅ ดึงรายชื่อผู้ใช้งานที่มี role ADMIN
@@ -29,6 +30,78 @@ class AdminService {
         position: true,
       },
     });
+  }
+
+  static async getLeaveBalancesForUser(userId) {
+    const id = Number(userId);
+    if (!id || Number.isNaN(id)) {
+      throw createError(400, "Invalid user id");
+    }
+    return await LeaveBalanceService.getAllBalancesForUser(id);
+  }
+
+  static async getApproverPreviewForUser(userId) {
+    const id = Number(userId);
+    if (!id || Number.isNaN(id)) {
+      throw createError(400, "Invalid user id");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        department: { select: { headId: true } },
+      },
+    });
+
+    const approver1Id = user?.department?.headId ?? null;
+
+    const verifier = await UserService.getVerifier();
+    const verifierId = verifier?.id ?? null;
+
+    const [approver2, approver3, approver4] = await Promise.all([
+      prisma.userRole.findFirst({
+        where: { role: { name: "APPROVER_2" } },
+        orderBy: { id: "asc" },
+        select: { userId: true },
+      }),
+      prisma.userRole.findFirst({
+        where: { role: { name: "APPROVER_3" } },
+        orderBy: { id: "asc" },
+        select: { userId: true },
+      }),
+      prisma.userRole.findFirst({
+        where: { role: { name: "APPROVER_4" } },
+        orderBy: { id: "asc" },
+        select: { userId: true },
+      }),
+    ]);
+
+    const ids = [
+      approver1Id,
+      verifierId,
+      approver2?.userId,
+      approver3?.userId,
+      approver4?.userId,
+    ].filter((x) => x != null);
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, prefixName: true, firstName: true, lastName: true },
+    });
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    return [
+      { stepOrder: 1, roleName: "APPROVER_1", userId: approver1Id },
+      { stepOrder: 2, roleName: "VERIFIER", userId: verifierId },
+      { stepOrder: 4, roleName: "APPROVER_2", userId: approver2?.userId ?? null },
+      { stepOrder: 5, roleName: "APPROVER_3", userId: approver3?.userId ?? null },
+      { stepOrder: 6, roleName: "APPROVER_4", userId: approver4?.userId ?? null },
+    ].map((s) => ({
+      stepOrder: s.stepOrder,
+      roleName: s.roleName,
+      user: s.userId ? byId.get(s.userId) ?? null : null,
+    }));
   }
 
   // ✅ สร้างคำขอลาแทนผู้ใช้งาน (ใช้โดย ADMIN เท่านั้น)
@@ -106,6 +179,20 @@ class AdminService {
 
     const normalizeApprovalDetails = (input, fallbackDate) => {
       const steps = [1, 2, 4, 5, 6];
+
+      const defaultCommentForStep = (stepOrder) => {
+        // Policy (admin-created leave):
+        // - Verifier (2) and Approver 1-3 (1,4,5): "อนุมัติเนื่องจากเห็นสมควร โปรดพิจารณา"
+        // - Approver 4 (6): "อนุมัติเนื่องจากเห็นสมควร"
+        if ([1, 2, 4, 5].includes(Number(stepOrder))) {
+          return "อนุมัติเนื่องจากเห็นสมควร โปรดพิจารณา";
+        }
+        if (Number(stepOrder) === 6) {
+          return "อนุมัติเนื่องจากเห็นสมควร";
+        }
+        return "โปรดพิจารณา";
+      };
+
       const byStep = new Map();
       (Array.isArray(input) ? input : []).forEach((d) => {
         const stepOrder = Number(d?.stepOrder);
@@ -138,10 +225,20 @@ class AdminService {
         cur.reviewedAt = next?.reviewedAt ? next.reviewedAt : fallbackDate;
       }
 
+      // validate: date must be non-decreasing by step (prev <= next)
+      for (let i = 1; i < steps.length; i++) {
+        const prev = byStep.get(steps[i - 1]);
+        const cur = byStep.get(steps[i]);
+        if (!prev?.reviewedAt || !cur?.reviewedAt) continue;
+        if (prev.reviewedAt.getTime() > cur.reviewedAt.getTime()) {
+          throw createError(400, "วันที่อนุมัติแต่ละขั้นตอนต้องเรียงตามลำดับ (ก่อนหน้า ≤ ถัดไป)");
+        }
+      }
+
       // defaults for text
       steps.forEach((s) => {
         const v = byStep.get(s);
-        if (!v.comment) v.comment = "โปรดพิจารณา";
+        if (!v.comment) v.comment = defaultCommentForStep(s);
         if (!v.remarks) v.remarks = "อนุมัติ";
       });
 
@@ -220,7 +317,7 @@ class AdminService {
       if (!approver3?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_3)");
       if (!approver4?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_4)");
 
-      const normalized = normalizeApprovalDetails(approvalDetails, adminCreatedAt);
+      const normalized = normalizeApprovalDetails(approvalDetails, issuedAt);
 
       const detailRows = [
         {
@@ -252,7 +349,7 @@ class AdminService {
           status: "APPROVED",
           reviewedAt: meta?.reviewedAt ?? adminCreatedAt,
           remarks: meta?.remarks ?? "อนุมัติ",
-          comment: meta?.comment ?? "โปรดพิจารณา",
+          comment: meta?.comment ?? defaultCommentForStep(base.stepOrder),
         };
       });
 
@@ -496,7 +593,6 @@ class AdminService {
         sex: true,
         position: true,
         hireDate: true,
-        inActive: true,
         employmentType: true,
         personnelTypeId: true,
         departmentId: true,
@@ -515,7 +611,6 @@ class AdminService {
       password,
       position,
       hireDate,
-      inActive,
       employmentType,
       personnelTypeId,
       departmentId,
@@ -534,7 +629,6 @@ class AdminService {
         password: hashedPassword,
         position,
         hireDate,
-        inActive,
         employmentType,
         personnelType: { connect: { id: personnelTypeId } },
         department: { connect: { id: departmentId } },
@@ -574,7 +668,6 @@ class AdminService {
         position: updateData.position,
         hireDate: new Date(updateData.hireDate),
         employmentType: updateData.employmentType,
-        inActive: updateData.inActiveRaw === "true",
 
         // relations
         personnelType: { connect: { id: Number(updateData.personnelTypeId) } },

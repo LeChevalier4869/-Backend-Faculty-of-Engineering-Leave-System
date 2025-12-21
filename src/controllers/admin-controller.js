@@ -29,6 +29,41 @@ exports.adminList = async (req, res, next) => {
   }
 };
 
+exports.getLeaveBalancesForUser = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (!userId || isNaN(userId)) {
+      throw createError(400, "Invalid user id");
+    }
+
+    const balances = await AdminService.getLeaveBalancesForUser(userId);
+    return res.status(200).json({
+      message: "ok",
+      data: balances,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getApproverPreviewForUser = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (!userId || isNaN(userId)) {
+      throw createError(400, "Invalid user id");
+    }
+
+    const steps = await AdminService.getApproverPreviewForUser(userId);
+
+    return res.status(200).json({
+      message: "ok",
+      data: steps,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 //-------------------------------------- leave request --------------------
 exports.createRequestByAdmin = async (req, res, next) => {
   try {
@@ -46,6 +81,15 @@ exports.createRequestByAdmin = async (req, res, next) => {
       documentIssuedDate,
       approvalDetails
     } = req.body;
+
+    let approvalDetailsParsed = approvalDetails;
+    if (typeof approvalDetailsParsed === "string" && approvalDetailsParsed.trim()) {
+      try {
+        approvalDetailsParsed = JSON.parse(approvalDetailsParsed);
+      } catch (e) {
+        throw createError(400, "รูปแบบ approvalDetails ไม่ถูกต้อง (ต้องเป็น JSON)");
+      }
+    }
 
     //validate data
     if (!userId || !leaveTypeId || !startDate || !endDate || documentNumber == null) {
@@ -68,7 +112,7 @@ exports.createRequestByAdmin = async (req, res, next) => {
       documentNumber,
       documentIssuedDate ?? null,
       adminId,
-      approvalDetails
+      approvalDetailsParsed
     );
 
     // แนบไฟล์
@@ -742,7 +786,6 @@ exports.createUserByAdmin = async (req, res, next) => {
       phone,
       position,
       hireDate,
-      inActiveRaw = "false",
       employmentType,
       personnelTypeId,
       departmentId,
@@ -786,7 +829,6 @@ exports.createUserByAdmin = async (req, res, next) => {
       phone,
       position,
       hireDate: hireDate ? new Date(hireDate) : null,
-      inActive: inActiveRaw === "true",
       employmentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
@@ -828,7 +870,6 @@ exports.updateUserById = async (req, res, next) => {
       sex,
       position,
       hireDate,
-      inActiveRaw,
       employmentType,
       personnelTypeId,
       departmentId,
@@ -843,7 +884,6 @@ exports.updateUserById = async (req, res, next) => {
       sex,
       position,
       hireDate: hireDate ? new Date(hireDate) : null,
-      inActive: inActiveRaw === "true",
       employmentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
