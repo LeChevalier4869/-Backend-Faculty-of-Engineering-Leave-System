@@ -38,7 +38,25 @@ const ALLOWED_LEAVE_TYPES = new Set([1, 3, 4]);
 exports.downloadReport = async (req, res) => {
   try {
     const leaveTypeId = Number(req.body.leaveTypeId);
-    const userId = req.user.id;
+    const requestedUserId = req.body?.userId != null ? Number(req.body.userId) : null;
+    const requesterId = req.user?.id;
+    const roles = Array.isArray(req.user?.role)
+      ? req.user.role
+      : Array.isArray(req.user?.roles)
+      ? req.user.roles
+      : [];
+
+    const userId = requestedUserId || requesterId;
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(400).json({ error: "userId ไม่ถูกต้อง" });
+    }
+
+    // Allow exporting report for:
+    // - owner (same user)
+    // - ADMIN (export on behalf)
+    if (requestedUserId && requestedUserId !== requesterId && !roles.includes("ADMIN")) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const { beforeDate } = req.body;
 
     const getFiscalYear = (date) => {
@@ -55,7 +73,7 @@ exports.downloadReport = async (req, res) => {
 
     const cutoff = beforeDate ? new Date(beforeDate) : new Date();
 
-    // ดึงข้อมูลผู้ใช้และยอดคงเหลือการลา
+    // ดึงข้อมูลผู้ใช้และยอดคงเหลือการลา (ต้องอิงเจ้าของใบลา)
     const user = await ReportService.downloadReport(userId);
     const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
     const leaves = await LeaveRequestService.getRecentLeaveBefore(userId, cutoff)

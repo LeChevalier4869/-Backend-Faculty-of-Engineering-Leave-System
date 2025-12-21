@@ -438,7 +438,7 @@ class UserService {
 
     return await prisma.userRole.findMany({
       where: { userId },
-      include: { roles: true },
+      include: { role: true },
     });
   }
 
@@ -452,17 +452,17 @@ class UserService {
 
     return await prisma.userRole.findMany({
       where: { userId },
-      include: { roles: true },
+      include: { role: true },
     });
   }
 
   static async getUserRoles(userId) {
     const roles = await prisma.userRole.findMany({
       where: { userId },
-      include: { roles: true },
+      include: { role: true },
     });
 
-    return roles.map((role) => role.roles.name);
+    return roles.map((r) => r.role?.name).filter(Boolean);
   }
 
   static async changePassword({ email, oldPassword, newPassword }) {
