@@ -1,66 +1,75 @@
 name: CI
 
 on:
- push:
-  branches: [main]
- pull_request:
-  branches: [main]
+  push:
+    branches: [dev]
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'jest.config.js'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'jest.config.js'
+      - '.github/workflows/**'
 
 jobs:
- backend:
-  runs-on: ubuntu-latest
+  backend:
+    runs-on: ubuntu-latest
 
-  services:
-   mysql:
-    image: mysql:5.7
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_DATABASE: testdb
+          MYSQL_USER: ci
+          MYSQL_PASSWORD: ci_pass
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=2s
+          --health-retries=20
+
     env:
-     MYSQL_DATABASE: testdb
-     MYSQL_USER: ci
-     MYSQL_PASSWORD: ci_pass
-     MYSQL_ROOT_PASSWORD: root
-    ports:
-     - 3306:3306
-    options: >-
-     --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
-     --health-interval=5s
-     --health-timeout=2s
-     --health-retries=20
+      DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/testdb
+      NODE_ENV: test
 
-  env:
-   DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/testdb
-   NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  steps:
-   - name: Checkout
-     uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
 
-   - name: Setup Node
-     uses: actions/setup-node@v4
-     with:
-      node-version: 20
-      cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
 
-   - name: Install dependencies
-     run: npm ci
-     
-   - name: Generate Prisma Client
-     run: npx prisma generate
+      - name: Generate Prisma Client
+        run: npx prisma generate
 
-   - name: Apply migrations
-     run: |
-      if ls prisma/migrations/*/migration.sql >/dev/null 2>&1; then
-       npx prisma migrate deploy
-      else
-       echo "⚠️ No migrations found, skipping."
-      fi
+      - name: Apply migrations
+        run: |
+          if ls prisma/migrations/*/migration.sql >/dev/null 2>&1; then
+            npx prisma migrate deploy
+          else
+            echo "⚠️ No migrations found, skipping."
+          fi
 
-   - name: Run tests (if any)
-     run: |
-      if ls **/*.test.* >/dev/null 2>&1; then
-       npm test -- --ci 
-      else
-       echo "✅ No tests found, skipping Jest."
-      fi
+      - name: Run tests
+        run: npm test -- --ci
 
-   - name: Build check (optional)
-     run: node -e "console.log('✅ App runs successfully')"
+      - name: Build check (optional)
+        run: node -e "console.log('✅ App runs successfully')"
