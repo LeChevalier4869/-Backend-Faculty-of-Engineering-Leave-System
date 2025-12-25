@@ -1,20 +1,6 @@
-module.exports = {
+const prisma = {
     user: {
       findMany: jest.fn(),
-    },
-    leaveRequest: {
-      create: jest.fn(),
-    },
-    holiday: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-  };
-  
-  const prisma = {
-    user: {
       findUnique: jest.fn(),
     },
     leaveType: {
@@ -38,7 +24,17 @@ module.exports = {
     file: {
       createMany: jest.fn(),
     },
+    holiday: {
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    setting: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
   };
-  
-  module.exports = prisma;
-  
+
+module.exports = prisma;
