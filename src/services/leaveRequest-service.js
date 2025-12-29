@@ -338,6 +338,11 @@ class LeaveRequestService {
             firstName: true,
             lastName: true,
             email: true,
+            userRoles: {
+              include: {
+                role: true,
+              },
+            },
           },
         },
       },
