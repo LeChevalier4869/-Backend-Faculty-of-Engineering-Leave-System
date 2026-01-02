@@ -4,6 +4,7 @@ const UserService = require("../services/user-service");
 const LeaveBalanceService = require("./leaveBalance-service");
 const RankService = require("./rank-service");
 const AuditLogService = require("./auditLog-service");
+const ProxyApprovalService = require("./proxyApproval-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const { sendNotification, sendEmail } = require("../utils/emailService");
 
@@ -779,15 +780,41 @@ class LeaveRequestService {
       throw createError(400, "ขั้นตอนการอนุมัติไม่ถูกต้อง");
     }
 
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, 1);
+    if (!permission.canApprove) {
+      throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
+    }
+
+    // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
+    let proxyApprovalId = null;
+    let actualApproverId = approverId;
+    
+    if (permission.isProxy) {
+      proxyApprovalId = permission.proxyApproval.id;
+      actualApproverId = permission.originalApproverId;
+      
+      // ตรวจสอบว่า originalApproverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
+      if (existingDetail.approverId !== actualApproverId) {
+        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+      }
+    } else {
+      // ตรวจสอบว่า approverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
+      if (existingDetail.approverId !== approverId) {
+        throw createError(403, "คุณไม่ใช่ผู้อนุมัติที่กำหนดไว้สำหรับคำขอนี้");
+      }
+    }
+
     // 2. อัปเดตรายการคำขอลา (step 1)
     const updatedDetail = await prisma.leaveRequestDetail.update({
       where: { id: Number(id) },
       data: {
-        approverId,
+        approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
         status: "APPROVED",
         reviewedAt: new Date(),
         remarks,
         comment,
+        proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
       },
       include: {
         leaveRequest: true,
@@ -795,11 +822,15 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
+    const logMessage = permission.isProxy 
+      ? `Step 1 → APPROVED (Proxy by ${approverId})${remarks ? `(${remarks})` : ""}`
+      : `Step 1 → APPROVED${remarks ? `(${remarks})` : ""}`;
+    
     await AuditLogService.createLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
-      `Step 1 → APPROVED${remarks ? `(${remarks})` : ""}`,
+      logMessage,
       "APPROVED"
     );
 
@@ -835,10 +866,18 @@ class LeaveRequestService {
     });
 
     if (verifierUser.email) {
-      await sendNotification("APPROVER1_APPROVED", {
+      const notificationData = {
         to: verifierUser.email,
         userName: `${verifierUser.prefixName} ${verifierUser.firstName} ${verifierUser.lastName}`,
-      });
+      };
+      
+      // ถ้าเป็นการอนุมัติแทน ให้เพิ่มข้อมูลผู้อนุมัติแทน
+      if (permission.isProxy) {
+        notificationData.proxyApprover = `${permission.proxyApproval.proxyApprover.prefixName} ${permission.proxyApproval.proxyApprover.firstName} ${permission.proxyApproval.proxyApprover.lastName}`;
+        notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
+      }
+      
+      await sendNotification("APPROVER1_APPROVED", notificationData);
     }
 
     // 6. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
@@ -853,16 +892,28 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVER1", {
+      const notificationData = {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
-      });
+      };
+      
+      // ถ้าเป็นการอนุมัติแทน ให้เพิ่มข้อมูลผู้อนุมัติแทน
+      if (permission.isProxy) {
+        notificationData.proxyApprover = `${permission.proxyApproval.proxyApprover.prefixName} ${permission.proxyApproval.proxyApprover.firstName} ${permission.proxyApproval.proxyApprover.lastName}`;
+        notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
+      }
+      
+      await sendNotification("STEP_APPROVER1", notificationData);
     }
 
     return {
-      message: "อนุมัติเรียบร้อย และส่งต่อให้ผู้ตรวจสอบ",
+      message: permission.isProxy 
+        ? "อนุมัติเรียบร้อย (โดยผู้อนุมัติแทน) และส่งต่อให้ผู้ตรวจสอบ"
+        : "อนุมัติเรียบร้อย และส่งต่อให้ผู้ตรวจสอบ",
       approvedDetail: updatedDetail,
       nextStepDetail: newDetail,
+      isProxy: permission.isProxy,
+      proxyApproval: permission.proxyApproval,
     };
   }
 

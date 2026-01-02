@@ -50,7 +50,7 @@ const sendEmail = async (toEmail, subject, message) => {
 
       // const info = await transporter.sendMail(mailOptions);
       // console.log("Email sent: " + info.response);
-      console.log("Email sent ok");
+      console.log("ส่งอีเมลสำเร็จแล้ว");
       // return info;
     } catch (error) {
       console.error("Error sending email: ", error);
@@ -79,7 +79,7 @@ const sendEmailTest = async (toEmail, subject, message) => {
 
     // const info = await transporter.sendMail(mailOptions);
     // console.log("Email sent: " + info.response);
-    console.log("Email sent ok");
+    console.log("ส่งอีเมลสำเร็จแล้ว");
     // return info;
   } catch (error) {
     console.error("Error sending email: ", error);

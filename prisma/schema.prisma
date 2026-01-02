@@ -37,6 +37,10 @@ model User {
   leaveRequestsAsVerifier LeaveRequest[]     @relation("LeaveRequestVerifier")
   userRanks           UserRank[]
   userRoles           UserRole[]
+  
+  // Proxy approval relationships
+  originalApproverProxies ProxyApproval[] @relation("OriginalApproverProxy")
+  proxyApprovals        ProxyApproval[] @relation("ProxyApprover")
 
   @@index([departmentId], map: "user_departmentId_fkey")
   @@index([personnelTypeId], map: "user_personnelTypeId_fkey")
@@ -263,11 +267,14 @@ model LeaveRequestDetail {
   reviewedAt     DateTime?          @default(now())
   remarks        String?
   comment        String?
+  proxyApprovalId Int?              // อ้างอิงถึงการอนุมัติแทน (ถ้ามี)
   approver       User               @relation(fields: [approverId], references: [id])
   leaveRequest   LeaveRequest       @relation(fields: [leaveRequestId], references: [id])
+  proxyApproval  ProxyApproval?    @relation(fields: [proxyApprovalId], references: [id])
 
   @@index([approverId])
   @@index([leaveRequestId])
+  @@index([proxyApprovalId])
   @@map("leave_request_detail")
 }
 
@@ -320,10 +327,42 @@ model RefreshToken {
   @@map("refresh_token")
 }
 
+model ProxyApproval {
+  id               Int       @id @default(autoincrement())
+  originalApproverId Int      // ผู้อนุมัติต้นฉบับ
+  proxyApproverId   Int      // ผู้อนุมัติแทน
+  approverLevel     Int      // ระดับผู้อนุมัติ (1-4)
+  startDate         DateTime // วันเริ่มต้นการมอบอำนาจ
+  endDate           DateTime // วันสิ้นสุดการมอบอำนาจ
+  reason            String?  // เหตุผลการมอบอำนาจ
+  status            ProxyApprovalStatus @default(ACTIVE)
+  isDaily           Boolean   @default(false) // การมอบอำนาจรายวัน (true = รายวัน, false = ช่วงเวลา)
+  dailyDate         DateTime? // วันที่เฉพาะสำหรับการมอบอำนาจรายวัน (null ถ้าไม่ใช่รายวัน)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  originalApprover  User @relation("OriginalApproverProxy", fields: [originalApproverId], references: [id])
+  proxyApprover     User @relation("ProxyApprover", fields: [proxyApproverId], references: [id])
+  leaveRequestDetails LeaveRequestDetail[]
+
+  @@index([originalApproverId])
+  @@index([proxyApproverId])
+  @@index([approverLevel])
+  @@index([status])
+  @@index([dailyDate])
+  @@map("proxy_approval")
+}
+
 enum LeaveRequestStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum ProxyApprovalStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
 }
 
 enum FileType {

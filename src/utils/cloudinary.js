@@ -19,7 +19,7 @@ async function cloudUpload(path) {
       type: "upload", // public
     });
 
-    console.log(res); // ตรวจสอบ type / secure_url
+    console.log("ผลลัพธ์จาก Cloudinary:", res); // ตรวจสอบ type / secure_url
 
     return res.secure_url;
   } catch (err) {
