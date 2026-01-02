@@ -12,6 +12,41 @@ const ProxyApprovalService = require("../../../services/proxyApproval-service");
 describe("ProxyApprovalService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Mock createError
+    createError.mockImplementation((statusCode, message) => {
+      const error = new Error(message);
+      error.statusCode = statusCode;
+      return error;
+    });
+    
+    // Setup complete prisma mock
+    prisma.user = {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    };
+    
+    prisma.proxyApproval = {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      deleteMany: jest.fn(),
+    };
+    
+    prisma.department = {
+      findFirst: jest.fn(),
+    };
+    
+    prisma.userRole = {
+      findFirst: jest.fn(),
+    };
+    
+    prisma.approveStep = {
+      findFirst: jest.fn(),
+    };
   });
 
   describe("createProxyApproval", () => {
@@ -23,6 +58,8 @@ describe("ProxyApprovalService", () => {
         startDate: "2024-01-01",
         endDate: "2024-01-31",
         reason: "Test reason",
+        isDaily: false,
+        dailyDate: null,
       };
 
       const mockOriginalApprover = { id: 1, firstName: "John", lastName: "Doe" };
@@ -53,6 +90,8 @@ describe("ProxyApprovalService", () => {
           endDate: expect.any(Date),
           reason: "Test reason",
           status: "ACTIVE",
+          isDaily: false,
+          dailyDate: null,
         },
         include: {
           originalApprover: {
@@ -79,7 +118,9 @@ describe("ProxyApprovalService", () => {
     });
 
     it("should throw error when original approver not found", async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+      // Setup mock to pass validation but fail user check
+      prisma.user.findUnique.mockResolvedValueOnce(null); // Original approver not found
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 2 }); // Proxy approver found
 
       await expect(
         ProxyApprovalService.createProxyApproval({
@@ -88,14 +129,16 @@ describe("ProxyApprovalService", () => {
           approverLevel: 1,
           startDate: "2024-01-01",
           endDate: "2024-01-31",
+          isDaily: false,
+          dailyDate: null,
         })
       ).rejects.toThrow("ไม่พบข้อมูลผู้อนุมัติต้นฉบับ");
     });
 
     it("should throw error when proxy approver not found", async () => {
-      prisma.user.findUnique
-        .mockResolvedValueOnce({ id: 1 })
-        .mockResolvedValueOnce(null);
+      // Setup mock to pass validation but fail user check
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 1 }); // Original approver found
+      prisma.user.findUnique.mockResolvedValueOnce(null); // Proxy approver not found
 
       await expect(
         ProxyApprovalService.createProxyApproval({
@@ -104,13 +147,14 @@ describe("ProxyApprovalService", () => {
           approverLevel: 1,
           startDate: "2024-01-01",
           endDate: "2024-01-31",
+          isDaily: false,
+          dailyDate: null,
         })
       ).rejects.toThrow("ไม่พบข้อมูลผู้อนุมัติแทน");
     });
 
     it("should throw error when same user is assigned as proxy", async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 1 });
-
+      // Validation happens before user checks, so we don't need to mock user.findUnique
       await expect(
         ProxyApprovalService.createProxyApproval({
           originalApproverId: 1,
@@ -118,6 +162,8 @@ describe("ProxyApprovalService", () => {
           approverLevel: 1,
           startDate: "2024-01-01",
           endDate: "2024-01-31",
+          isDaily: false,
+          dailyDate: null,
         })
       ).rejects.toThrow("ไม่สามารถมอบอำนาจให้ตนเองได้");
     });
@@ -131,18 +177,54 @@ describe("ProxyApprovalService", () => {
         proxyApproverId: 2,
         approverLevel: 1,
         status: "ACTIVE",
+        isDaily: false,
+        dailyDate: null,
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-01-31"),
       };
 
-      prisma.proxyApproval.findFirst.mockResolvedValue(mockProxy);
+      // Mock daily proxy check to return null first
+      prisma.proxyApproval.findFirst
+        .mockResolvedValueOnce(null) // Daily proxy check
+        .mockResolvedValueOnce(mockProxy); // Period proxy check
 
       const result = await ProxyApprovalService.getActiveProxyApproval(1, 1, new Date("2024-01-15"));
 
-      expect(prisma.proxyApproval.findFirst).toHaveBeenCalledWith({
+      expect(prisma.proxyApproval.findFirst).toHaveBeenCalledTimes(2);
+      expect(prisma.proxyApproval.findFirst).toHaveBeenNthCalledWith(1, {
         where: {
           originalApproverId: 1,
           approverLevel: 1,
+          isDaily: true,
+          dailyDate: expect.any(Date), // Date will be normalized to 00:00:00
+          status: "ACTIVE",
+        },
+        include: {
+          originalApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          proxyApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      });
+      expect(prisma.proxyApproval.findFirst).toHaveBeenNthCalledWith(2, {
+        where: {
+          originalApproverId: 1,
+          approverLevel: 1,
+          isDaily: false,
           status: "ACTIVE",
           startDate: { lte: expect.any(Date) },
           endDate: { gte: expect.any(Date) },
@@ -172,10 +254,14 @@ describe("ProxyApprovalService", () => {
     });
 
     it("should return null when no active proxy found", async () => {
-      prisma.proxyApproval.findFirst.mockResolvedValue(null);
+      // Mock both daily and period proxy checks to return null
+      prisma.proxyApproval.findFirst
+        .mockResolvedValueOnce(null) // Daily proxy check
+        .mockResolvedValueOnce(null); // Period proxy check
 
       const result = await ProxyApprovalService.getActiveProxyApproval(1, 1);
 
+      expect(prisma.proxyApproval.findFirst).toHaveBeenCalledTimes(2);
       expect(result).toBeNull();
     });
   });
@@ -188,6 +274,8 @@ describe("ProxyApprovalService", () => {
         proxyApproverId: 2,
         approverLevel: 1,
         status: "ACTIVE",
+        isDaily: false,
+        dailyDate: null,
       };
 
       // Mock getActiveProxyApproval to return proxy
@@ -200,6 +288,8 @@ describe("ProxyApprovalService", () => {
         isProxy: true,
         proxyApproval: mockProxy,
         originalApproverId: 1,
+        isDaily: false,
+        proxyType: 'period',
       });
     });
 
@@ -217,6 +307,8 @@ describe("ProxyApprovalService", () => {
         isProxy: false,
         proxyApproval: null,
         originalApproverId: null,
+        isDaily: false,
+        proxyType: null,
       });
     });
 
@@ -234,6 +326,8 @@ describe("ProxyApprovalService", () => {
         isProxy: false,
         proxyApproval: null,
         originalApproverId: null,
+        isDaily: false,
+        proxyType: null,
       });
     });
   });
@@ -373,15 +467,25 @@ describe("ProxyApprovalService", () => {
 
   describe("expireProxyApprovals", () => {
     it("should expire proxy approvals", async () => {
-      const mockResult = { count: 5 };
+      const mockPeriodResult = { count: 3 };
+      const mockDailyResult = { count: 2 };
+      const expectedFinalResult = {
+        periodProxies: mockPeriodResult,
+        dailyProxies: mockDailyResult,
+        totalExpired: 5,
+      };
 
-      prisma.proxyApproval.updateMany.mockResolvedValue(mockResult);
+      prisma.proxyApproval.updateMany
+        .mockResolvedValueOnce(mockPeriodResult) // Period proxy expiration
+        .mockResolvedValueOnce(mockDailyResult); // Daily proxy expiration
 
       const result = await ProxyApprovalService.expireProxyApprovals();
 
-      expect(prisma.proxyApproval.updateMany).toHaveBeenCalledWith({
+      expect(prisma.proxyApproval.updateMany).toHaveBeenCalledTimes(2);
+      expect(prisma.proxyApproval.updateMany).toHaveBeenNthCalledWith(1, {
         where: {
           status: "ACTIVE",
+          isDaily: false,
           endDate: { lt: expect.any(Date) },
         },
         data: {
@@ -389,7 +493,18 @@ describe("ProxyApprovalService", () => {
           updatedAt: expect.any(Date),
         },
       });
-      expect(result).toEqual(mockResult);
+      expect(prisma.proxyApproval.updateMany).toHaveBeenNthCalledWith(2, {
+        where: {
+          status: "ACTIVE",
+          isDaily: true,
+          dailyDate: { lt: expect.any(Date) },
+        },
+        data: {
+          status: "EXPIRED",
+          updatedAt: expect.any(Date),
+        },
+      });
+      expect(result).toEqual(expectedFinalResult);
     });
   });
 });

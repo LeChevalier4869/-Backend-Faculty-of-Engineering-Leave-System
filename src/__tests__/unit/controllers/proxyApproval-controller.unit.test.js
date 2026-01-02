@@ -23,16 +23,22 @@ describe("Proxy Approval Controller", () => {
   describe("createProxyApproval", () => {
     it("should create proxy approval successfully", async () => {
       const mockProxyApproval = {
-        id: 1,
         originalApproverId: 1,
         proxyApproverId: 2,
         approverLevel: 1,
         startDate: "2024-01-01",
         endDate: "2024-01-31",
         reason: "ลาพักผ่อน",
+        isDaily: false,
+        dailyDate: null,
       };
 
-      ProxyApprovalService.createProxyApproval.mockResolvedValue(mockProxyApproval);
+      const mockResult = {
+        id: 1,
+        ...mockProxyApproval,
+      };
+
+      ProxyApprovalService.createProxyApproval.mockResolvedValue(mockResult);
       AuditLogService.createLog.mockResolvedValue({});
 
       const req = {
@@ -49,7 +55,7 @@ describe("Proxy Approval Controller", () => {
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         message: "สร้างการมอบอำนาจสำเร็จ",
-        data: mockProxyApproval,
+        data: mockResult,
       });
     });
 
@@ -274,7 +280,11 @@ describe("Proxy Approval Controller", () => {
 
   describe("expireProxyApprovals", () => {
     it("should expire proxy approvals", async () => {
-      const mockResult = { count: 5 };
+      const mockResult = {
+        periodProxies: { count: 3 },
+        dailyProxies: { count: 2 },
+        totalExpired: 5,
+      };
 
       ProxyApprovalService.expireProxyApprovals.mockResolvedValue(mockResult);
 
@@ -287,7 +297,11 @@ describe("Proxy Approval Controller", () => {
       expect(ProxyApprovalService.expireProxyApprovals).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         message: "อัปเดตสถานะการมอบอำนาจที่หมดอายุสำเร็จ",
-        data: { expiredCount: 5 },
+        data: {
+          periodProxies: 3,
+          dailyProxies: 2,
+          totalExpired: 5,
+        },
       });
     });
   });
