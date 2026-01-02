@@ -22,6 +22,12 @@ cron.schedule("5 0 * * *", async () => {
     
   } catch (error) {
     console.error("❌ [CRON] เกิดข้อผิดพลาดในการตรวจสอบการหมดอายุของการมอบอำนาจ:", error.message);
+    
+    // ใน production ควรมีการแจ้งเตือน
+    if (process.env.NODE_ENV === 'production') {
+      // TODO: เพิ่มการแจ้งเตือนผ่าน email หรือ monitoring system
+      console.error("🚨 [CRITICAL] Cron job failed - Please check system immediately");
+    }
   }
 }, {
   scheduled: true,
@@ -40,6 +46,12 @@ cron.schedule("0 2 * * *", async () => {
     
   } catch (error) {
     console.error("❌ [CRON] เกิดข้อผิดพลาดในการทำความสะอาดข้อมูลการมอบอำนาจรายวัน:", error.message);
+    
+    // ใน production ควรมีการแจ้งเตือน
+    if (process.env.NODE_ENV === 'production') {
+      // TODO: เพิ่มการแจ้งเตือนผ่าน email หรือ monitoring system
+      console.error("🚨 [CRITICAL] Cleanup cron job failed - Please check system immediately");
+    }
   }
 }, {
   scheduled: true,

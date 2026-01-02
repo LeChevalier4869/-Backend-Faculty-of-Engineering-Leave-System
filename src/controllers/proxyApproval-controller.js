@@ -95,11 +95,22 @@ exports.createDailyProxyApproval = async (req, res, next) => {
 // ดึงข้อมูลการมอบอำนาจทั้งหมด
 exports.getAllProxyApprovals = async (req, res, next) => {
   try {
-    const proxyApprovals = await ProxyApprovalService.getAllProxyApprovals();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const sort = req.query.sort || 'createdAt';
+    const order = req.query.order || 'desc';
+    
+    const proxyApprovals = await ProxyApprovalService.getAllProxyApprovals(page, limit, sort, order);
     
     res.status(200).json({
       message: "ดึงข้อมูลการมอบอำนาจทั้งหมดสำเร็จ",
-      data: proxyApprovals,
+      data: proxyApprovals.data,
+      pagination: {
+        currentPage: proxyApprovals.currentPage,
+        totalPages: proxyApprovals.totalPages,
+        totalCount: proxyApprovals.totalCount,
+        limit: proxyApprovals.limit
+      }
     });
   } catch (err) {
     next(err);
@@ -262,6 +273,11 @@ exports.updateProxyApproval = async (req, res, next) => {
     const { id } = req.params;
     const updateData = req.body;
 
+    console.log('🔍 Debug - Update Proxy Approval:');
+    console.log('ID:', id);
+    console.log('UpdateData:', updateData);
+    console.log('User:', req.user);
+
     const updatedProxy = await ProxyApprovalService.updateProxyApproval(id, updateData);
 
     // บันทึก log การทำงาน
@@ -278,6 +294,7 @@ exports.updateProxyApproval = async (req, res, next) => {
       data: updatedProxy,
     });
   } catch (err) {
+    console.log('❌ Error in updateProxyApproval:', err.message);
     next(err);
   }
 };

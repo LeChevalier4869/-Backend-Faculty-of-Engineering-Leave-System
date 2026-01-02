@@ -387,18 +387,51 @@ exports.getAllLeaveRequests = async (req, res, next) => {
 
 exports.getLeaveRequestsForFirstApprover = async (req, res) => {
   try {
-    const headId = req.user.id; // ต้องมี auth middleware ตั้งค่า req.user
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(1, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_1 required)" });
+    }
+
     const leaveRequests =
-      await LeaveRequestService.getPendingRequestsByFirstApprover(headId);
+      await LeaveRequestService.getPendingRequestsByFirstApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests for head:", error);
+    console.error("Error fetching leave requests for first approver:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 exports.getLeaveRequestsForVerifier = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
+    const verifiers = await UserService.getApproversForLevel(2, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Verifier IDs:', verifierIds);
+    console.log('Is user verifier?', verifierIds.includes(req.user.id));
+    
+    if (!verifierIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (VERIFIER required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsByVerifier();
     res.status(200).json(leaveRequests);
@@ -410,33 +443,84 @@ exports.getLeaveRequestsForVerifier = async (req, res) => {
 
 exports.getLeaveRequestsForSecondApprover = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(3, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsBySecondApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests at step 2:", error);
+    console.error("Error fetching leave requests at step 4:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 exports.getLeaveRequestsForThirdApprover = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(4, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsByThirdApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests at step 2:", error);
+    console.error("Error fetching leave requests at step 5:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 exports.getLeaveRequestsForFourthApprover = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(5, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsByFourthApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests at step 2:", error);
+    console.error("Error fetching leave requests at step 6:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -502,6 +586,19 @@ exports.approveByVerifier = async (req, res, next) => {
       console.log("Debug id: ", id);
       throw createError(400, "Invalid request ID format");
     }
+
+    // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
+    const verifiers = await UserService.getApproversForLevel(2, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    console.log('Approve - User ID:', req.user.id);
+    console.log('Approve - Verifier IDs:', verifierIds);
+    console.log('Approve - Is user verifier?', verifierIds.includes(req.user.id));
+    
+    if (!verifierIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
+    }
+
     const result = await LeaveRequestService.approveByVerifier({
       id,
       approverId,
@@ -523,6 +620,18 @@ exports.rejectByVerifier = async (req, res, next) => {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
       throw createError(400, "Invalid request ID format");
+    }
+
+    // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
+    const verifiers = await UserService.getApproversForLevel(2, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    console.log('Reject - User ID:', req.user.id);
+    console.log('Reject - Verifier IDs:', verifierIds);
+    console.log('Reject - Is user verifier?', verifierIds.includes(req.user.id));
+    
+    if (!verifierIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (VERIFIER required)" });
     }
 
     // เรียกใช้ service ในการ reject

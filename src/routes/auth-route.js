@@ -4,7 +4,7 @@ const router = express.Router();
 
 const passport = require("../config/passport");
 
-const { authenticate, authorize} = require('../middlewares/auth');
+const { authenticate, authorize, optionalAuth } = require('../middlewares/auth');
 const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");
@@ -25,6 +25,7 @@ router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 router.get('/user-info/:id', authenticate, authController.getUserInfoById);
 router.get('/verifier', authenticate, authController.getVerifier);
+router.get('/approvers-for-level/:level', optionalAuth, authController.getApproversForLevel); // ใช้ optionalAuth สำหรับ testing
 
 // ==============================
 // 🔐 Password Management

@@ -19,7 +19,10 @@ async function cloudUpload(path) {
       type: "upload", // public
     });
 
-    console.log("ผลลัพธ์จาก Cloudinary:", res); // ตรวจสอบ type / secure_url
+    // Debug: ตรวจสอบผลลัพธ์จาก Cloudinary (development เท่านั้น)
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Cloudinary upload result:", res);
+    }
 
     return res.secure_url;
   } catch (err) {

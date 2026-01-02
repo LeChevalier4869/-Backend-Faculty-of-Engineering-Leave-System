@@ -41,13 +41,16 @@ class LeaveRequestService {
     }
 
     // ตรวจสอบสิทธิ์และดึง verifier พร้อมกัน (refactor)
-    const [eligibility, verifier] = await Promise.all([
+    const [eligibility, verifiers] = await Promise.all([
       this.checkEligibility(userId, leaveTypeId, requestedDays),
-      UserService.getVerifier()
+      UserService.getApproversForLevel(2, new Date()) // Level 2 = VERIFIER
     ]);
 
     if (!eligibility.success) throw createError(400, eligibility.message);
-    if (!verifier) throw createError(5001, "ไม่พบผู้ตรวจสอบในระบบ โปรดติดต่อผู้ดูแลระบบ");
+    if (!verifiers || verifiers.length === 0) throw createError(5001, "ไม่พบผู้ตรวจสอบในระบบ โปรดติดต่อผู้ดูแลระบบ");
+
+    // ใช้ verifier คนแรก (หรือสามารถเลือกตาม logic อื่นได้)
+    const verifier = verifiers[0];
 
     // สร้าง leaveRequest
     let leaveRequest;
@@ -79,14 +82,27 @@ class LeaveRequestService {
     });
 
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
-    if (!user.department || !user.department.headId) throw createError(500, "ไม่พบหัวหน้าสาขา");
+
+    // ดึงหัวหน้าสาขา (APPROVER_1) ที่ใช้งานได้ในวันนี้
+    const approver1s = await UserService.getApproversForLevel(1, new Date());
+    if (!approver1s || approver1s.length === 0) throw createError(500, "ไม่พบหัวหน้าสาขาที่สามารถอนุมัติได้ในวันนี้");
+
+    // หาหัวหน้าสาขาของ department นี้ (ถ้ามี)
+    let departmentHead = approver1s.find(approver => 
+      approver.isOriginal && user.department?.headId === approver.id
+    );
+
+    // ถ้าไม่มีหัวหน้าสาขาของ department ให้ใช้คนแรก
+    if (!departmentHead) {
+      departmentHead = approver1s[0];
+    }
 
     // เพิ่ม approval step แรก
     try {
       await prisma.leaveRequestDetail.create({
         data: {
           leaveRequestId: leaveRequest.id,
-          approverId: user.department.headId,
+          approverId: departmentHead.id,
           stepOrder: 1,
           status: "PENDING",
         },
@@ -97,7 +113,7 @@ class LeaveRequestService {
     
     // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
     this.notifyApprover({
-      approverId: user.department.headId,
+      approverId: departmentHead.id,
       user,
       requestedDays,
       reason,
@@ -563,23 +579,19 @@ class LeaveRequestService {
     });
   }
 
-  // ────────────────────────────────
-  // 🟢 GET REQUEST FOR APPROVER
-  // ────────────────────────────────
-
-  static async getPendingRequestsByFirstApprover(headId) {
+  static async getPendingRequestsByFirstApprover() {
+    // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
+    const approvers = await UserService.getApproversForLevel(1, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
-        user: {
-          department: {
-            headId: headId,
-          },
-        },
         leaveRequestDetails: {
           some: {
             stepOrder: 1,
             status: "PENDING",
+            approverId: { in: approverIds }, // กรองตาม approver IDs (รวม proxy)
           },
         },
       },
@@ -598,24 +610,30 @@ class LeaveRequestService {
           },
         },
         leaveType: true,
-        leaveRequestDetails: {
-          where: {
-            stepOrder: 1,
-          },
-        },
+        leaveRequestDetails: { where: { stepOrder: 1, status: "PENDING", approverId: { in: approverIds } } },
         files: true,
       },
+      orderBy: { createdAt: "desc" },
     });
   }
 
   static async getPendingRequestsByVerifier() {
-    return await prisma.leaveRequest.findMany({
+    console.log('🔍 Debug - getPendingRequestsByVerifier');
+    
+    // ดึง verifiers ที่ใช้งานได้ในวันนี้ (รวม proxy)
+    const verifiers = await UserService.getApproversForLevel(2, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    console.log('👥 Verifiers found:', verifiers.map(v => ({ id: v.id, firstName: v.firstName, lastName: v.lastName, isProxy: v.isProxy })));
+    
+    const requests = await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
         leaveRequestDetails: {
           some: {
             stepOrder: 2,
             status: "PENDING",
+            approverId: { in: verifierIds }, // กรองตาม verifier IDs (รวม proxy)
           },
         },
       },
@@ -634,17 +652,23 @@ class LeaveRequestService {
           },
         },
         leaveType: true,
-        leaveRequestDetails: {
-          where: {
-            stepOrder: 2,
-          },
-        },
+        leaveRequestDetails: { where: { stepOrder: 2, status: "PENDING", approverId: { in: verifierIds } } },
         files: true,
       },
+      orderBy: { createdAt: "desc" },
     });
+    
+    console.log('📋 Leave requests for verifier:', requests.length);
+    console.log('📋 Sample request:', requests[0] || 'No requests');
+    
+    return requests;
   }
 
   static async getPendingRequestsBySecondApprover() {
+    // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
+    const approvers = await UserService.getApproversForLevel(3, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -652,6 +676,7 @@ class LeaveRequestService {
           some: {
             stepOrder: 4,
             status: "PENDING",
+            approverId: { in: approverIds }, // กรองตาม approver IDs (รวม proxy)
           },
         },
       },
@@ -673,7 +698,19 @@ class LeaveRequestService {
         leaveRequestDetails: {
           where: {
             stepOrder: 4,
+            status: "PENDING",
+            approverId: { in: approverIds }, // กรองเฉพาะที่เป็น approver หรือ proxy
           },
+          include: {
+            approver: {
+              select: {
+                id: true,
+                prefixName: true,
+                firstName: true,
+                lastName: true,
+              }
+            }
+          }
         },
         files: true,
       },
@@ -681,6 +718,10 @@ class LeaveRequestService {
   }
 
   static async getPendingRequestsByThirdApprover() {
+    // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
+    const approvers = await UserService.getApproversForLevel(4, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -688,6 +729,7 @@ class LeaveRequestService {
           some: {
             stepOrder: 5,
             status: "PENDING",
+            approverId: { in: approverIds }, // กรองตาม approver IDs (รวม proxy)
           },
         },
       },
@@ -709,7 +751,19 @@ class LeaveRequestService {
         leaveRequestDetails: {
           where: {
             stepOrder: 5,
+            status: "PENDING",
+            approverId: { in: approverIds }, // กรองเฉพาะที่เป็น approver หรือ proxy
           },
+          include: {
+            approver: {
+              select: {
+                id: true,
+                prefixName: true,
+                firstName: true,
+                lastName: true,
+              }
+            }
+          }
         },
         files: true,
       },
@@ -717,6 +771,10 @@ class LeaveRequestService {
   }
 
   static async getPendingRequestsByFourthApprover() {
+    // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
+    const approvers = await UserService.getApproversForLevel(5, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -724,6 +782,7 @@ class LeaveRequestService {
           some: {
             stepOrder: 6,
             status: "PENDING",
+            approverId: { in: approverIds }, // กรองตาม approver IDs (รวม proxy)
           },
         },
       },
@@ -745,7 +804,19 @@ class LeaveRequestService {
         leaveRequestDetails: {
           where: {
             stepOrder: 6,
+            status: "PENDING",
+            approverId: { in: approverIds }, // กรองเฉพาะที่เป็น approver หรือ proxy
           },
+          include: {
+            approver: {
+              select: {
+                id: true,
+                prefixName: true,
+                firstName: true,
+                lastName: true,
+              }
+            }
+          }
         },
         files: true,
       },

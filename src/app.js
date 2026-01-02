@@ -71,10 +71,13 @@ app.use(cors({
 }));
 */
 const allowedOrigins = [
-  process.env.FRONTEND_URL ||
-    "https://frontend-faculty-of-engineering-leave-system.vercel.app",
-  "http://localhost:5173",
+  process.env.FRONTEND_URL || "https://frontend-faculty-of-engineering-leave-system.vercel.app",
 ];
+
+// เพิ่ม localhost เฉพาะใน development
+if (process.env.NODE_ENV === 'development') {
+  allowedOrigins.push("http://localhost:5173");
+}
 
 app.use(
   cors({
@@ -119,7 +122,7 @@ app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 
 // Proxy approval routes
-app.use("/proxy-approvals", authenticate, proxyApprovalRoute);
+app.use("/proxy-approval", authenticate, proxyApprovalRoute);
 
 // Excel upload route
 app.use("/excel", exelRoute); //ใช้เพื่อทดสอบเฉยๆ

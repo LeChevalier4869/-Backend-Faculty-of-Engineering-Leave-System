@@ -187,30 +187,49 @@ class ProxyApprovalService {
   // ────────────────────────────────
 
   // ดึงข้อมูลการมอบอำนาจทั้งหมด
-  static async getAllProxyApprovals() {
-    return await prisma.proxyApproval.findMany({
-      include: {
-        originalApprover: {
-          select: {
-            id: true,
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+  static async getAllProxyApprovals(page = 1, limit = 10, sort = 'createdAt', order = 'desc') {
+    const skip = (page - 1) * limit;
+    
+    const [data, totalCount] = await Promise.all([
+      prisma.proxyApproval.findMany({
+        skip,
+        take: limit,
+        orderBy: {
+          [sort]: order
+        },
+        include: {
+          originalApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          proxyApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
           },
         },
-        proxyApprover: {
-          select: {
-            id: true,
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+      }),
+      prisma.proxyApproval.count()
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      data,
+      currentPage: page,
+      totalPages,
+      totalCount,
+      limit
+    };
   }
 
   // ดึงข้อมูลการมอบอำนาจตาม ID
@@ -381,13 +400,54 @@ class ProxyApprovalService {
 
   // อัปเดตข้อมูลการมอบอำนาจ
   static async updateProxyApproval(id, updateData) {
+    console.log('🔍 Debug - Service updateProxyApproval:');
+    console.log('ID:', id);
+    console.log('UpdateData:', updateData);
+
     const existingProxy = await prisma.proxyApproval.findUnique({
       where: { id: parseInt(id) },
     });
 
     if (!existingProxy) {
+      console.log('❌ Proxy not found');
       throw createError(404, "ไม่พบข้อมูลการมอบอำนาจ");
     }
+
+    console.log('✅ Found existing proxy:', existingProxy);
+
+    // ตรวจสอบและจัดการข้อมูลสำหรับ isDaily
+    if (updateData.isDaily) {
+      // สำหรับรายวัน: ต้องมี dailyDate
+      if (!updateData.dailyDate) {
+        console.log('❌ Missing dailyDate for isDaily=true');
+        throw createError(400, "การมอบอำนาจรายวันต้องระบุวันที่");
+      }
+      
+      // ตั้ง startDate และ endDate เป็นวันเดียวกัน
+      const dailyDate = new Date(updateData.dailyDate);
+      dailyDate.setHours(0, 0, 0, 0);
+      
+      updateData.startDate = dailyDate;
+      updateData.endDate = dailyDate;
+      
+      console.log('📅 Processed dailyDate:', dailyDate);
+      
+      // ลบฟิลด์ที่ไม่จำเป็นหลังจากจัดการข้อมูลเสร็จแล้ว
+      delete updateData.dailyDate;
+    } else {
+      // สำหรับช่วงเวลา: ต้องมี startDate และ endDate
+      if (!updateData.startDate || !updateData.endDate) {
+        console.log('❌ Missing startDate or endDate for isDaily=false');
+        throw createError(400, "การมอบอำนาจช่วงเวลาต้องระบุวันเริ่มต้นและวันสิ้นสุด");
+      }
+      
+      // ลบฟิลด์ที่ไม่จำเป็น
+      if (updateData.dailyDate) {
+        delete updateData.dailyDate;
+      }
+    }
+
+    console.log('📋 Final updateData for database:', updateData);
 
     try {
       const updatedProxy = await prisma.proxyApproval.update({
@@ -415,8 +475,10 @@ class ProxyApprovalService {
         },
       });
 
+      console.log('✅ Update successful:', updatedProxy);
       return updatedProxy;
     } catch (error) {
+      console.log('❌ Database update error:', error.message);
       throw createError(500, "อัปเดตการมอบอำนาจไม่สำเร็จ");
     }
   }
@@ -475,6 +537,11 @@ class ProxyApprovalService {
 
       return cancelledProxy;
     } catch (error) {
+      // ถ้า error เป็น validation error ให้ throw ต่อไป
+      if (error.statusCode) {
+        throw error;
+      }
+      // ถ้าเป็น database error ให้ throw generic error
       throw createError(500, "ยกเลิกการมอบอำนาจไม่สำเร็จ");
     }
   }
