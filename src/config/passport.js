@@ -29,9 +29,9 @@ passport.deserializeUser(async (id, done) => {
      ? `${process.env.BACKEND_URL}/auth/google/callback`
      : 'http://localhost:8000/auth/google/callback';
    
-   console.log("NODE_ENV:", process.env.NODE_ENV);
-   console.log("BACKEND_URL:", process.env.BACKEND_URL);
-   console.log("Google OAuth Callback URL:", callbackURL);
+  //  console.log("NODE_ENV:", process.env.NODE_ENV);
+  //  console.log("BACKEND_URL:", process.env.BACKEND_URL);
+  //  console.log("Google OAuth Callback URL:", callbackURL);
    
    passport.use(
      new GoogleStrategy(

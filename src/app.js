@@ -26,6 +26,7 @@ const signatureRoute = require("./routes/signature-route");
 const apiRoute = require("./routes/api-route");
 const lookupRoute = require("./routes/lookup-routes");
 const adminUserRoute = require("./routes/admin-user-route");
+const proxyApprovalRoute = require("./routes/proxyApproval-route");
 //const reportRouter         = require('./routes/report-router');
 
 // Initialize app
@@ -70,10 +71,14 @@ app.use(cors({
 }));
 */
 const allowedOrigins = [
-  process.env.FRONTEND_URL ||
-    "https://frontend-faculty-of-engineering-leave-system.vercel.app",
-  "http://localhost:5173",
+  process.env.FRONTEND_URL || "https://frontend-faculty-of-engineering-leave-system.vercel.app",
 ];
+
+// เพิ่ม localhost เฉพาะใน development
+if (process.env.NODE_ENV === 'development') {
+  allowedOrigins.push("http://localhost:5173");
+  allowedOrigins.push("http://localhost:5174");
+}
 
 app.use(
   cors({
@@ -117,6 +122,12 @@ app.use("/setting", settingRoute);
 app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 
+// Proxy approval routes
+app.use("/proxy-approval", authenticate, proxyApprovalRoute);
+
+// Test routes (สำหรับทดสอบชั่วคราว)
+app.use("/test-proxy-approval", proxyApprovalRoute);
+
 // Excel upload route
 app.use("/excel", exelRoute); //ใช้เพื่อทดสอบเฉยๆ
 // app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute); //ถ้า oaut เสร็จต้องใช้อันนี้
@@ -134,6 +145,9 @@ app.use("*", notFoundHandler);
 // เรียก reset leave balance เมื่อขึ้นปีงบประมาณใหม่
 if (process.env.NODE_ENV !== "test") {
   require("./utils/resetLeaveBalance");
+  
+  // เรียก cron job สำหรับการจัดการการมอบอำนาจรายวัน
+  require("./utils/proxyApprovalCron");
 }
 
 module.exports = app;

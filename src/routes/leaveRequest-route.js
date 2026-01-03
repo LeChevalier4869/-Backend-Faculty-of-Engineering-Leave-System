@@ -1,6 +1,6 @@
 const express = require("express");
 const leaveRequestController = require("../controllers/leaveRequest-controller");
-const { authorize, authenticate } = require("../middlewares/auth");
+const { authenticate, authorize, optionalAuth } = require("../middlewares/auth");
 const { leaveRequestLimiter } = require("../middlewares/rateLimit");
 const upload = require("../middlewares/upload");
 
@@ -109,15 +109,14 @@ router.get("/user/:id", leaveRequestController.getLeaveRequestsByUserId);
 router.get(
   "/for-approver1",
   authenticate,
-  authorize(["APPROVER_1"]),
+  // authorize(["APPROVER_1"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.getLeaveRequestsForFirstApprover
 );
 
 // get request for verifier (step 2)
 router.get(
   "/for-verifier",
-  authenticate,
-  authorize(["VERIFIER"]),
+  authenticate, // ใช้ authenticate สำหรับ frontend
   leaveRequestController.getLeaveRequestsForVerifier
 );
 
@@ -125,7 +124,7 @@ router.get(
 router.get(
   "/for-approver2",
   authenticate,
-  authorize(["APPROVER_2"]),
+  // authorize(["APPROVER_2"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.getLeaveRequestsForSecondApprover
 );
 
@@ -133,7 +132,7 @@ router.get(
 router.get(
   "/for-approver3",
   authenticate,
-  authorize(["APPROVER_3"]),
+  // authorize(["APPROVER_3"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.getLeaveRequestsForThirdApprover
 );
 
@@ -141,7 +140,7 @@ router.get(
 router.get(
   "/for-approver4",
   authenticate,
-  authorize(["APPROVER_4"]),
+  // authorize(["APPROVER_4"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.getLeaveRequestsForFourthApprover
 );
 
@@ -149,13 +148,13 @@ router.get(
 router.patch(
   "/:id/approve-by-approver1",
   authenticate,
-  authorize(["APPROVER_1"]),
+  // authorize(["APPROVER_1"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.approveByFirstApprover
 );
 router.patch(
   "/:id/reject-by-approver1",
   authenticate,
-  authorize(["APPROVER_1"]),
+  // authorize(["APPROVER_1"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.rejectByFirstApprover
 );
 
@@ -163,13 +162,13 @@ router.patch(
 router.patch(
   "/:id/approve-by-verifier",
   authenticate,
-  authorize(["VERIFIER"]),
+  // authorize(["VERIFIER"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.approveByVerifier
 );
 router.patch(
   "/:id/reject-by-verifier",
   authenticate,
-  authorize(["VERIFIER"]),
+  // authorize(["VERIFIER"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.rejectByVerifier
 );
 
@@ -177,13 +176,13 @@ router.patch(
 router.patch(
   "/:id/approve-by-approver2",
   authenticate,
-  authorize(["APPROVER_2"]),
+  // authorize(["APPROVER_2"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.approveBySecondApprover
 );
 router.patch(
   "/:id/reject-by-approver2",
   authenticate,
-  authorize(["APPROVER_2"]),
+  // authorize(["APPROVER_2"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.rejectBySecondApprover
 );
 
@@ -191,13 +190,13 @@ router.patch(
 router.patch(
   "/:id/approve-by-approver3",
   authenticate,
-  authorize(["APPROVER_3"]),
+  // authorize(["APPROVER_3"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.approveByThirdApprover
 );
 router.patch(
   "/:id/reject-by-approver3",
   authenticate,
-  authorize(["APPROVER_3"]),
+  // authorize(["APPROVER_3"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.rejectByThirdApprover
 );
 
@@ -205,13 +204,13 @@ router.patch(
 router.patch(
   "/:id/approve-by-approver4",
   authenticate,
-  authorize(["APPROVER_4"]),
+  // authorize(["APPROVER_4"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.approveByFourthApprover
 );
 router.patch(
   "/:id/reject-by-approver4",
   authenticate,
-  authorize(["APPROVER_4"]),
+  // authorize(["APPROVER_4"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.rejectByFourthApprover
 );
 module.exports = router;
