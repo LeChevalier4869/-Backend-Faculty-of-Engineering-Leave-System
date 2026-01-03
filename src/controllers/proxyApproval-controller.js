@@ -117,6 +117,63 @@ exports.getAllProxyApprovals = async (req, res, next) => {
   }
 };
 
+// ดึงข้อมูลการมอบอำนาจสำหรับวันนี้ (ปัจจุบัน)
+exports.getTodayProxyApprovals = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const sort = req.query.sort || 'createdAt';
+    const order = req.query.order || 'desc';
+    
+    const proxyApprovals = await ProxyApprovalService.getTodayProxyApprovals(page, limit, sort, order);
+    
+    res.status(200).json({
+      message: "ดึงข้อมูลการมอบอำนาจสำหรับวันนี้สำเร็จ",
+      data: proxyApprovals.data,
+      pagination: {
+        currentPage: proxyApprovals.currentPage,
+        totalPages: proxyApprovals.totalPages,
+        totalCount: proxyApprovals.totalCount,
+        limit: proxyApprovals.limit
+      },
+      meta: {
+        isToday: proxyApprovals.isToday,
+        date: proxyApprovals.date
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ดึงประวัติการมอบอำนาจทั้งหมด (ยกเว้นวันนี้)
+exports.getHistoryProxyApprovals = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const sort = req.query.sort || 'createdAt';
+    const order = req.query.order || 'desc';
+    
+    const proxyApprovals = await ProxyApprovalService.getHistoryProxyApprovals(page, limit, sort, order);
+    
+    res.status(200).json({
+      message: "ดึงประวัติการมอบอำนาจสำเร็จ",
+      data: proxyApprovals.data,
+      pagination: {
+        currentPage: proxyApprovals.currentPage,
+        totalPages: proxyApprovals.totalPages,
+        totalCount: proxyApprovals.totalCount,
+        limit: proxyApprovals.limit
+      },
+      meta: {
+        isHistory: proxyApprovals.isHistory
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ดึงข้อมูลการมอบอำนาจตาม ID
 exports.getProxyApprovalById = async (req, res, next) => {
   try {

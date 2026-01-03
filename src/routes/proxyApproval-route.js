@@ -34,6 +34,33 @@ router.get(
   proxyApprovalController.getAllProxyApprovals
 );
 
+// ดึงข้อมูลการมอบอำนาจสำหรับวันนี้ (ปัจจุบัน)
+router.get(
+  "/today",
+  authMiddleware.authenticate,
+  authMiddleware.authorize(["ADMIN"]),
+  proxyApprovalController.getTodayProxyApprovals
+);
+
+// ดึงประวัติการมอบอำนาจทั้งหมด (ยกเว้นวันนี้)
+router.get(
+  "/history",
+  authMiddleware.authenticate,
+  authMiddleware.authorize(["ADMIN"]),
+  proxyApprovalController.getHistoryProxyApprovals
+);
+
+// Test endpoints (สำหรับทดสอบชั่วคราว)
+router.get(
+  "/test/today",
+  proxyApprovalController.getTodayProxyApprovals
+);
+
+router.get(
+  "/test/history", 
+  proxyApprovalController.getHistoryProxyApprovals
+);
+
 // ดึงข้อมูลการมอบอำนาจตาม ID
 router.get(
   "/:id",

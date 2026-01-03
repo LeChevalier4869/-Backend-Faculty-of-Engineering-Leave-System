@@ -28,6 +28,35 @@ class ProxyApprovalService {
       throw createError(400, "ไม่สามารถมอบอำนาจให้ตนเองได้");
     }
 
+    // ตรวจสอบว่ามีการมอบอำนาจให้ original approver คนเดียวกันในระดับเดียวกันแล้วหรือไม่
+    const existingProxy = await prisma.proxyApproval.findFirst({
+      where: {
+        originalApproverId: originalApproverId, // เพิ่มการตรวจสอบ original approver
+        approverLevel: approverLevel,
+        status: 'ACTIVE',
+        OR: [
+          // กรณีช่วงเวลา
+          {
+            isDaily: false,
+            startDate: { lte: new Date() },
+            endDate: { gte: new Date() }
+          },
+          // กรณีรายวัน
+          {
+            isDaily: true,
+            dailyDate: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              lt: new Date(new Date().setHours(23, 59, 59, 999))
+            }
+          }
+        ]
+      }
+    });
+
+    if (existingProxy) {
+      throw createError(400, "ผู้มอบอำนาจนี้มีการมอบอำนาจในระดับที่กำหนดอยู่แล้ว ไม่สามารถมอบอำนาจซ้ำได้");
+    }
+
     if (approverLevel < 1 || approverLevel > 4) {
       throw createError(400, "ระดับผู้อนุมัติต้องอยู่ระหว่าง 1-4");
     }
@@ -83,10 +112,39 @@ class ProxyApprovalService {
     // ตรวจสอบว่าผู้อนุมัติแทนมีอยู่จริง
     const proxyApprover = await prisma.user.findUnique({
       where: { id: proxyApproverId },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
     });
 
     if (!proxyApprover) {
       throw createError(404, "ไม่พบข้อมูลผู้อนุมัติแทน");
+    }
+
+    // ตรวจสอบว่า proxy approver มี role ที่เกี่ยวข้องกับ approverLevel หรือไม่
+    const roleMapping = {
+      1: 'APPROVER_1',
+      2: 'VERIFIER', 
+      3: 'APPROVER_2',
+      4: 'APPROVER_3',
+      5: 'APPROVER_4'
+    };
+
+    const requiredRole = roleMapping[approverLevel];
+    if (!requiredRole) {
+      throw createError(400, "ระดับผู้อนุมัติไม่ถูกต้อง");
+    }
+
+    const hasRequiredRole = proxyApprover.userRoles.some(userRole => 
+      userRole.role.name === requiredRole
+    );
+
+    if (!hasRequiredRole) {
+      throw createError(400, `ผู้อนุมัติแทนต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถทำงานแทนได้`);
     }
 
     // ตรวจสอบว่ามีการมอบอำนาจที่ทับซ้อนกันหรือไม่
@@ -186,9 +244,11 @@ class ProxyApprovalService {
   // 🔎 READ
   // ────────────────────────────────
 
-  // ดึงข้อมูลการมอบอำนาจทั้งหมด
+  // ดึงข้อมูลการมอบอำนาจทั้งหมด (รวม ACTIVE และ EXPIRED)
   static async getAllProxyApprovals(page = 1, limit = 10, sort = 'createdAt', order = 'desc') {
     const skip = (page - 1) * limit;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     const [data, totalCount] = await Promise.all([
       prisma.proxyApproval.findMany({
@@ -221,14 +281,257 @@ class ProxyApprovalService {
       prisma.proxyApproval.count()
     ]);
 
+    // ตรวจสอบและอัปเดตสถานะสำหรับ proxy ที่หมดอายุ
+    const updatedData = data.map(proxy => {
+      let status = proxy.status;
+      
+      // ตรวจสอบวันที่สำหรับ proxy ที่หมดอายุ
+      if (proxy.status === 'ACTIVE') {
+        if (proxy.isDaily) {
+          // กรณีรายวัน: ตรวจสอบว่าวันที่ผ่านไปแล้ว
+          const proxyDate = new Date(proxy.dailyDate);
+          proxyDate.setHours(0, 0, 0, 0);
+          const nextDay = new Date(proxyDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          
+          if (today >= nextDay) {
+            status = 'EXPIRED';
+            // อัปเดตสถานะในฐานข้อมูล
+            prisma.proxyApproval.update({
+              where: { id: proxy.id },
+              data: { status: 'EXPIRED' }
+            }).catch(err => console.error('Error updating expired proxy:', err));
+          }
+        } else {
+          // กรณีช่วงเวลา: ตรวจสอบว่าวันสิ้นสุดผ่านไปแล้ว
+          const endDate = new Date(proxy.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          
+          if (today > endDate) {
+            status = 'EXPIRED';
+            // อัปเดตสถานะในฐานข้อมูล
+            prisma.proxyApproval.update({
+              where: { id: proxy.id },
+              data: { status: 'EXPIRED' }
+            }).catch(err => console.error('Error updating expired proxy:', err));
+          }
+        }
+      }
+      
+      return { ...proxy, status };
+    });
+
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
-      data,
+      data: updatedData,
       currentPage: page,
       totalPages,
       totalCount,
       limit
+    };
+  }
+
+  // ดึงข้อมูลการมอบอำนาจสำหรับวันนี้ (ปัจจุบัน)
+  static async getTodayProxyApprovals(page = 1, limit = 10, sort = 'createdAt', order = 'desc') {
+    const skip = (page - 1) * limit;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const [data, totalCount] = await Promise.all([
+      prisma.proxyApproval.findMany({
+        where: {
+          AND: [
+            { status: 'ACTIVE' },
+            {
+              OR: [
+                // การมอบอำนาจรายวันสำหรับวันนี้
+                {
+                  isDaily: true,
+                  dailyDate: {
+                    gte: today,
+                    lt: tomorrow
+                  }
+                },
+                // การมอบอำนาจช่วงเวลาที่ครอบคลุมวันนี้
+                {
+                  isDaily: false,
+                  startDate: {
+                    lte: today
+                  },
+                  endDate: {
+                    gte: today
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        skip,
+        take: limit,
+        orderBy: {
+          [sort]: order
+        },
+        include: {
+          originalApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          proxyApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      prisma.proxyApproval.count({
+        where: {
+          AND: [
+            { status: 'ACTIVE' },
+            {
+              OR: [
+                // การมอบอำนาจรายวันสำหรับวันนี้
+                {
+                  isDaily: true,
+                  dailyDate: {
+                    gte: today,
+                    lt: tomorrow
+                  }
+                },
+                // การมอบอำนาจช่วงเวลาที่ครอบคลุมวันนี้
+                {
+                  isDaily: false,
+                  startDate: {
+                    lte: today
+                  },
+                  endDate: {
+                    gte: today
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+    ]);
+
+    return {
+      data,
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit),
+      totalCount,
+      limit,
+      isToday: true,
+      date: today.toISOString().split('T')[0]
+    };
+  }
+
+  // ดึงประวัติการมอบอำนาจทั้งหมด (ยกเว้นวันนี้)
+  static async getHistoryProxyApprovals(page = 1, limit = 10, sort = 'createdAt', order = 'desc') {
+    const skip = (page - 1) * limit;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const [data, totalCount] = await Promise.all([
+      prisma.proxyApproval.findMany({
+        where: {
+          OR: [
+            // การมอบอำนาจที่ไม่ใช่วันนี้
+            {
+              isDaily: true,
+              dailyDate: {
+                not: {
+                  gte: today,
+                  lt: tomorrow
+                }
+              }
+            },
+            // การมอบอำนาจช่วงเวลาที่ไม่ได้ครอบคลุมวันนี้
+            {
+              isDaily: false,
+              OR: [
+                { startDate: { gt: today } },
+                { endDate: { lt: today } }
+              ]
+            },
+            // การมอบอำนาจที่ไม่ active
+            { status: { not: 'ACTIVE' } }
+          ]
+        },
+        skip,
+        take: limit,
+        orderBy: {
+          [sort]: order
+        },
+        include: {
+          originalApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          proxyApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      prisma.proxyApproval.count({
+        where: {
+          OR: [
+            // การมอบอำนาจที่ไม่ใช่วันนี้
+            {
+              isDaily: true,
+              dailyDate: {
+                not: {
+                  gte: today,
+                  lt: tomorrow
+                }
+              }
+            },
+            // การมอบอำนาจช่วงเวลาที่ไม่ได้ครอบคลุมวันนี้
+            {
+              isDaily: false,
+              OR: [
+                { startDate: { gt: today } },
+                { endDate: { lt: today } }
+              ]
+            },
+            // การมอบอำนาจที่ไม่ active
+            { status: { not: 'ACTIVE' } }
+          ]
+        }
+      })
+    ]);
+
+    return {
+      data,
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit),
+      totalCount,
+      limit,
+      isHistory: true
     };
   }
 

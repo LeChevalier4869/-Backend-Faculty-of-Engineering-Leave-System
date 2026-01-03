@@ -77,6 +77,7 @@ const allowedOrigins = [
 // เพิ่ม localhost เฉพาะใน development
 if (process.env.NODE_ENV === 'development') {
   allowedOrigins.push("http://localhost:5173");
+  allowedOrigins.push("http://localhost:5174");
 }
 
 app.use(
@@ -123,6 +124,9 @@ app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 
 // Proxy approval routes
 app.use("/proxy-approval", authenticate, proxyApprovalRoute);
+
+// Test routes (สำหรับทดสอบชั่วคราว)
+app.use("/test-proxy-approval", proxyApprovalRoute);
 
 // Excel upload route
 app.use("/excel", exelRoute); //ใช้เพื่อทดสอบเฉยๆ
