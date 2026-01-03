@@ -83,18 +83,37 @@ describe("Proxy Approval Controller", () => {
         { id: 2, originalApproverId: 3, proxyApproverId: 4 },
       ];
 
-      ProxyApprovalService.getAllProxyApprovals.mockResolvedValue(mockApprovals);
+      ProxyApprovalService.getAllProxyApprovals.mockResolvedValue({
+        data: mockApprovals,
+        currentPage: 1,
+        totalPages: 1,
+        totalCount: 2,
+        limit: 10
+      });
 
-      const req = {};
+      const req = {
+        query: {
+          page: '1',
+          limit: '10',
+          sort: 'createdAt',
+          order: 'desc'
+        }
+      };
       const res = makeRes();
       const next = makeNext();
 
       await proxyApprovalController.getAllProxyApprovals(req, res, next);
 
-      expect(ProxyApprovalService.getAllProxyApprovals).toHaveBeenCalled();
+      expect(ProxyApprovalService.getAllProxyApprovals).toHaveBeenCalledWith(1, 10, 'createdAt', 'desc');
       expect(res.json).toHaveBeenCalledWith({
         message: "ดึงข้อมูลการมอบอำนาจทั้งหมดสำเร็จ",
         data: mockApprovals,
+        pagination: {
+          currentPage: 1,
+          totalPages: 1,
+          totalCount: 2,
+          limit: 10
+        }
       });
     });
   });

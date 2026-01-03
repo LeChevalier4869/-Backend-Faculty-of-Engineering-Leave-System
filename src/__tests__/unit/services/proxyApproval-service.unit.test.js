@@ -63,7 +63,18 @@ describe("ProxyApprovalService", () => {
       };
 
       const mockOriginalApprover = { id: 1, firstName: "John", lastName: "Doe" };
-      const mockProxyApprover = { id: 2, firstName: "Jane", lastName: "Smith" };
+      const mockProxyApprover = { 
+        id: 2, 
+        firstName: "Jane", 
+        lastName: "Smith",
+        userRoles: [
+          {
+            role: {
+              name: 'APPROVER_1'
+            }
+          }
+        ]
+      };
       const mockCreatedProxy = {
         id: 1,
         ...mockData,
