@@ -20,8 +20,26 @@ class LeaveBalanceService {
     }
 
     const db = this._db(opts);
+    // Prefer fiscal year (setting.fiscalYear). If missing, fallback to latest record.
+    const fiscalYearSetting = await db.setting.findUnique({
+      where: { key: "fiscalYear" },
+      select: { value: true },
+    });
+    const fiscalYear = fiscalYearSetting
+      ? Number.parseInt(fiscalYearSetting.value, 10)
+      : null;
+
+    if (Number.isFinite(fiscalYear)) {
+      const byFiscalYear = await db.leaveBalance.findFirst({
+        where: { userId: uid, leaveTypeId: ltid, year: fiscalYear },
+        orderBy: [{ id: "desc" }],
+      });
+      if (byFiscalYear) return byFiscalYear;
+    }
+
     return await db.leaveBalance.findFirst({
       where: { userId: uid, leaveTypeId: ltid },
+      orderBy: [{ year: "desc" }, { id: "desc" }],
     });
   }
 
