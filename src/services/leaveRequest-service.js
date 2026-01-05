@@ -491,6 +491,66 @@ class LeaveRequestService {
 
     const leaveTypeIdInt = parseInt(leaveTypeId);
     if (isNaN(leaveTypeIdInt)) throw createError(400, "leaveTypeId ไม่ถูกต้อง");
+
+    const leaveType = await prisma.leaveType.findUnique({
+      where: { id: leaveTypeIdInt },
+      select: { id: true, name: true },
+    });
+    if (!leaveType) throw createError(404, "ไม่พบประเภทการลา");
+
+    const coreLeaveTypeNames = new Set([
+      "ลาป่วย",
+      "ลากิจส่วนตัว",
+      "ลาพักผ่อน",
+    ]);
+
+    const fiscalYearSetting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+      select: { value: true },
+    });
+    const fiscalYear = fiscalYearSetting
+      ? Number.parseInt(fiscalYearSetting.value, 10)
+      : null;
+
+    if (!coreLeaveTypeNames.has(String(leaveType.name || "").trim())) {
+      const balance = Number.isFinite(fiscalYear)
+        ? await prisma.leaveBalance.findFirst({
+            where: {
+              userId,
+              leaveTypeId: leaveTypeIdInt,
+              year: fiscalYear,
+            },
+            orderBy: [{ id: "desc" }],
+          })
+        : null;
+
+      const fallbackBalance =
+        balance ||
+        (await prisma.leaveBalance.findFirst({
+          where: {
+            userId,
+            leaveTypeId: leaveTypeIdInt,
+          },
+          orderBy: [{ year: "desc" }, { id: "desc" }],
+        }));
+
+      if (!fallbackBalance) {
+        return { success: false, message: "ไม่พบข้อมูล Leave Balance ของคุณ" };
+      }
+
+      const remainingNow = Number(fallbackBalance.remainingDays) || 0;
+      const overQuotaDays = Math.max(0, Number(requestedDays || 0) - remainingNow);
+
+      return {
+        success: true,
+        message: "ผ่านการตรวจสอบสิทธิ์การลา",
+        rankInfo: null,
+        balance: fallbackBalance,
+        bypassRank: true,
+        overQuotaDays,
+      };
+    }
+
     const rank = await RankService.getRankForUserByLeaveType(
       user,
       leaveTypeIdInt
@@ -508,28 +568,32 @@ class LeaveRequestService {
 
     const rankReceiveDays = rank.receiveDays ?? requestedDays + 1;
 
-    //** change */
-    if (requestedDays > rank.receiveDays) {
-      return {
-        success: false,
-        message: `จำนวนวันที่ลาขอเกินสิทธิ์ที่กำหนด (${rank.receiveDays} วัน)`,
-      };
-    }
+    const coreBalance = Number.isFinite(fiscalYear)
+      ? await prisma.leaveBalance.findFirst({
+          where: {
+            userId,
+            leaveTypeId: parseInt(leaveTypeId),
+            year: fiscalYear,
+          },
+          orderBy: [{ id: "desc" }],
+        })
+      : null;
 
-    const balance = await prisma.leaveBalance.findFirst({
-      where: {
-        userId,
-        leaveTypeId: parseInt(leaveTypeId),
-      },
-    });
+    const balance =
+      coreBalance ||
+      (await prisma.leaveBalance.findFirst({
+        where: {
+          userId,
+          leaveTypeId: parseInt(leaveTypeId),
+        },
+        orderBy: [{ year: "desc" }, { id: "desc" }],
+      }));
 
     if (!balance) {
       return { success: false, message: "ไม่พบข้อมูล Leave Balance ของคุณ" };
     }
-    //* change */
-    if (requestedDays > balance.remainingDays) {
-      return { success: false, message: "วันลาคงเหลือไม่เพียงพอ" };
-    }
+    const remainingNow = Number(balance.remainingDays) || 0;
+    const overQuotaDays = Math.max(0, Number(requestedDays || 0) - remainingNow);
 
     return {
       success: true,
@@ -541,6 +605,7 @@ class LeaveRequestService {
         isBalance: rank.isBalance,
       },
       balance,
+      overQuotaDays,
     };
   }
 
