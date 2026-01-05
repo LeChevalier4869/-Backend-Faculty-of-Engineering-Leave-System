@@ -905,3 +905,15 @@ exports.getAllApprover = async (req, res) => {
   }
 };
 
+exports.getApproversForLevel = async (req, res) => {
+  try {
+    const { level } = req.params;
+    const { date } = req.query;
+    
+    const approvers = await UserService.getApproversForLevel(parseInt(level), date || new Date());
+    res.status(200).json({ success: true, data: approvers });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+

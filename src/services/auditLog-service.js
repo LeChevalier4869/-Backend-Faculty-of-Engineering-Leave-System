@@ -4,7 +4,7 @@ class AuditLogService {
   //สร้าง Log เพื่อเก็บการกระทำของผู้ใช้งาน
   static async createLog(userId, action, leaveRequestId, details) {
     console.log(
-      "0000000000000000000000000000000000000000000000000000000000000000"
+      "0000000000000000000000000000000000000000000000000000000000000000000"
     );
     console.log(userId);
     console.log(action);
@@ -14,18 +14,21 @@ class AuditLogService {
       return await prisma.auditLog.create({ // แก้เป็น PascalCase
         data: {
           userId,
-          leaveRequestId,
+          leaveRequestId: leaveRequestId ? parseInt(leaveRequestId) : null,
           action,
           details,
         },
       });
     } catch (error) {
-      throw error; // หรือทำการจัดการข้อผิดพลาดตามที่ต้องการ
+      console.error('AuditLog Error:', error.message);
+      // ไม่ throw error เพื่อไม่ให้กระทบการทำงานหลัก
+      // แต่ log ไว้ให้ตรวจสอบ
+      return null;
     }
   }
   //ดึง Log ทั้งหมดของคำขอลานี้
   static async getLogsByLeaveRequestId(leaveRequestId) {
-    return await prisma.auditLog.findMany({ // แก้เป็น PascalCase
+    return await prisma.AuditLog.findMany({ 
       where: { leaveRequestId },
       orderBy: { createdAt: "asc" },
       include: {

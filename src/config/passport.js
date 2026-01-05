@@ -24,15 +24,27 @@ passport.deserializeUser(async (id, done) => {
 
 // Google Strategy
  if (!isTestEnv && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+   // Use localhost as default for development, production URL will be set via BACKEND_URL
+   const callbackURL = process.env.NODE_ENV === 'production' 
+     ? `${process.env.BACKEND_URL}/auth/google/callback`
+     : 'http://localhost:8000/auth/google/callback';
+   
+  //  console.log("NODE_ENV:", process.env.NODE_ENV);
+  //  console.log("BACKEND_URL:", process.env.BACKEND_URL);
+  //  console.log("Google OAuth Callback URL:", callbackURL);
+   
    passport.use(
      new GoogleStrategy(
        {
          clientID: process.env.GOOGLE_CLIENT_ID,
          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-         callbackURL: "https://backend-faculty-of-engineering-leave.onrender.com/auth/google/callback",
+         callbackURL: callbackURL,
+         passReqToCallback: true,
        },
-       async (accessToken, refreshToken, profile, done) => {
+       async (req, accessToken, refreshToken, profile, done) => {
          try {
+           console.log("Frontend origin:", req?.headers?.origin);
+           
            // ดึง profile จาก Google
            const googleId = profile.id;
            const email = profile.emails[0].value;
