@@ -308,7 +308,8 @@ exports.getPotentialApprovers = async (req, res, next) => {
     }
 
     const potentialApprovers = await ProxyApprovalService.getPotentialApprovers(
-      parseInt(approverLevel)
+      parseInt(approverLevel),
+      req.user.id // ส่ง currentUserId ไปด้วย
     );
     
     res.status(200).json({

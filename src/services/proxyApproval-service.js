@@ -139,12 +139,29 @@ class ProxyApprovalService {
       throw createError(400, "ระดับผู้อนุมัติไม่ถูกต้อง");
     }
 
-    const hasRequiredRole = proxyApprover.userRoles.some(userRole => 
+    // แก้ไข: ตรวจสอบว่า original approver มี role ที่ตรงกับ approverLevel หรือไม่
+    // ไม่จำเป็นต้องตรวจสอบ role ของ proxy approver
+    const originalApproverWithRoles = await prisma.user.findUnique({
+      where: { id: originalApproverId },
+      include: { 
+        userRoles: { 
+          include: { 
+            role: true 
+          } 
+        } 
+      }
+    });
+
+    if (!originalApproverWithRoles) {
+      throw createError(404, "ไม่พบข้อมูลผู้อนุมัติต้นทาง");
+    }
+
+    const hasOriginalRequiredRole = originalApproverWithRoles.userRoles.some(userRole => 
       userRole.role.name === requiredRole
     );
 
-    if (!hasRequiredRole) {
-      throw createError(400, `ผู้อนุมัติแทนต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถทำงานแทนได้`);
+    if (!hasOriginalRequiredRole) {
+      throw createError(400, `ผู้อนุมัติต้นทางต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถมอบอำนาได้`);
     }
 
     // ตรวจสอบว่ามีการมอบอำนาจที่ทับซ้อนกันหรือไม่
@@ -343,27 +360,24 @@ class ProxyApprovalService {
     const [data, totalCount] = await Promise.all([
       prisma.proxyApproval.findMany({
         where: {
-          AND: [
+          OR: [
             { status: 'ACTIVE' },
             {
-              OR: [
+              AND: [
                 // การมอบอำนาจรายวันสำหรับวันนี้
                 {
                   isDaily: true,
                   dailyDate: {
-                    gte: today,
-                    lt: tomorrow
+                    gte: today
                   }
                 },
                 // การมอบอำนาจช่วงเวลาที่ครอบคลุมวันนี้
                 {
                   isDaily: false,
-                  startDate: {
-                    lte: today
-                  },
-                  endDate: {
-                    gte: today
-                  }
+                  AND: [
+                    { startDate: { gte: today } },
+                    { endDate: { gte: today } }
+                  ]
                 }
               ]
             }
@@ -459,15 +473,15 @@ class ProxyApprovalService {
                 }
               }
             },
-            // การมอบอำนาจช่วงเวลาที่ไม่ได้ครอบคลุมวันนี้
+            // การมอบอำนาจช่วงเวลาที่ไม่ได้ครอบคลุมวันนี้ (เริ่มแล้ว แต่หมดอายุแล้ว)
             {
               isDaily: false,
-              OR: [
-                { startDate: { gt: today } },
-                { endDate: { lt: today } }
+              AND: [
+                { startDate: { gt: today } },  // เริ่มแล้ว
+                { endDate: { lt: today } }       // สิ้นสุดแล้ว
               ]
             },
-            // การมอบอำนาจที่ไม่ active
+            // การมอบอำนาจที่ไม่ active (รวม EXPIRED, CANCELLED)
             { status: { not: 'ACTIVE' } }
           ]
         },
@@ -1071,7 +1085,7 @@ class ProxyApprovalService {
   }
 
   // ดึงข้อมูลผู้อนุมัติที่เป็นไปได้สำหรับระดับที่กำหนด
-  static async getPotentialApprovers(approverLevel) {
+  static async getPotentialApprovers(approverLevel, currentUserId = null) {
     let potentialApprovers = [];
 
     switch (approverLevel) {
