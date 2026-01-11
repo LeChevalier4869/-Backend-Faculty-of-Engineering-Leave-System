@@ -847,9 +847,9 @@ class ProxyApprovalService {
       await AuditLogService.createLog(
         cancelledBy,
         "Cancel Proxy Approval",
+        "ProxyApproval",
         id,
-        `ยกเลิกการมอบอำนาจ: ${existingProxy.originalApproverId} -> ${existingProxy.proxyApproverId}`,
-        "CANCELLED"
+        `Cancelled proxy approval: ${id}`
       );
 
       return cancelledProxy;

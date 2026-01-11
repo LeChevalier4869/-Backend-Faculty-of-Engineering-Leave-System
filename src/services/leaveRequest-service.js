@@ -1010,7 +1010,7 @@ class LeaveRequestService {
       ? `Step 1 → APPROVED (Proxy by ${approverId})${remarks ? `(${remarks})` : ""}`
       : `Step 1 → APPROVED${remarks ? `(${remarks})` : ""}`;
     
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1140,7 +1140,7 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1300,7 +1300,7 @@ class LeaveRequestService {
       ? `Step 2 → APPROVED (Proxy by ${approverId})${remarks ? `(${remarks})` : ""}`
       : `Step 2 → APPROVED${remarks ? `(${remarks})` : ""}`;
     
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1444,7 +1444,7 @@ class LeaveRequestService {
       ? `Step 2 → REJECTED (Proxy by ${approverId})${remarks ? `(${remarks})` : ""}`
       : `Step 2 → REJECTED${remarks ? `(${remarks})` : ""}`;
     
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1543,7 +1543,7 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1655,7 +1655,7 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1726,7 +1726,7 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1838,7 +1838,7 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -1909,7 +1909,7 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -2006,7 +2006,7 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    await AuditLogService.createLeaveRequestLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
@@ -2056,6 +2056,213 @@ class LeaveRequestService {
         leavedDays: true,
         totalDays: true,
         thisTimeDays: true,
+      },
+    });
+  }
+
+  // ────────────────────────────────
+  // 🚫 ADMIN CANCEL LEAVE REQUEST
+  // ────────────────────────────────
+
+  static async adminCancelLeaveRequest(adminId, leaveRequestNumber, paperFileData) {
+    // 1. ค้นหาคำขอลาจากเลขที่ใบลา (outside transaction for better performance)
+    const leaveRequest = await prisma.leaveRequest.findFirst({
+      where: {
+        documentNumber: leaveRequestNumber,
+        status: "APPROVED" // เฉพาะที่อนุมัติแล้วเท่านั้น
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        leaveType: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        leaveRequestDetails: {
+          include: {
+            approver: {
+              select: {
+                id: true,
+                prefixName: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!leaveRequest) {
+      throw createError(404, "ไม่พบคำขอลาที่อนุมัติแล้ว หรือเลขที่ใบลาไม่ถูกต้อง");
+    }
+
+    // 2. ดำเนินการภายใน transaction (เฉพาะ database operations)
+    const result = await prisma.$transaction(async (tx) => {
+      // อัปเดตสถานะคำขอลาเป็น CANCELLED
+      const updatedLeaveRequest = await tx.leaveRequest.update({
+        where: { id: leaveRequest.id },
+        data: {
+          status: "CANCELLED",
+          updatedAt: new Date(),
+        },
+      });
+
+      // เพิ่ม record ใหม่ใน leaveRequestDetails ด้วยสถานะ CANCELLED
+      await tx.leaveRequestDetail.create({
+        data: {
+          leaveRequestId: leaveRequest.id,
+          approverId: adminId,
+          stepOrder: 99, // ใช้ stepOrder พิเศษสำหรับการยกเลิก
+          status: "CANCELLED",
+          reviewedAt: new Date(),
+          remarks: "ยกเลิกคำขอลาโดย admin",
+        },
+      });
+
+      // คืนค่า leave balance ให้กับผู้ใช้
+      const fiscalYearSetting = await tx.setting.findUnique({
+        where: { key: "fiscalYear" },
+        select: { value: true },
+      });
+      const fiscalYear = fiscalYearSetting
+        ? Number.parseInt(fiscalYearSetting.value, 10)
+        : new Date().getFullYear();
+
+      const leaveBalance = await tx.leaveBalance.findFirst({
+        where: {
+          userId: leaveRequest.userId,
+          leaveTypeId: leaveRequest.leaveTypeId,
+          year: fiscalYear,
+        },
+      });
+
+      let balanceUpdated = false;
+      if (leaveBalance) {
+        const newUsedDays = Math.max(0, leaveBalance.usedDays - leaveRequest.thisTimeDays);
+        const newRemainingDays = leaveBalance.maxDays - newUsedDays;
+
+        await tx.leaveBalance.update({
+          where: { id: leaveBalance.id },
+          data: {
+            usedDays: newUsedDays,
+            remainingDays: newRemainingDays,
+            updatedAt: new Date(),
+          },
+        });
+        balanceUpdated = true;
+      }
+
+      // แนบไฟล์ paper (ถ้ามี)
+      if (paperFileData && paperFileData.length > 0) {
+        const fileData = paperFileData.map(file => ({
+          leaveRequestId: leaveRequest.id,
+          type: "PAPER",
+          filePath: file.filePath,
+        }));
+        await tx.file.createMany({ data: fileData });
+      }
+
+      return {
+        updatedLeaveRequest,
+        balanceUpdated,
+        restoredDays: leaveRequest.thisTimeDays,
+      };
+    }, {
+      timeout: 10000 // เพิ่ม timeout เป็น 10 วินาที
+    });
+
+    // 3. บันทึก audit log (outside transaction for better performance)
+    try {
+      await AuditLogService.createLeaveRequestLog(
+        adminId,
+        "ADMIN_CANCEL",
+        leaveRequest.id,
+        `Admin ยกเลิกคำขอลาเลขที่ ${leaveRequestNumber}`,
+        "CANCELLED"
+      );
+    } catch (auditError) {
+      console.error("Failed to create audit log:", auditError);
+      // ไม่ throw error เพราะ audit log ไม่ควรทำให้การยกเลิกล้มเหลว
+    }
+
+    // 4. ส่งอีเมลแจ้งเตือนให้ผู้ใช้ (outside transaction)
+    if (leaveRequest.user.email) {
+      try {
+        const subject = "แจ้งเตือนการยกเลิกคำขอลา";
+        const message = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <h3 style="color: #2c3e50;">เรียน ${leaveRequest.user.prefixName} ${leaveRequest.user.firstName} ${leaveRequest.user.lastName},</h3>
+          <p>คำขอลาของคุณถูกยกเลิกโดยผู้ดูแลระบบ</p>
+          <p><strong>รายละเอียดคำขอลา:</strong></p>
+          <ul style="list-style: none; padding: 0;">
+            <li><strong>เลขที่ใบลา:</strong> ${leaveRequestNumber}</li>
+            <li><strong>ประเภทการลา:</strong> ${leaveRequest.leaveType.name}</li>
+            <li><strong>จำนวนวันลา:</strong> ${leaveRequest.thisTimeDays} วัน</li>
+            <li><strong>วันที่ลา:</strong> ${leaveRequest.startDate.toLocaleDateString('th-TH')} - ${leaveRequest.endDate.toLocaleDateString('th-TH')}</li>
+          </ul>
+          <p>สิทธิ์การลาของคุณได้รับการคืนค่าเรียบร้อยแล้ว</p>
+          <br/>
+          <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
+          <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+          <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
+        </div>
+      `;
+        await sendEmail(leaveRequest.user.email, subject, message);
+      } catch (emailError) {
+        console.error("Failed to send cancellation email:", emailError);
+        // ไม่ throw error เพราะการส่ง email ไม่ควรทำให้การยกเลิกล้มเหลว
+      }
+    }
+
+    return {
+      message: "ยกเลิกคำขอลาสำเร็จ",
+      leaveRequest: result.updatedLeaveRequest,
+      restoredDays: result.restoredDays,
+      balanceUpdated: result.balanceUpdated,
+    };
+  }
+
+  static async findLeaveRequestByNumber(leaveRequestNumber) {
+    return await prisma.leaveRequest.findFirst({
+      where: {
+        documentNumber: leaveRequestNumber,
+        status: "APPROVED"
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            department: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        leaveType: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        files: {
+          where: { type: "PAPER" },
+        },
       },
     });
   }

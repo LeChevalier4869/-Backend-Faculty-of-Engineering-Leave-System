@@ -1,22 +1,24 @@
 const prisma = require("../config/prisma");
 
 class AuditLogService {
-  //สร้าง Log เพื่อเก็บการกระทำของผู้ใช้งาน
-  static async createLog(userId, action, leaveRequestId, details) {
-    console.log(
-      "0000000000000000000000000000000000000000000000000000000000000000000"
-    );
-    console.log(userId);
-    console.log(action);
-    console.log(leaveRequestId);
-    console.log(details);
+  // สร้าง Log เพื่อเก็บการกระทำของผู้ใช้งาน (Generic version)
+  static async createLog(userId, action, entityType, entityId = null, details = null, ipAddress = null, userAgent = null) {
+    console.log("=== AUDIT LOG ===");
+    console.log(`User: ${userId}, Action: ${action}, Entity: ${entityType}, ID: ${entityId}`);
+    if (details) console.log(`Details: ${details}`);
+    
     try {
-      return await prisma.auditLog.create({ // แก้เป็น PascalCase
+      return await prisma.auditLog.create({
         data: {
           userId,
-          leaveRequestId: leaveRequestId ? parseInt(leaveRequestId) : null,
           action,
+          entityType,
+          entityId: entityId ? parseInt(entityId) : null,
           details,
+          ipAddress,
+          userAgent,
+          // For backward compatibility - if it's a LeaveRequest, also set leaveRequestId
+          leaveRequestId: entityType === 'LeaveRequest' && entityId ? parseInt(entityId) : null,
         },
       });
     } catch (error) {
@@ -26,10 +28,21 @@ class AuditLogService {
       return null;
     }
   }
-  //ดึง Log ทั้งหมดของคำขอลานี้
+
+  // สร้าง Log สำหรับ Leave Request (Backward compatibility)
+  static async createLeaveRequestLog(userId, action, leaveRequestId, details) {
+    return await this.createLog(userId, action, 'LeaveRequest', leaveRequestId, details);
+  }
+
+  // ดึง Log ทั้งหมดของคำขอลานี้ (Backward compatibility)
   static async getLogsByLeaveRequestId(leaveRequestId) {
-    return await prisma.AuditLog.findMany({ 
-      where: { leaveRequestId },
+    return await prisma.auditLog.findMany({ 
+      where: { 
+        OR: [
+          { leaveRequestId: parseInt(leaveRequestId) },
+          { entityType: 'LeaveRequest', entityId: parseInt(leaveRequestId) }
+        ]
+      },
       orderBy: { createdAt: "asc" },
       include: {
         user: {
@@ -44,5 +57,84 @@ class AuditLogService {
       },
     });
   }
+
+  // ดึง Log ทั้งหมดตามเงื่อนไขต่างๆ
+  static async getLogs(filters = {}) {
+    const { userId, entityType, entityId, action, startDate, endDate, limit = 100, offset = 0 } = filters;
+    
+    const where = {};
+    
+    if (userId) where.userId = parseInt(userId);
+    if (entityType) where.entityType = entityType;
+    if (entityId) where.entityId = parseInt(entityId);
+    if (action) where.action = action;
+    
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    return await prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: parseInt(limit),
+      skip: parseInt(offset),
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  // ดึง Log ตาม entityType และ entityId
+  static async getLogsByEntity(entityType, entityId) {
+    return await prisma.auditLog.findMany({ 
+      where: { 
+        entityType,
+        entityId: parseInt(entityId)
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  // นับจำนวน Log ตาม filters
+  static async countLogs(filters = {}) {
+    const { userId, entityType, entityId, action, startDate, endDate } = filters;
+    
+    const where = {};
+    
+    if (userId) where.userId = parseInt(userId);
+    if (entityType) where.entityType = entityType;
+    if (entityId) where.entityId = parseInt(entityId);
+    if (action) where.action = action;
+    
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    return await prisma.auditLog.count({ where });
+  }
 }
+
 module.exports = AuditLogService;

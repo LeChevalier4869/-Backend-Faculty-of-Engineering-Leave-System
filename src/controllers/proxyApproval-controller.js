@@ -35,9 +35,11 @@ exports.createProxyApproval = async (req, res, next) => {
     await AuditLogService.createLog(
       req.user.id,
       "Create Proxy Approval",
+      "ProxyApproval",
       proxyApproval.id,
-      `สร้างการมอบอำนาจ: ${originalApproverId} -> ${proxyApproverId} (ระดับ ${approverLevel})${isDaily ? ' [รายวัน]' : ''}`,
-      "CREATED"
+      `Created proxy approval: ${proxyApproval.id}`,
+      req.ip,
+      req.get("User-Agent")
     );
 
     res.status(201).json({
@@ -74,9 +76,11 @@ exports.createDailyProxyApproval = async (req, res, next) => {
     await AuditLogService.createLog(
       req.user.id,
       "Create Daily Proxy Approval",
+      "ProxyApproval",
       proxyApproval.id,
-      `สร้างการมอบอำนาจรายวัน: ${originalApproverId} -> ${proxyApproverId} (ระดับ ${approverLevel}, วันที่ ${dailyDate})`,
-      "CREATED"
+      `Created daily proxy approval: ${proxyApproval.id}`,
+      req.ip,
+      req.get("User-Agent")
     );
 
     res.status(201).json({
@@ -342,9 +346,11 @@ exports.updateProxyApproval = async (req, res, next) => {
     await AuditLogService.createLog(
       req.user.id,
       "Update Proxy Approval",
+      "ProxyApproval",
       parseInt(id),
-      `อัปเดตการมอบอำนาจ ID: ${id}`,
-      "UPDATED"
+      `Updated proxy approval: ${id}`,
+      req.ip,
+      req.get("User-Agent")
     );
 
     res.status(200).json({
