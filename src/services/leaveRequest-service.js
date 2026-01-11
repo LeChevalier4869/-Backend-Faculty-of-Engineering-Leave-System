@@ -9,6 +9,54 @@ const { calculateWorkingDays } = require("../utils/dateCalculate");
 const { sendNotification, sendEmail } = require("../utils/emailService");
 
 class LeaveRequestService {
+  // ────────────────────────────────────────────────────────────────
+  // 🔧 HELPER FUNCTIONS
+  // ────────────────────────────────────────────────────────────────
+
+  // แปลงจาก stepOrder เป็น approverLevel
+  static stepOrderToApproverLevel(stepOrder) {
+    const mapping = {
+      1: 1, // APPROVER_1
+      2: 2, // VERIFIER
+      4: 3, // APPROVER_2
+      5: 4, // APPROVER_3
+      6: 5, // APPROVER_4
+    };
+    return mapping[stepOrder] || null;
+  }
+
+  // แปลงจาก approverLevel เป็น stepOrder
+  static approverLevelToStepOrder(approverLevel) {
+    const mapping = {
+      1: 1, // APPROVER_1
+      2: 2, // VERIFIER
+      3: 4, // APPROVER_2
+      4: 5, // APPROVER_3
+      5: 6, // APPROVER_4
+    };
+    return mapping[approverLevel] || null;
+  }
+
+  // ตรวจสอบและอัปเดต stepOrder ถ้าจำเป็น
+  static async validateAndUpdateStepOrder(existingDetail, approverLevel) {
+    const expectedStepOrder = this.approverLevelToStepOrder(approverLevel);
+    
+    if (!expectedStepOrder) {
+      throw createError(400, "ระดับการอนุมัติไม่ถูกต้อง");
+    }
+
+    // ถ้า stepOrder ไม่ตรงกัน ให้อัปเดต
+    if (existingDetail.stepOrder !== expectedStepOrder) {
+      await prisma.leaveRequestDetail.update({
+        where: { id: existingDetail.id },
+        data: { stepOrder: expectedStepOrder }
+      });
+      existingDetail.stepOrder = expectedStepOrder;
+    }
+
+    return expectedStepOrder;
+  }
+
   // ────────────────────────────────
   // 🟢 CREATE
   // ────────────────────────────────
@@ -912,12 +960,12 @@ class LeaveRequestService {
       );
     }
 
-    if (existingDetail.stepOrder !== 1) {
-      throw createError(400, "ขั้นตอนการอนุมัติไม่ถูกต้อง");
-    }
+    // ตรวจสอบและอัปเดต stepOrder ให้ถูกต้อง
+    const approverLevel = 1; // APPROVER_1
+    const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
 
     // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
-    const permission = await ProxyApprovalService.canUserApprove(approverId, 1);
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
     if (!permission.canApprove) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
@@ -1139,7 +1187,6 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 2,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1150,6 +1197,35 @@ class LeaveRequestService {
         400,
         "รายการคำขอนี้ไม่อยู่ในสถานะรอดำเนินการ (PENDING)"
       );
+    }
+
+    // ตรวจสอบและอัปเดต stepOrder ให้ถูกต้อง
+    const approverLevel = 2; // VERIFIER
+    const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
+
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
+    if (!permission.canApprove) {
+      throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
+    }
+
+    // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
+    let proxyApprovalId = null;
+    let actualApproverId = approverId;
+    
+    if (permission.isProxy) {
+      proxyApprovalId = permission.proxyApproval.id;
+      actualApproverId = permission.originalApproverId;
+      
+      // ตรวจสอบว่า originalApproverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
+      if (existingDetail.approverId !== actualApproverId) {
+        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+      }
+    } else {
+      // ตรวจสอบว่า approverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
+      if (existingDetail.approverId !== approverId) {
+        throw createError(403, "คุณไม่ใช่ผู้อนุมัติที่กำหนดไว้สำหรับคำขอนี้");
+      }
     }
 
     const parseRunNumber = (value) => {
@@ -1168,7 +1244,7 @@ class LeaveRequestService {
         where: { id: Number(id) },
         include: { leaveRequest: true },
       });
-      if (!detail || detail.stepOrder !== 2) throw createError(404, "ไม่พบรายการคำขอลา");
+      if (!detail || detail.stepOrder !== stepOrder) throw createError(404, "ไม่พบรายการคำขอลา");
       if (detail.status !== "PENDING") {
         throw createError(400, "รายการคำขอนี้ไม่อยู่ในสถานะรอดำเนินการ (PENDING)");
       }
@@ -1206,11 +1282,12 @@ class LeaveRequestService {
       return await tx.leaveRequestDetail.update({
         where: { id: Number(id) },
         data: {
-          approverId,
+          approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
           status: "APPROVED",
           reviewedAt: new Date(),
           remarks,
           comment,
+          proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
         },
         include: {
           leaveRequest: true,
@@ -1219,11 +1296,15 @@ class LeaveRequestService {
     });
 
     // บันทึก log การทำงาน
+    const logMessage = permission.isProxy 
+      ? `Step 2 → APPROVED (Proxy by ${approverId})${remarks ? `(${remarks})` : ""}`
+      : `Step 2 → APPROVED${remarks ? `(${remarks})` : ""}`;
+    
     await AuditLogService.createLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
-      `Step 2 → APPROVED${remarks ? `(${remarks})` : ""}`,
+      logMessage,
       "APPROVED"
     );
 
@@ -1242,7 +1323,7 @@ class LeaveRequestService {
       data: {
         approverId: approver.userId,
         leaveRequestId: updatedDetail.leaveRequestId,
-        stepOrder: 4,
+        stepOrder: this.approverLevelToStepOrder(3), // APPROVER_2 -> Step 4
         status: "PENDING",
       },
     });
@@ -1295,7 +1376,6 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 2,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1308,21 +1388,50 @@ class LeaveRequestService {
       );
     }
 
+    // ตรวจสอบและอัปเดต stepOrder ให้ถูกต้อง
+    const approverLevel = 2; // VERIFIER
+    const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
+
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
+    if (!permission.canApprove) {
+      throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
+    }
+
+    // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
+    let proxyApprovalId = null;
+    let actualApproverId = approverId;
+    
+    if (permission.isProxy) {
+      proxyApprovalId = permission.proxyApproval.id;
+      actualApproverId = permission.originalApproverId;
+      
+      if (existingDetail.approverId !== actualApproverId) {
+        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+      }
+    } else {
+      if (existingDetail.approverId !== approverId) {
+        throw createError(403, "คุณไม่ใช่ผู้อนุมัติที่กำหนดไว้สำหรับคำขอนี้");
+      }
+    }
+
     // 2. อัปเดตรายการคำขอลา
     const updatedDetail = await prisma.leaveRequestDetail.update({
       where: { id: Number(id) },
       data: {
-        approverId,
+        approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
         status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
         reviewedAt: new Date(), // อัปเดตเวลา
         remarks,
         comment,
+        proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
       },
       include: {
         leaveRequest: true,
       },
     });
 
+    // 3. อัปเดตสถานะคำขอลาทั้งหมดเป็น REJECTED
     await prisma.LeaveRequest.update({
       where: { id: updatedDetail.leaveRequestId },
       data: {
@@ -1330,16 +1439,20 @@ class LeaveRequestService {
       },
     });
 
-    // บันทึก log การทำงาน
+    // 4. บันทึก log การทำงาน
+    const logMessage = permission.isProxy 
+      ? `Step 2 → REJECTED (Proxy by ${approverId})${remarks ? `(${remarks})` : ""}`
+      : `Step 2 → REJECTED${remarks ? `(${remarks})` : ""}`;
+    
     await AuditLogService.createLog(
       approverId,
       `Update Status`,
       updatedDetail.leaveRequestId,
-      `Step 2 → REJECTED${remarks ? `(${remarks})` : ""}`,
+      logMessage,
       "REJECTED"
     );
 
-    // ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
+    // 5. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
     const requester = await prisma.user.findUnique({
       where: { id: updatedDetail.leaveRequest.userId },
       select: {
@@ -1351,12 +1464,13 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTED", {
+      await sendNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
       });
     }
+
 
     return {
       message: "รายการคำขอลาถูกปฏิเสธเรียบร้อย",
@@ -1373,7 +1487,6 @@ class LeaveRequestService {
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
-        stepOrder: 4,
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1386,15 +1499,43 @@ class LeaveRequestService {
       );
     }
 
+    // ตรวจสอบและอัปเดต stepOrder ให้ถูกต้อง
+    const approverLevel = 3; // APPROVER_2
+    const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
+
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
+    if (!permission.canApprove) {
+      throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
+    }
+
+    // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
+    let proxyApprovalId = null;
+    let actualApproverId = approverId;
+    
+    if (permission.isProxy) {
+      proxyApprovalId = permission.proxyApproval.id;
+      actualApproverId = permission.originalApproverId;
+      
+      if (existingDetail.approverId !== actualApproverId) {
+        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+      }
+    } else {
+      if (existingDetail.approverId !== approverId) {
+        throw createError(403, "คุณไม่ใช่ผู้อนุมัติที่กำหนดไว้สำหรับคำขอนี้");
+      }
+    }
+
     // 2. อัปเดตรายการคำขอลา
     const updatedDetail = await prisma.leaveRequestDetail.update({
       where: { id: Number(id) },
       data: {
-        approverId,
+        approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
         status: "APPROVED",
         reviewedAt: new Date(),
         remarks,
         comment,
+        proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
       },
       include: {
         leaveRequest: true,

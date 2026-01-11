@@ -23,7 +23,6 @@ model User {
   employmentType      String?
   profilePicturePath  String?
   accounts            Account[]
-  approveSteps        ApproveStep[]
   auditLogs           AuditLog[]
   Department          Department[]         @relation("DepartmentHead")
   leaveBalances       LeaveBalance[]
@@ -74,7 +73,6 @@ model Department {
 model Organization {
   id           Int           @id @default(autoincrement())
   name         String
-  approveSteps ApproveStep[]
   departments  Department[]
 
   @@map("organization")
@@ -134,21 +132,6 @@ model Signature {
 
   @@index([userId], map: "signature_userId_fkey")
   @@map("signature")
-}
-
-model ApproveStep {
-  id             Int          @id @default(autoincrement())
-  approveId      Int?
-  userId         Int
-  organizationId Int
-  level          Int
-  appointDate    DateTime?
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
-
-  @@index([organizationId], map: "approve_step_organizationId_fkey")
-  @@index([userId], map: "approve_step_userId_fkey")
-  @@map("approve_step")
 }
 
 model Rank {

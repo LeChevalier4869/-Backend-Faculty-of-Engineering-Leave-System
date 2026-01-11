@@ -1037,45 +1037,36 @@ class ProxyApprovalService {
       };
     }
 
-    // ตรวจสอบว่าผู้ใช้เป็นผู้อนุมัติต้นฉบับในระดับที่กำหนดหรือไม่
-    // (ตรวจสอบตาม logic เดิมของระบบ)
-    let canApproveAsOriginal = false;
+    // ตรวจสอบว่าผู้ใช้เป็นผู้อนุมัติต้นฉบับในระดับที่กำหนดหรือไม่ (จาก role เท่านั้น)
+    const roleMapping = {
+      1: 'APPROVER_1',
+      2: 'VERIFIER', 
+      3: 'APPROVER_2',
+      4: 'APPROVER_3',
+      5: 'APPROVER_4'
+    };
 
-    switch (approverLevel) {
-      case 1:
-        // ตรวจสอบว่าเป็นหัวหน้าสาขาหรือไม่
-        const department = await prisma.department.findFirst({
-          where: { headId: parseInt(userId) },
-        });
-        canApproveAsOriginal = !!department;
-        break;
-      
-      case 2:
-        // ตรวจสอบว่าเป็น Verifier หรือไม่
-        const verifierRole = await prisma.userRole.findFirst({
-          where: {
-            userId: parseInt(userId),
-            role: { name: "VERIFIER" },
-          },
-        });
-        canApproveAsOriginal = !!verifierRole;
-        break;
-      
-      case 3:
-      case 4:
-        // ตรวจสอบว่าเป็น Approver ระดับสูงหรือไม่
-        const approverStep = await prisma.approveStep.findFirst({
-          where: {
-            userId: parseInt(userId),
-            level: approverLevel,
-          },
-        });
-        canApproveAsOriginal = !!approverStep;
-        break;
+    const requiredRole = roleMapping[approverLevel];
+    if (!requiredRole) {
+      return {
+        canApprove: false,
+        isProxy: false,
+        proxyApproval: null,
+        originalApproverId: null,
+        isDaily: false,
+        proxyType: null,
+      };
     }
 
+    const userRole = await prisma.userRole.findFirst({
+      where: {
+        userId: parseInt(userId),
+        role: { name: requiredRole },
+      },
+    });
+
     return {
-      canApprove: canApproveAsOriginal,
+      canApprove: !!userRole,
       isProxy: false,
       proxyApproval: null,
       originalApproverId: null,
@@ -1088,53 +1079,42 @@ class ProxyApprovalService {
   static async getPotentialApprovers(approverLevel, currentUserId = null) {
     let potentialApprovers = [];
 
-    switch (approverLevel) {
-      case 1:
-        // ดึงรายชื่อหัวหน้าสาขา
-        potentialApprovers = await prisma.user.findMany({
-          where: {
-            department: {
-              headId: { not: null },
-            },
-          },
-          include: {
-            department: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        });
-        break;
-      
-      case 2:
-        // ดึงรายชื่อ Verifier
-        potentialApprovers = await prisma.user.findMany({
-          where: {
-            userRoles: {
-              some: {
-                role: { name: "VERIFIER" },
-              },
-            },
-          },
-        });
-        break;
-      
-      case 3:
-      case 4:
-        // ดึงรายชื่อ Approver ระดับสูง
-        potentialApprovers = await prisma.user.findMany({
-          where: {
-            approveSteps: {
-              some: {
-                level: approverLevel,
-              },
-            },
-          },
-        });
-        break;
+    const roleMapping = {
+      1: 'APPROVER_1',
+      2: 'VERIFIER', 
+      3: 'APPROVER_2',
+      4: 'APPROVER_3',
+      5: 'APPROVER_4'
+    };
+
+    const requiredRole = roleMapping[approverLevel];
+    if (!requiredRole) {
+      return [];
     }
+
+    potentialApprovers = await prisma.user.findMany({
+      where: {
+        userRoles: {
+          some: {
+            role: { name: requiredRole },
+          },
+        },
+        ...(currentUserId && { id: { not: parseInt(currentUserId) } }),
+      },
+      select: {
+        id: true,
+        prefixName: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
 
     return potentialApprovers.map(user => ({
       id: user.id,

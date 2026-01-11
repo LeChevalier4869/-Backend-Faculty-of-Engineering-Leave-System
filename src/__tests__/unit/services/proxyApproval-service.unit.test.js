@@ -43,10 +43,6 @@ describe("ProxyApprovalService", () => {
     prisma.userRole = {
       findFirst: jest.fn(),
     };
-    
-    prisma.approveStep = {
-      findFirst: jest.fn(),
-    };
   });
 
   describe("createProxyApproval", () => {
@@ -308,8 +304,11 @@ describe("ProxyApprovalService", () => {
       // Mock getActiveProxyApproval to return null
       jest.spyOn(ProxyApprovalService, "getActiveProxyApproval").mockResolvedValue(null);
 
-      // Mock department check for approver level 1
-      prisma.department.findFirst.mockResolvedValue({ id: 1, headId: 1 });
+      // Mock userRole check for approver level 1
+      prisma.userRole.findFirst.mockResolvedValue({
+        userId: 1,
+        role: { name: "APPROVER_1" }
+      });
 
       const result = await ProxyApprovalService.canUserApprove(1, 1);
 
@@ -327,8 +326,8 @@ describe("ProxyApprovalService", () => {
       // Mock getActiveProxyApproval to return null
       jest.spyOn(ProxyApprovalService, "getActiveProxyApproval").mockResolvedValue(null);
 
-      // Mock department check to return null (not a department head)
-      prisma.department.findFirst.mockResolvedValue(null);
+      // Mock userRole check to return null (no approver role)
+      prisma.userRole.findFirst.mockResolvedValue(null);
 
       const result = await ProxyApprovalService.canUserApprove(999, 1);
 
@@ -346,8 +345,8 @@ describe("ProxyApprovalService", () => {
   describe("getPotentialApprovers", () => {
     it("should get potential approvers for level 1", async () => {
       const mockApprovers = [
-        { id: 1, firstName: "John", lastName: "Doe", department: { id: 1, name: "IT" } },
-        { id: 2, firstName: "Jane", lastName: "Smith", department: { id: 2, name: "HR" } },
+        { id: 1, prefixName: "Mr.", firstName: "John", lastName: "Doe", email: "john@example.com", department: { id: 1, name: "IT" } },
+        { id: 2, prefixName: "Ms.", firstName: "Jane", lastName: "Smith", email: "jane@example.com", department: { id: 2, name: "HR" } },
       ];
 
       prisma.user.findMany.mockResolvedValue(mockApprovers);
@@ -356,11 +355,18 @@ describe("ProxyApprovalService", () => {
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
         where: {
-          department: {
-            headId: { not: null },
+          userRoles: {
+            some: {
+              role: { name: "APPROVER_1" },
+            },
           },
         },
-        include: {
+        select: {
+          id: true,
+          prefixName: true,
+          firstName: true,
+          lastName: true,
+          email: true,
           department: {
             select: {
               id: true,
@@ -372,14 +378,18 @@ describe("ProxyApprovalService", () => {
       expect(result).toEqual([
         {
           id: 1,
+          prefixName: "Mr.",
           firstName: "John",
           lastName: "Doe",
+          email: "john@example.com",
           department: { id: 1, name: "IT" },
         },
         {
           id: 2,
+          prefixName: "Ms.",
           firstName: "Jane",
           lastName: "Smith",
+          email: "jane@example.com",
           department: { id: 2, name: "HR" },
         },
       ]);
@@ -387,8 +397,8 @@ describe("ProxyApprovalService", () => {
 
     it("should get potential approvers for level 2 (verifier)", async () => {
       const mockApprovers = [
-        { id: 1, firstName: "John", lastName: "Doe" },
-        { id: 2, firstName: "Jane", lastName: "Smith" },
+        { id: 1, prefixName: "Mr.", firstName: "John", lastName: "Doe", email: "john@example.com" },
+        { id: 2, prefixName: "Ms.", firstName: "Jane", lastName: "Smith", email: "jane@example.com" },
       ];
 
       prisma.user.findMany.mockResolvedValue(mockApprovers);
@@ -403,10 +413,23 @@ describe("ProxyApprovalService", () => {
             },
           },
         },
+        select: {
+          id: true,
+          prefixName: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          department: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
       expect(result).toEqual([
-        { id: 1, firstName: "John", lastName: "Doe" },
-        { id: 2, firstName: "Jane", lastName: "Smith" },
+        { id: 1, prefixName: "Mr.", firstName: "John", lastName: "Doe", email: "john@example.com" },
+        { id: 2, prefixName: "Ms.", firstName: "Jane", lastName: "Smith", email: "jane@example.com" },
       ]);
     });
   });

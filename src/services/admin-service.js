@@ -684,7 +684,6 @@ class AdminService {
     await prisma.leaveRequest.deleteMany({ where: { userId: id } });
     await prisma.leaveBalance.deleteMany({ where: { userId: id } });
     await prisma.userRank.deleteMany({ where: { userId: id } });
-    await prisma.approveStep.deleteMany({ where: { userId: id } });
 
     // Finally delete user
     await prisma.user.delete({ where: { id } });
