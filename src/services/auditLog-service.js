@@ -6,7 +6,7 @@ class AuditLogService {
     console.log("=== AUDIT LOG ===");
     console.log(`User: ${userId}, Action: ${action}, Entity: ${entityType}, ID: ${entityId}`);
     if (details) console.log(`Details: ${details}`);
-    
+
     try {
       return await prisma.auditLog.create({
         data: {
@@ -36,8 +36,8 @@ class AuditLogService {
 
   // ดึง Log ทั้งหมดของคำขอลานี้ (Backward compatibility)
   static async getLogsByLeaveRequestId(leaveRequestId) {
-    return await prisma.auditLog.findMany({ 
-      where: { 
+    return await prisma.auditLog.findMany({
+      where: {
         OR: [
           { leaveRequestId: parseInt(leaveRequestId) },
           { entityType: 'LeaveRequest', entityId: parseInt(leaveRequestId) }
@@ -61,14 +61,14 @@ class AuditLogService {
   // ดึง Log ทั้งหมดตามเงื่อนไขต่างๆ
   static async getLogs(filters = {}) {
     const { userId, entityType, entityId, action, startDate, endDate, limit = 100, offset = 0 } = filters;
-    
+
     const where = {};
-    
+
     if (userId) where.userId = parseInt(userId);
     if (entityType) where.entityType = entityType;
     if (entityId) where.entityId = parseInt(entityId);
     if (action) where.action = action;
-    
+
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -96,8 +96,8 @@ class AuditLogService {
 
   // ดึง Log ตาม entityType และ entityId
   static async getLogsByEntity(entityType, entityId) {
-    return await prisma.auditLog.findMany({ 
-      where: { 
+    return await prisma.auditLog.findMany({
+      where: {
         entityType,
         entityId: parseInt(entityId)
       },
@@ -119,14 +119,14 @@ class AuditLogService {
   // นับจำนวน Log ตาม filters
   static async countLogs(filters = {}) {
     const { userId, entityType, entityId, action, startDate, endDate } = filters;
-    
+
     const where = {};
-    
+
     if (userId) where.userId = parseInt(userId);
     if (entityType) where.entityType = entityType;
     if (entityId) where.entityId = parseInt(entityId);
     if (action) where.action = action;
-    
+
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
