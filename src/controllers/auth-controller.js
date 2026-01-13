@@ -1,5 +1,6 @@
 const UserService = require("../services/user-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
+const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -205,6 +206,10 @@ exports.login = async (req, res, next) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRESIN }
     );
+
+    // Log successful login
+    await AuditLogService.logUserAction(user.id, 'LOGIN', `เข้าสู่ระบบด้วยอีเมล ${user.email}`);
+
     res.status(200).json({ token });
   } catch (err) {
     next(err);

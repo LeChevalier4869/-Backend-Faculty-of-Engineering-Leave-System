@@ -10,6 +10,7 @@ const RankService = require("../services/rank-service");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const UserService = require("../services/user-service");
+const AuditLogService = require("../services/auditLog-service");
 const cloudUpload = require("../utils/cloudUpload");
 const prisma = require("../config/prisma");
 const settingService = require("../services/setting-service");
@@ -848,6 +849,13 @@ exports.createUserByAdmin = async (req, res, next) => {
       roles.map((r) => r.id)
     );
 
+    // Log user creation
+    await AuditLogService.logUserAction(
+      req.user.id, 
+      'CREATE_USER', 
+      `สร้างผู้ใช้: ${firstName} ${lastName} (${email})`
+    );
+
     return res
       .status(201)
       .json({ message: "สร้างผู้ใช้งานใหม่เรียบร้อยแล้ว", data: user });
@@ -890,6 +898,14 @@ exports.updateUserById = async (req, res, next) => {
     };
 
     const updatedUser = await AdminService.updateUserById(id, updateData);
+    
+    // Log user update
+    await AuditLogService.logUserAction(
+      req.user.id, 
+      'UPDATE_USER', 
+      `อัปเดตผู้ใช้ ID: ${id}, ข้อมูล: ${JSON.stringify(updateData)}`
+    );
+
     res
       .status(200)
       .json({ message: "อัปเดตผู้ใช้งานเรียบร้อย", data: updatedUser });
@@ -903,7 +919,21 @@ exports.deleteUser = async (req, res, next) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) throw createError(400, "Invalid user ID");
 
+    // Get user info before deletion for audit log
+    const userToDelete = await prisma.user.findUnique({
+      where: { id },
+      select: { firstName: true, lastName: true, email: true }
+    });
+
     await AdminService.deleteUserById(id);
+    
+    // Log user deletion
+    await AuditLogService.logUserAction(
+      req.user.id, 
+      'DELETE_USER', 
+      `ลบผู้ใช้: ${userToDelete?.firstName} ${userToDelete?.lastName} (${userToDelete?.email})`
+    );
+
     res.status(200).json({ message: "ลบผู้ใช้เรียบร้อยแล้ว" });
   } catch (err) {
     next(err);

@@ -27,6 +27,7 @@ const apiRoute = require("./routes/api-route");
 const lookupRoute = require("./routes/lookup-routes");
 const adminUserRoute = require("./routes/admin-user-route");
 const proxyApprovalRoute = require("./routes/proxyApproval-route");
+const auditLogRoute = require("./routes/auditLog-route");
 //const reportRouter         = require('./routes/report-router');
 
 // Initialize app
@@ -121,6 +122,7 @@ app.use("/setting", settingRoute);
 // Admin routes (requires ADMIN role)
 app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
+app.use("/admin/audit-logs", authenticate, authorize(["ADMIN"]), auditLogRoute);
 
 // Proxy approval routes
 app.use("/proxy-approval", authenticate, proxyApprovalRoute);
