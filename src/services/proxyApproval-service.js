@@ -125,7 +125,7 @@ class ProxyApprovalService {
       throw createError(404, "ไม่พบข้อมูลผู้อนุมัติแทน");
     }
 
-    // ตรวจสอบว่า proxy approver มี role ที่เกี่ยวข้องกับ approverLevel หรือไม่
+    // ตรวจสอบว่า original approver มี role ที่เกี่ยวข้องกับ approverLevel หรือไม่
     const roleMapping = {
       1: 'APPROVER_1',
       2: 'VERIFIER', 
@@ -139,12 +139,33 @@ class ProxyApprovalService {
       throw createError(400, "ระดับผู้อนุมัติไม่ถูกต้อง");
     }
 
-    const hasRequiredRole = proxyApprover.userRoles.some(userRole => 
+    // ตรวจสอบ original approver ว่ามี role ที่ต้องการจะมอบอำนาจหรือไม่
+    const originalApproverWithRoles = await prisma.user.findUnique({
+      where: { id: originalApproverId },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
+    });
+
+    const originalHasRequiredRole = originalApproverWithRoles.userRoles.some(userRole => 
       userRole.role.name === requiredRole
     );
 
-    if (!hasRequiredRole) {
-      throw createError(400, `ผู้อนุมัติแทนต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถทำงานแทนได้`);
+    if (!originalHasRequiredRole) {
+      throw createError(400, `ผู้อนุมัติต้นฉบับต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถมอบอำนาจได้`);
+    }
+
+    // ตรวจสอบว่า proxy approver ไม่มี role ที่จะเป็นผู้อนุมัติแทน (ป้องกันการมอบอำนาจให้คนที่มี role เดียวกัน)
+    const proxyHasSameRole = proxyApprover.userRoles.some(userRole => 
+      userRole.role.name === requiredRole
+    );
+
+    if (proxyHasSameRole) {
+      throw createError(400, `ผู้อนุมัติแทนมีสิทธิ์ระดับ ${requiredRole} อยู่แล้ว ไม่สามารถมอบอำนาจซ้ำได้`);
     }
 
     // ตรวจสอบว่ามีการมอบอำนาจที่ทับซ้อนกันหรือไม่
@@ -174,10 +195,10 @@ class ProxyApprovalService {
           OR: [
             {
               startDate: {
-                lte: new Date(endDate),
+                gte: new Date(startDate),
               },
               endDate: {
-                gte: new Date(startDate),
+                gte: new Date(endDate),
               },
             },
           ],
@@ -359,7 +380,7 @@ class ProxyApprovalService {
                 {
                   isDaily: false,
                   startDate: {
-                    lte: today
+                    gte: today
                   },
                   endDate: {
                     gte: today
@@ -671,7 +692,7 @@ class ProxyApprovalService {
         approverLevel: parseInt(approverLevel),
         isDaily: false,
         status: "ACTIVE",
-        startDate: { lte: checkDate },
+        startDate: { gte: checkDate },
         endDate: { gte: checkDate },
       },
       include: {

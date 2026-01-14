@@ -3,7 +3,15 @@ const router = express.Router();
 const auditLogController = require("../controllers/auditLog-controller");
 const { authenticate, authorize } = require("../middlewares/auth");
 
-// ดึงข้อมูล Audit Log ทั้งหมด (สำหรับ Admin เท่านั้น)
+// ดึงข้อมูล Audit Log ทั้งหมด (สำหรับ Admin เท่านั้น) - main endpoint
+router.get(
+  "/",
+  authenticate,
+  authorize(["ADMIN"]),
+  auditLogController.getAllAuditLogs
+);
+
+// ดึงข้อมูล Audit Log ทั้งหมด (สำหรับ Admin เท่านั้น) - alternative endpoint
 router.get(
   "/all",
   authenticate,

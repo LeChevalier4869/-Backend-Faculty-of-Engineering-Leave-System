@@ -11,6 +11,7 @@ const upload = require("../middlewares/upload");
 const authController = require('../controllers/auth-controller');
 const AuthService = require('../services/auth-service');
 const prisma = require("../config/prisma");
+const AuditLogService = require("../services/auditLog-service");
 
 // ==============================
 // 🧑‍💼 Authentication & User
@@ -111,6 +112,18 @@ router.get(
 
     // สร้าง JWT
     const { accessToken, refreshToken } = await AuthService.generateTokens(user.id);
+
+    // ✅ บันทึก audit log สำหรับการ login ผ่าน Google
+    try {
+      await AuditLogService.createLog(
+        user.id,
+        "Login",
+        null,
+        `ผู้ใช้ ${user.firstName} ${user.lastName} เข้าสู่ระบบผ่าน Google OAuth`
+      );
+    } catch (logError) {
+      console.warn('Failed to log Google login action:', logError);
+    }
 
     // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
     // const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";

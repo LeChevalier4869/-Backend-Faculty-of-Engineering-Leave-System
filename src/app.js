@@ -120,9 +120,9 @@ app.use("/signature", signatureRoute);
 app.use("/setting", settingRoute);
 
 // Admin routes (requires ADMIN role)
-app.use("/admin", authenticate, adminRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 app.use("/admin/audit-logs", authenticate, authorize(["ADMIN"]), auditLogRoute);
+app.use("/admin", authenticate, adminRoute);
 
 // Proxy approval routes
 app.use("/proxy-approval", authenticate, proxyApprovalRoute);
