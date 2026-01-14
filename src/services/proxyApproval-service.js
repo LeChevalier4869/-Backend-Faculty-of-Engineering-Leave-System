@@ -94,7 +94,7 @@ class ProxyApprovalService {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       date.setHours(0, 0, 0, 0);
-      
+
       if (date < today) {
         throw createError(400, "ไม่สามารถมอบอำนาจย้อนหลังได้");
       }
@@ -125,10 +125,10 @@ class ProxyApprovalService {
       throw createError(404, "ไม่พบข้อมูลผู้อนุมัติแทน");
     }
 
-    // ตรวจสอบว่า proxy approver มี role ที่เกี่ยวข้องกับ approverLevel หรือไม่
+    // ตรวจสอบว่า original approver มี role ที่เกี่ยวข้องกับ approverLevel หรือไม่
     const roleMapping = {
       1: 'APPROVER_1',
-      2: 'VERIFIER', 
+      2: 'VERIFIER',
       3: 'APPROVER_2',
       4: 'APPROVER_3',
       5: 'APPROVER_4'
@@ -143,12 +143,12 @@ class ProxyApprovalService {
     // ไม่จำเป็นต้องตรวจสอบ role ของ proxy approver
     const originalApproverWithRoles = await prisma.user.findUnique({
       where: { id: originalApproverId },
-      include: { 
-        userRoles: { 
-          include: { 
-            role: true 
-          } 
-        } 
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
       }
     });
 
@@ -156,7 +156,7 @@ class ProxyApprovalService {
       throw createError(404, "ไม่พบข้อมูลผู้อนุมัติต้นทาง");
     }
 
-    const hasOriginalRequiredRole = originalApproverWithRoles.userRoles.some(userRole => 
+    const hasOriginalRequiredRole = originalApproverWithRoles.userRoles.some(userRole =>
       userRole.role.name === requiredRole
     );
 
@@ -191,10 +191,10 @@ class ProxyApprovalService {
           OR: [
             {
               startDate: {
-                lte: new Date(endDate),
+                gte: new Date(startDate),
               },
               endDate: {
-                gte: new Date(startDate),
+                gte: new Date(endDate),
               },
             },
           ],
@@ -266,7 +266,7 @@ class ProxyApprovalService {
     const skip = (page - 1) * limit;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const [data, totalCount] = await Promise.all([
       prisma.proxyApproval.findMany({
         skip,
@@ -301,7 +301,7 @@ class ProxyApprovalService {
     // ตรวจสอบและอัปเดตสถานะสำหรับ proxy ที่หมดอายุ
     const updatedData = data.map(proxy => {
       let status = proxy.status;
-      
+
       // ตรวจสอบวันที่สำหรับ proxy ที่หมดอายุ
       if (proxy.status === 'ACTIVE') {
         if (proxy.isDaily) {
@@ -310,7 +310,7 @@ class ProxyApprovalService {
           proxyDate.setHours(0, 0, 0, 0);
           const nextDay = new Date(proxyDate);
           nextDay.setDate(nextDay.getDate() + 1);
-          
+
           if (today >= nextDay) {
             status = 'EXPIRED';
             // อัปเดตสถานะในฐานข้อมูล
@@ -323,7 +323,7 @@ class ProxyApprovalService {
           // กรณีช่วงเวลา: ตรวจสอบว่าวันสิ้นสุดผ่านไปแล้ว
           const endDate = new Date(proxy.endDate);
           endDate.setHours(23, 59, 59, 999);
-          
+
           if (today > endDate) {
             status = 'EXPIRED';
             // อัปเดตสถานะในฐานข้อมูล
@@ -334,7 +334,7 @@ class ProxyApprovalService {
           }
         }
       }
-      
+
       return { ...proxy, status };
     });
 
@@ -356,7 +356,7 @@ class ProxyApprovalService {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     const [data, totalCount] = await Promise.all([
       prisma.proxyApproval.findMany({
         where: {
@@ -458,7 +458,7 @@ class ProxyApprovalService {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     const [data, totalCount] = await Promise.all([
       prisma.proxyApproval.findMany({
         where: {
@@ -685,6 +685,79 @@ class ProxyApprovalService {
         approverLevel: parseInt(approverLevel),
         isDaily: false,
         status: "ACTIVE",
+        startDate: { gte: checkDate },
+        endDate: { gte: checkDate },
+      },
+      include: {
+        originalApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        proxyApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  // ตรวจสอบว่าผู้ใช้เป็น proxy approver ที่ active หรือไม่ (สำหรับ proxy approver)
+  static async getActiveProxyApprovalForProxyApprover(proxyApproverId, approverLevel, date = new Date()) {
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+
+    // ตรวจสอบการมอบอำนาจรายวันก่อน (priority สูงกว่า)
+    const dailyProxy = await prisma.proxyApproval.findFirst({
+      where: {
+        proxyApproverId: parseInt(proxyApproverId),
+        approverLevel: parseInt(approverLevel),
+        isDaily: true,
+        dailyDate: checkDate,
+        status: "ACTIVE",
+      },
+      include: {
+        originalApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        proxyApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (dailyProxy) {
+      return dailyProxy;
+    }
+
+    // ตรวจสอบการมอบอำนาจแบบช่วงเวลา
+    return await prisma.proxyApproval.findFirst({
+      where: {
+        proxyApproverId: parseInt(proxyApproverId),
+        approverLevel: parseInt(approverLevel),
+        isDaily: false,
+        status: "ACTIVE",
         startDate: { lte: checkDate },
         endDate: { gte: checkDate },
       },
@@ -812,16 +885,16 @@ class ProxyApprovalService {
         console.log('❌ Missing dailyDate for isDaily=true');
         throw createError(400, "การมอบอำนาจรายวันต้องระบุวันที่");
       }
-      
+
       // ตั้ง startDate และ endDate เป็นวันเดียวกัน
       const dailyDate = new Date(updateData.dailyDate);
       dailyDate.setHours(0, 0, 0, 0);
-      
+
       updateData.startDate = dailyDate;
       updateData.endDate = dailyDate;
-      
+
       console.log('📅 Processed dailyDate:', dailyDate);
-      
+
       // ลบฟิลด์ที่ไม่จำเป็นหลังจากจัดการข้อมูลเสร็จแล้ว
       delete updateData.dailyDate;
     } else {
@@ -830,7 +903,7 @@ class ProxyApprovalService {
         console.log('❌ Missing startDate or endDate for isDaily=false');
         throw createError(400, "การมอบอำนาจช่วงเวลาต้องระบุวันเริ่มต้นและวันสิ้นสุด");
       }
-      
+
       // ลบฟิลด์ที่ไม่จำเป็น
       if (updateData.dailyDate) {
         delete updateData.dailyDate;
@@ -943,7 +1016,7 @@ class ProxyApprovalService {
   // ตรวจสอบและอัปเดตสถานะการมอบอำนาจที่หมดอายุ
   static async expireProxyApprovals() {
     const now = new Date();
-    
+
     try {
       // อัปเดตสถานะการมอบอำนาจแบบช่วงเวลาที่หมดอายุ
       const expiredProxies = await prisma.proxyApproval.updateMany({
@@ -961,7 +1034,7 @@ class ProxyApprovalService {
       // อัปเดตสถานะการมอบอำนาจรายวันที่ผ่านมาแล้ว
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const expiredDailyProxies = await prisma.proxyApproval.updateMany({
         where: {
           status: "ACTIVE",
@@ -1100,7 +1173,7 @@ class ProxyApprovalService {
     const UserService = require("./user-service");
     const approvers = await UserService.getApproversForLevel(approverLevel, date);
     const approverIds = approvers.map(a => a.id);
-    
+
     if (!approverIds.includes(userId)) {
       return {
         canApprove: false,
@@ -1115,7 +1188,7 @@ class ProxyApprovalService {
     // หาว่าเป็น proxy หรือไม่
     const user = approvers.find(a => a.id === userId);
     const isProxy = user && user.isProxy;
-    
+
     if (isProxy) {
       return {
         canApprove: true,
@@ -1143,7 +1216,7 @@ class ProxyApprovalService {
 
     const roleMapping = {
       1: 'APPROVER_1',
-      2: 'VERIFIER', 
+      2: 'VERIFIER',
       3: 'APPROVER_2',
       4: 'APPROVER_3',
       5: 'APPROVER_4'
