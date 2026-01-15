@@ -7,7 +7,9 @@ const { authenticate , authorize } = require('../middlewares/auth');
 //report
 router.post('/download-report', authenticate, reportController.downloadReport);
 router.post("/report/data", reportController.reportData);
-router.post("/export-report", reportController.exportReport);
+router.post("/export-round-report", reportController.exportRoundReport);
+router.post("/export-year-report", reportController.exportFiscalYearReport);
+router.post("/export-month-report", reportController.exportMonthReport);
 
 //contact admin
 router.get("/contact", apiController.getContactInfo);
