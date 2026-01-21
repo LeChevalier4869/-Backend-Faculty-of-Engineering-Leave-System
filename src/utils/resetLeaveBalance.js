@@ -26,7 +26,7 @@ async function resetLeaveBalance() {
   // 🛡️ ตรวจสอบว่ามีข้อมูลปีก่อนหรือไม่
   if (currentLeaveBalances.length === 0) {
     console.log("⚠️ ไม่พบข้อมูล LeaveBalance ปีก่อน จะข้ามการ reset");
-    return;
+    // Continue processing instead of returning early
   }
 
   // 🧹 ลบข้อมูล LeaveBalance ของปีปัจจุบันก่อน (เพื่อป้องกันการสร้างซ้ำ)
@@ -105,6 +105,12 @@ async function resetLeaveBalance() {
         }
       });
 
+      // ถ้าไม่รีเซ็ตปีใหม่และไม่ใช่ลาพักผ่อน ให้ข้าม
+      if (!leaveType?.resetOnFiscalYear && Number(leaveTypeId) !== 4) {
+        console.log(`⏭️ ข้าม LeaveType ${leaveTypeId} (ไม่รีเซ็ตปีใหม่)`);
+        continue;
+      }
+
       // สำหรับประเภทที่ต้องหักวัน
       const daysToUse = receiveDays > 0 ? receiveDays : maxDays;
       
@@ -133,6 +139,16 @@ async function resetLeaveBalance() {
           const carryOverDays = balanceVacation?.remainingDays ?? 0;
           newRemainingDays = daysToUse + carryOverDays;
           console.log(`💰 ลาพักผ่อน userId ${id}: ใหม่ ${daysToUse} + carryOver ${carryOverDays} = ${newRemainingDays}`);
+          
+          balanceData = {
+            userId: id,
+            leaveTypeId,
+            maxDays: daysToUse,
+            usedDays: 0,
+            pendingDays: 0,
+            remainingDays: newRemainingDays,
+            year,
+          };
         } else {
           // ถ้าไม่รีเซ็ตปีใหม่ ให้เพิ่มวันใหม่เข้าไปใน balance เดิม
           const currentBalance = await prisma.leaveBalance.findFirst({
@@ -140,7 +156,7 @@ async function resetLeaveBalance() {
             select: { remainingDays: true, maxDays: true }
           });
           const currentRemaining = currentBalance?.remainingDays ?? 0;
-          const currentMaxDays = currentBalance?.maxDays ?? maxDays;
+          const currentMaxDays = currentBalance?.maxDays ?? 0; // Default to 0 when no existing balance
           newRemainingDays = currentRemaining + daysToUse;
           console.log(`💰 ลาพักผ่อน userId ${id}: เดิม ${currentRemaining} + ใหม่ ${daysToUse} = ${newRemainingDays}`);
           
@@ -167,22 +183,22 @@ async function resetLeaveBalance() {
           remainingDays: newRemainingDays >= maxDays ? maxDays : newRemainingDays,
           year,
         };
-      } else {
-        // ประเภทที่ไม่รีเซ็ตปีใหม่และไม่ใช่พิเศษ: ข้าม
-        console.log(`⏭️ ข้าม LeaveType ${leaveTypeId} (ไม่รีเซ็ตปีใหม่)`);
+      }
+
+      // ถ้าถึงตรงนี้แล้ว balanceData ต้องมีค่าแน่นอน
+      if (!balanceData) {
+        console.log(`⚠️ ไม่สามารถสร้าง balanceData สำหรับ userId ${id}, leaveType ${leaveTypeId}`);
         continue;
       }
 
       const key = `${id}-${leaveTypeId}`;
       if (existingMap.has(key)) {
         // ถ้ามีอยู่แล้ว ให้อัปเดต
-        await prisma.leaveBalance.update({
+        await prisma.leaveBalance.updateMany({
           where: {
-            userId_leaveTypeId_year: {
-              userId: id,
-              leaveTypeId,
-              year
-            }
+            userId: id,
+            leaveTypeId,
+            year
           },
           data: balanceData,
         });
@@ -213,12 +229,15 @@ async function resetLeaveBalance() {
 // //             │ │ │ │  │
 // //             │ │ │ │  │
 // //             * * * *  *
-// cron.schedule("0 0 1 10 *", async () => {
+// cron.schedule("0 0 0 0 *", async () => {
 //   console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
 //   await resetLeaveBalance();
 // });
 
 cron.schedule("0 0 1 10 *", async () => {
+  // Set timezone to Bangkok (UTC+7)
+  process.env.TZ = 'Asia/Bangkok';
+  
   const today = new Date();
   // const today = new Date("2025-10-01");
   // ถ้าเป็นวันที่ 1 ตุลาคม ให้รีเซ็ต Leave Balance
@@ -306,3 +325,5 @@ cron.schedule("0 0 1 10 *", async () => {
     }
   }
 });
+
+module.exports = resetLeaveBalance;
