@@ -587,6 +587,15 @@ exports.approveByVerifier = async (req, res, next) => {
   const { remarks, comment } = req.body;
   const approverId = req.user.id;
 
+  console.log('🔥 APPROVE BY VERIFIER - REQUEST START:', {
+    id,
+    approverId,
+    remarks,
+    comment,
+    userAgent: req.get('User-Agent'),
+    ip: req.ip
+  });
+
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
@@ -605,9 +614,16 @@ exports.approveByVerifier = async (req, res, next) => {
       return res.status(403).json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
     }
 
+    console.log('🔍 Controller - Calling service with:', {
+      id,
+      approverId: req.user.id,
+      remarks,
+      comment
+    });
+
     const result = await LeaveRequestService.approveByVerifier({
       id,
-      approverId,
+      approverId: req.user.id,
       remarks,
       comment,
     });

@@ -13,15 +13,27 @@ async function resetLeaveBalance() {
     ? parseInt(fiscalYearSetting.value)
     : new Date().getFullYear();
 
-  // 🟡 ดึง LeaveBalance เดิมก่อนลบ
-  const oldLeaveBalances = await prisma.leaveBalance.findMany({
+  // 🟡 ดึง LeaveBalance ของปีปัจจุบันเพื่อตรวจสอบว่ามีอยู่แล้วหรือไม่
+  const currentLeaveBalances = await prisma.leaveBalance.findMany({
     where: { year },
   });
   const existingMap = new Map();
-  for (const lb of oldLeaveBalances) {
+  for (const lb of currentLeaveBalances) {
     const key = `${lb.userId}-${lb.leaveTypeId}`;
     existingMap.set(key, true);
   }
+
+  // 🛡️ ตรวจสอบว่ามีข้อมูลปีก่อนหรือไม่
+  if (currentLeaveBalances.length === 0) {
+    console.log("⚠️ ไม่พบข้อมูล LeaveBalance ปีก่อน จะข้ามการ reset");
+    return;
+  }
+
+  // 🧹 ลบข้อมูล LeaveBalance ของปีปัจจุบันก่อน (เพื่อป้องกันการสร้างซ้ำ)
+  await prisma.leaveBalance.deleteMany({
+    where: { year }
+  });
+  console.log("🧹 ลบข้อมูล LeaveBalance ปีปัจจุบันเรียบร้อย");
 
   // ลบข้อมูล user_Rank ทั้งหมด
   await prisma.userRank.deleteMany({});
@@ -45,13 +57,35 @@ async function resetLeaveBalance() {
     
     await UserService.assignRankToUser(id, personnelTypeId, new Date(hireDate));
     
-    // ดึง balance เก่ามาทบ เฉพาะของ ลาพักผ่อน (leaveType === 4)
-    const balanceVacation = await prisma.leaveBalance.findFirst({
-      where: { userId: id, leaveTypeId: 4, year: year - 1 },
-      select: { remainingDays: true },
+    // ดึง balance เก่ามาทบ เฉพาะของ ลาพักผ่อน (leaveType === 4) ที่ยังรีเซ็ตปีใหม่อยู่
+    const leaveType4 = await prisma.leaveType.findUnique({
+      where: { id: 4 },
+      select: { resetOnFiscalYear: true }
     });
-
-    const carryOverDays = balanceVacation?.remainingDays ?? 0;
+    
+    let carryOverDays = 0;
+    if (leaveType4?.resetOnFiscalYear) {
+      // ดึง balance ปีก่อนเฉพาะประเภทลาพักผ่อน
+      const balanceVacation = await prisma.leaveBalance.findFirst({
+        where: { userId: id, leaveTypeId: 4, year: year - 1 },
+        select: { remainingDays: true, maxDays: true, usedDays: true }
+      });
+      
+      // 🛡️ ตรวจสอบความถูกต้องของ balance ปีก่อน
+      if (balanceVacation) {
+        const remainingDays = Math.max(0, balanceVacation.remainingDays || 0);
+        const maxDays = balanceVacation.maxDays || 0;
+        const usedDays = balanceVacation.usedDays || 0;
+        
+        // 🎯 ใช้ค่าที่ถูกต้อง: remainingDays ไม่เกิน maxDays - usedDays
+        carryOverDays = Math.min(remainingDays, maxDays - usedDays);
+        
+        console.log(`💰 คำนวณ carry over สำหรับ userId ${id}: สิทธิ์ ${remainingDays}/${maxDays}, ใช้ไป ${usedDays}, carry over ${carryOverDays}`);
+      } else {
+        console.log(`⚠️ ไม่พบ balance ปีก่อนสำหรับ userId ${id}, leaveType 4`);
+        carryOverDays = 0;
+      }
+    }
     
     const userRanks = await prisma.userRank.findMany({
       where: { userId: id },
@@ -59,27 +93,106 @@ async function resetLeaveBalance() {
     });
 
     for (const ur of userRanks) {
-      const { leaveTypeId, maxDays, receiveDays } = ur.rank;
+      const { leaveTypeId, maxDays, receiveDays, isBalance } = ur.rank;
       if (!leaveTypeId || maxDays === null) continue;
 
-      const newRemainingDays =
-        Number(leaveTypeId) === 4
-          ? receiveDays + carryOverDays
-          : receiveDays;
+      // ตรวจสอบว่า leaveType นี้ต้องรีเซ็ตปีใหม่หรือไม่ และเป็นประเภทที่ไม่ต้องหักวันหรือไม่
+      const leaveType = await prisma.leaveType.findUnique({
+        where: { id: leaveTypeId },
+        select: { 
+          resetOnFiscalYear: true,
+          isNonDeductible: true
+        }
+      });
 
-      const key = `${id}-${leaveTypeId}`;
-      if (!existingMap.has(key)) {
-        // สร้างเฉพาะที่ยังไม่มี
-        await prisma.leaveBalance.create({
-          data: {
+      // สำหรับประเภทที่ต้องหักวัน
+      const daysToUse = receiveDays > 0 ? receiveDays : maxDays;
+      
+      let newRemainingDays;
+      let balanceData;
+      
+      if (leaveType?.isNonDeductible) {
+        // ประเภทที่ไม่ต้องหักวัน: สร้าง balance สำหรับเก็บสถิติเท่านั้น
+        balanceData = {
+          userId: id,
+          leaveTypeId,
+          maxDays: 0,
+          usedDays: 0,
+          pendingDays: 0,
+          remainingDays: 0,
+          year,
+        };
+      } else if (Number(leaveTypeId) === 4) {
+        // ลาพักผ่อน: จัดการเสมอ
+        if (leaveType?.resetOnFiscalYear) {
+          // ถ้ารีเซ็ตปีใหม่ ให้ทำ carry over
+          const balanceVacation = await prisma.leaveBalance.findFirst({
+            where: { userId: id, leaveTypeId: 4, year: year - 1 },
+            select: { remainingDays: true },
+          });
+          const carryOverDays = balanceVacation?.remainingDays ?? 0;
+          newRemainingDays = daysToUse + carryOverDays;
+          console.log(`💰 ลาพักผ่อน userId ${id}: ใหม่ ${daysToUse} + carryOver ${carryOverDays} = ${newRemainingDays}`);
+        } else {
+          // ถ้าไม่รีเซ็ตปีใหม่ ให้เพิ่มวันใหม่เข้าไปใน balance เดิม
+          const currentBalance = await prisma.leaveBalance.findFirst({
+            where: { userId: id, leaveTypeId: 4, year },
+            select: { remainingDays: true, maxDays: true }
+          });
+          const currentRemaining = currentBalance?.remainingDays ?? 0;
+          const currentMaxDays = currentBalance?.maxDays ?? maxDays;
+          newRemainingDays = currentRemaining + daysToUse;
+          console.log(`💰 ลาพักผ่อน userId ${id}: เดิม ${currentRemaining} + ใหม่ ${daysToUse} = ${newRemainingDays}`);
+          
+          balanceData = {
             userId: id,
             leaveTypeId,
-            maxDays,
+            maxDays: currentMaxDays + daysToUse, // เพิ่ม maxDays ตามวันที่ได้รับ
             usedDays: 0,
             pendingDays: 0,
-            remainingDays: newRemainingDays >= maxDays ? maxDays : newRemainingDays,
+            remainingDays: newRemainingDays,
             year,
+          };
+        }
+      } else if (leaveType?.resetOnFiscalYear) {
+        // ประเภทอื่นๆ ที่รีเซ็ตปีใหม่: ใช้ logic เดิม
+        newRemainingDays = daysToUse + carryOverDays;
+        
+        balanceData = {
+          userId: id,
+          leaveTypeId,
+          maxDays,
+          usedDays: 0,
+          pendingDays: 0,
+          remainingDays: newRemainingDays >= maxDays ? maxDays : newRemainingDays,
+          year,
+        };
+      } else {
+        // ประเภทที่ไม่รีเซ็ตปีใหม่และไม่ใช่พิเศษ: ข้าม
+        console.log(`⏭️ ข้าม LeaveType ${leaveTypeId} (ไม่รีเซ็ตปีใหม่)`);
+        continue;
+      }
+
+      const key = `${id}-${leaveTypeId}`;
+      if (existingMap.has(key)) {
+        // ถ้ามีอยู่แล้ว ให้อัปเดต
+        await prisma.leaveBalance.update({
+          where: {
+            userId_leaveTypeId_year: {
+              userId: id,
+              leaveTypeId,
+              year
+            }
           },
+          data: balanceData,
+        });
+        console.log(
+          `🔄 อัปเดต LeaveBalance ให้ userId ${id}, leaveType ${leaveTypeId}`
+        );
+      } else {
+        // สร้างเฉพาะที่ยังไม่มี
+        await prisma.leaveBalance.create({
+          data: balanceData,
         });
         console.log(
           `➕ เพิ่ม LeaveBalance ให้ userId ${id}, leaveType ${leaveTypeId}`

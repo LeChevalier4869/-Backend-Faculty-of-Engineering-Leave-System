@@ -638,7 +638,7 @@ class ProxyApprovalService {
     });
   }
 
-  // ตรวจสอบว่ามีการมอบอำนาจที่ใช้ได้ในปัจจุบันหรือไม่
+  // ตรวจสอบว่ามีการมอบอำนาจที่ใช้ได้ในปัจจุบันหรือไม่ (สำหรับ original approver)
   static async getActiveProxyApproval(originalApproverId, approverLevel, date = new Date()) {
     const checkDate = new Date(date);
     checkDate.setHours(0, 0, 0, 0);
@@ -682,6 +682,79 @@ class ProxyApprovalService {
     return await prisma.proxyApproval.findFirst({
       where: {
         originalApproverId: parseInt(originalApproverId),
+        approverLevel: parseInt(approverLevel),
+        isDaily: false,
+        status: "ACTIVE",
+        startDate: { lte: checkDate },
+        endDate: { gte: checkDate },
+      },
+      include: {
+        originalApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        proxyApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  // ตรวจสอบว่าผู้ใช้เป็น proxy approver ที่ active หรือไม่ (สำหรับ proxy approver)
+  static async getActiveProxyApprovalForProxyApprover(proxyApproverId, approverLevel, date = new Date()) {
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+
+    // ตรวจสอบการมอบอำนาจรายวันก่อน (priority สูงกว่า)
+    const dailyProxy = await prisma.proxyApproval.findFirst({
+      where: {
+        proxyApproverId: parseInt(proxyApproverId),
+        approverLevel: parseInt(approverLevel),
+        isDaily: true,
+        dailyDate: checkDate,
+        status: "ACTIVE",
+      },
+      include: {
+        originalApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        proxyApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (dailyProxy) {
+      return dailyProxy;
+    }
+
+    // ตรวจสอบการมอบอำนาจแบบช่วงเวลา
+    return await prisma.proxyApproval.findFirst({
+      where: {
+        proxyApproverId: parseInt(proxyApproverId),
         approverLevel: parseInt(approverLevel),
         isDaily: false,
         status: "ACTIVE",
@@ -1023,31 +1096,12 @@ class ProxyApprovalService {
 
   // ตรวจสอบว่าผู้ใช้มีสิทธิ์อนุมัติในระดับที่กำหนดหรือไม่ (รวมถึงการอนุมัติแทน)
   static async canUserApprove(userId, approverLevel, date = new Date()) {
-    // ตรวจสอบว่าผู้ใช้เป็นผู้อนุมัติแทนในระดับที่กำหนดหรือไม่
-    const activeProxy = await this.getActiveProxyApproval(userId, approverLevel, date);
+    // ใช้วิธีเดียวกับ controller - ตรวจสอบจาก UserService.getApproversForLevel
+    const UserService = require("./user-service");
+    const approvers = await UserService.getApproversForLevel(approverLevel, date);
+    const approverIds = approvers.map(a => a.id);
     
-    if (activeProxy) {
-      return {
-        canApprove: true,
-        isProxy: true,
-        proxyApproval: activeProxy,
-        originalApproverId: activeProxy.originalApproverId,
-        isDaily: activeProxy.isDaily,
-        proxyType: activeProxy.isDaily ? 'daily' : 'period',
-      };
-    }
-
-    // ตรวจสอบว่าผู้ใช้เป็นผู้อนุมัติต้นฉบับในระดับที่กำหนดหรือไม่ (จาก role เท่านั้น)
-    const roleMapping = {
-      1: 'APPROVER_1',
-      2: 'VERIFIER', 
-      3: 'APPROVER_2',
-      4: 'APPROVER_3',
-      5: 'APPROVER_4'
-    };
-
-    const requiredRole = roleMapping[approverLevel];
-    if (!requiredRole) {
+    if (!approverIds.includes(userId)) {
       return {
         canApprove: false,
         isProxy: false,
@@ -1058,15 +1112,23 @@ class ProxyApprovalService {
       };
     }
 
-    const userRole = await prisma.userRole.findFirst({
-      where: {
-        userId: parseInt(userId),
-        role: { name: requiredRole },
-      },
-    });
+    // หาว่าเป็น proxy หรือไม่
+    const user = approvers.find(a => a.id === userId);
+    const isProxy = user && user.isProxy;
+    
+    if (isProxy) {
+      return {
+        canApprove: true,
+        isProxy: true,
+        proxyApproval: user.proxyInfo,
+        originalApproverId: user.proxyInfo ? user.proxyInfo.originalApprover.id : null,
+        isDaily: user.proxyInfo ? user.proxyInfo.isDaily : false,
+        proxyType: user.proxyInfo ? (user.proxyInfo.isDaily ? 'daily' : 'period') : null,
+      };
+    }
 
     return {
-      canApprove: !!userRole,
+      canApprove: true,
       isProxy: false,
       proxyApproval: null,
       originalApproverId: null,

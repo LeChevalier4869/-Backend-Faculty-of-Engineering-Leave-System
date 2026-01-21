@@ -561,6 +561,30 @@ class LeaveRequestService {
       : null;
 
     if (!coreLeaveTypeNames.has(String(leaveType.name || "").trim())) {
+      // ตรวจสอบว่าเป็นประเภทการลาที่ไม่ต้องหักวันหรือไม่ (receiveDays = 0 && isBalance = 1)
+      // หรือเป็นประเภทพิเศษที่กำหนดไว้ (leaveTypeId: 5, 6, 10, 11, 13)
+      const specialLeaveTypes = [5, 6, 10, 11, 13];
+      
+      // ตรวจสอบจาก Rank ว่าเป็นประเภทที่ไม่ต้องหักวันหรือไม่
+      const userRank = await prisma.userRank.findFirst({
+        where: {
+          userId,
+          rank: {
+            leaveTypeId: leaveTypeIdInt
+          }
+        },
+        include: {
+          rank: true
+        }
+      });
+
+      const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+      
+      if (isNonDeductible || specialLeaveTypes.includes(leaveTypeIdInt)) {
+        // สำหรับประเภทการลาที่ไม่ต้องหักวัน ให้ข้ามการตรวจสอบยอดคงเหลือ
+        return { success: true, message: "ประเภทการลานี้ไม่ต้องตรวจสอบยอดคงเหลือ" };
+      }
+
       const balance = Number.isFinite(fiscalYear)
         ? await prisma.leaveBalance.findFirst({
             where: {
@@ -964,11 +988,16 @@ class LeaveRequestService {
     const approverLevel = 1; // APPROVER_1
     const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
 
-    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
-    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
-    if (!permission.canApprove) {
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
+    const approvers = await UserService.getApproversForLevel(approverLevel, new Date());
+    const approverIds = approvers.map(a => a.id);
+    
+    if (!approverIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
+
+    // ดึงข้อมูล proxy approval สำหรับบันทึก (ถ้าเป็น proxy)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
@@ -980,7 +1009,11 @@ class LeaveRequestService {
       
       // ตรวจสอบว่า originalApproverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
       if (existingDetail.approverId !== actualApproverId) {
-        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        // Proxy approver สามารถอนุมัติแทนได้เสมอ ไม่ว่าจะถูก assign ให้คนไหน
+        // ตราบใดที่มีสิทธิ์ในระดับนั้น (ตรวจสอบแล้วข้างบน)
+        if (!permission.isProxy) {
+          throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        }
       }
     } else {
       // ตรวจสอบว่า approverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
@@ -1056,9 +1089,21 @@ class LeaveRequestService {
       };
       
       // ถ้าเป็นการอนุมัติแทน ให้เพิ่มข้อมูลผู้อนุมัติแทน
-      if (permission.isProxy) {
-        notificationData.proxyApprover = `${permission.proxyApproval.proxyApprover.prefixName} ${permission.proxyApproval.proxyApprover.firstName} ${permission.proxyApproval.proxyApprover.lastName}`;
-        notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
+      if (permission.isProxy && permission.proxyApproval) {
+        // ดึงข้อมูล proxy approver (ผู้อนุมัติจริง)
+        const proxyApproverUser = await prisma.user.findUnique({
+          where: { id: approverId },
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+        
+        if (proxyApproverUser && permission.proxyApproval.originalApprover) {
+          notificationData.proxyApprover = `${proxyApproverUser.prefixName} ${proxyApproverUser.firstName} ${proxyApproverUser.lastName}`;
+          notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
+        }
       }
       
       await sendNotification("APPROVER1_APPROVED", notificationData);
@@ -1082,9 +1127,21 @@ class LeaveRequestService {
       };
       
       // ถ้าเป็นการอนุมัติแทน ให้เพิ่มข้อมูลผู้อนุมัติแทน
-      if (permission.isProxy) {
-        notificationData.proxyApprover = `${permission.proxyApproval.proxyApprover.prefixName} ${permission.proxyApproval.proxyApprover.firstName} ${permission.proxyApproval.proxyApprover.lastName}`;
-        notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
+      if (permission.isProxy && permission.proxyApproval) {
+        // ดึงข้อมูล proxy approver (ผู้อนุมัติจริง)
+        const proxyApproverUser = await prisma.user.findUnique({
+          where: { id: approverId },
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+        
+        if (proxyApproverUser && permission.proxyApproval.originalApprover) {
+          notificationData.proxyApprover = `${proxyApproverUser.prefixName} ${proxyApproverUser.firstName} ${proxyApproverUser.lastName}`;
+          notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
+        }
       }
       
       await sendNotification("STEP_APPROVER1", notificationData);
@@ -1203,11 +1260,24 @@ class LeaveRequestService {
     const approverLevel = 2; // VERIFIER
     const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
 
-    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
-    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
-    if (!permission.canApprove) {
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
+    const verifiers = await UserService.getApproversForLevel(approverLevel, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    if (!verifierIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
+
+    // ดึงข้อมูล proxy approval สำหรับบันทึก (ถ้าเป็น proxy)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
+    
+    console.log('🔍 Debug - Permission check:', {
+      approverId,
+      approverLevel,
+      permission,
+      isProxy: permission.isProxy,
+      proxyApproval: permission.proxyApproval
+    });
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
@@ -1219,7 +1289,11 @@ class LeaveRequestService {
       
       // ตรวจสอบว่า originalApproverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
       if (existingDetail.approverId !== actualApproverId) {
-        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        // Proxy approver สามารถอนุมัติแทนได้เสมอ ไม่ว่าจะถูก assign ให้คนไหน
+        // ตราบใดที่มีสิทธิ์ในระดับนั้น (ตรวจสอบแล้วข้างบน)
+        if (!permission.isProxy) {
+          throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        }
       }
     } else {
       // ตรวจสอบว่า approverId ตรงกับที่กำหนดไว้ใน leaveRequestDetail หรือไม่
@@ -1392,11 +1466,16 @@ class LeaveRequestService {
     const approverLevel = 2; // VERIFIER
     const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
 
-    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
-    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
-    if (!permission.canApprove) {
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
+    const approvers = await UserService.getApproversForLevel(approverLevel, new Date());
+    const approverIds = approvers.map(a => a.id);
+    
+    if (!approverIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
+
+    // ดึงข้อมูล proxy approval สำหรับบันทึก (ถ้าเป็น proxy)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
@@ -1407,7 +1486,11 @@ class LeaveRequestService {
       actualApproverId = permission.originalApproverId;
       
       if (existingDetail.approverId !== actualApproverId) {
-        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        // Proxy approver สามารถอนุมัติแทนได้เสมอ ไม่ว่าจะถูก assign ให้คนไหน
+        // ตราบใดที่มีสิทธิ์ในระดับนั้น (ตรวจสอบแล้วข้างบน)
+        if (!permission.isProxy) {
+          throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        }
       }
     } else {
       if (existingDetail.approverId !== approverId) {
@@ -1503,11 +1586,16 @@ class LeaveRequestService {
     const approverLevel = 3; // APPROVER_2
     const stepOrder = await this.validateAndUpdateStepOrder(existingDetail, approverLevel);
 
-    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน)
-    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
-    if (!permission.canApprove) {
+    // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
+    const approvers = await UserService.getApproversForLevel(approverLevel, new Date());
+    const approverIds = approvers.map(a => a.id);
+    
+    if (!approverIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
+
+    // ดึงข้อมูล proxy approval สำหรับบันทึก (ถ้าเป็น proxy)
+    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
@@ -1518,7 +1606,11 @@ class LeaveRequestService {
       actualApproverId = permission.originalApproverId;
       
       if (existingDetail.approverId !== actualApproverId) {
-        throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        // Proxy approver สามารถอนุมัติแทนได้เสมอ ไม่ว่าจะถูก assign ให้คนไหน
+        // ตราบใดที่มีสิทธิ์ในระดับนั้น (ตรวจสอบแล้วข้างบน)
+        if (!permission.isProxy) {
+          throw createError(403, "ไม่สามารถอนุมัติแทนในคำขอนี้ได้");
+        }
       }
     } else {
       if (existingDetail.approverId !== approverId) {

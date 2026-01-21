@@ -190,13 +190,15 @@ model LeaveBalance {
 }
 
 model LeaveType {
-  id            Int            @id @default(autoincrement())
-  name          String
-  isAvailable   Boolean        @default(true)
-  template      String?
-  leaveBalances LeaveBalance[]
-  leaveRequests LeaveRequest[]
-  Rank          Rank[]
+  id                Int            @id @default(autoincrement())
+  name              String
+  isAvailable       Boolean        @default(true)
+  resetOnFiscalYear Boolean        @default(true)
+  isNonDeductible   Boolean        @default(false)
+  template          String?
+  leaveBalances     LeaveBalance[]
+  leaveRequests     LeaveRequest[]
+  Rank              Rank[]
 
   @@map("leave_type")
 }

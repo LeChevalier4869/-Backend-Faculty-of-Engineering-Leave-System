@@ -68,7 +68,7 @@ class LeaveBalanceService {
     const db = this._db(opts);
     return await db.leaveBalance.findMany({
       where: { userId },
-      include: { leaveType: { select: { name: true, isAvailable: true } } },
+      include: { leaveType: { select: { name: true, isAvailable: true, resetOnFiscalYear: true } } },
       orderBy: { leaveTypeId: "asc" },
     });
   }
@@ -80,6 +80,44 @@ class LeaveBalanceService {
     const db = this._db(opts);
     const balance = await this.getUserBalance(userId, leaveTypeId, opts);
     if (!balance) throw createError(404, "ไม่พบข้อมูลสิทธิ์การลา");
+
+    // ตรวจสอบว่าเป็นประเภทการลาที่ไม่ต้องหักวันหรือไม่ (จาก LeaveType.isNonDeductible)
+    const leaveType = await db.leaveType.findUnique({
+      where: { id: Number(leaveTypeId) },
+      select: { isNonDeductible: true }
+    });
+    
+    // ตรวจสอบจาก Rank ว่าเป็นประเภทที่ไม่ต้องหักวันหรือไม่
+    const userRank = await db.userRank.findFirst({
+      where: {
+        userId,
+        rank: {
+          leaveTypeId: Number(leaveTypeId)
+        }
+      },
+      include: {
+        rank: true
+      }
+    });
+
+    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+    
+    if (leaveType?.isNonDeductible || isNonDeductible) {
+      // สำหรับประเภทการลาที่ไม่ต้องหักวัน: อัปเดตเฉพาะ pendingDays แต่ไม่คำนวณ remainingDays
+      const currentPending = Number(balance.pendingDays) || 0;
+      const safeRequestedDays = Number(requestedDays) || 0;
+      const newPending = currentPending + safeRequestedDays;
+      
+      console.log(`✅ อัปเดต pendingDays สำหรับ leaveTypeId ${leaveTypeId}: ${currentPending} + ${safeRequestedDays} = ${newPending}`);
+      
+      return await db.leaveBalance.update({
+        where: { id: balance.id },
+        data: {
+          pendingDays: newPending,
+          // usedDays และ remainingDays คงเดิม
+        },
+      });
+    }
 
     // ✅ ดึงค่าที่ต้องใช้
     const maxDays = Number(balance.maxDays) || 0;
@@ -122,6 +160,48 @@ class LeaveBalanceService {
       throw createError(404, 'ไม่พบข้อมูลสิทธิ์การลาสำหรับผู้ใช้งานนี้ กรุณาติดต่อผู้ดูแลระบบ');
     }
 
+    // ตรวจสอบว่าเป็นประเภทการลาที่ไม่ต้องหักวันหรือไม่ (จาก LeaveType.isNonDeductible)
+    const leaveType = await db.leaveType.findUnique({
+      where: { id: Number(leaveTypeId) },
+      select: { isNonDeductible: true }
+    });
+    
+    // ตรวจสอบจาก Rank ว่าเป็นประเภทที่ไม่ต้องหักวันหรือไม่
+    const userRank = await db.userRank.findFirst({
+      where: {
+        userId,
+        rank: {
+          leaveTypeId: Number(leaveTypeId)
+        }
+      },
+      include: {
+        rank: true
+      }
+    });
+
+    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+    
+    if (leaveType?.isNonDeductible || isNonDeductible) {
+      // สำหรับประเภทการลาที่ไม่ต้องหักวัน: อัปเดตเฉพาะ usedDays แต่ไม่คำนวณ remainingDays
+      const days = Number(approvedDays) || 0;
+      const usedNow = Number(balance.usedDays) || 0;
+      const pendingNow = Number(balance.pendingDays) || 0;
+      
+      const newUsed = usedNow + days; // เก็บวันที่ใช้ไปจริง
+      const newPending = Math.max(pendingNow - days, 0); // ลด pending days
+      
+      console.log(`✅ อัปเดต usedDays สำหรับ leaveTypeId ${leaveTypeId}: ${usedNow} + ${days} = ${newUsed}`);
+      
+      return await db.leaveBalance.update({
+        where: { id: balance.id },
+        data: {
+          usedDays: newUsed,
+          pendingDays: newPending,
+          // remainingDays คงเดิม (ไม่ต้องคำนวณ)
+        },
+      });
+    }
+
     const days = Number(approvedDays) || 0;
     if (days <= 0) throw createError(400, 'จำนวนวันที่อนุมัติไม่ถูกต้อง');
 
@@ -157,6 +237,43 @@ class LeaveBalanceService {
       balance = await this.initializeLeaveBalance(userId, parseInt(leaveTypeId, 10), 10, opts);
     }
 
+    // ตรวจสอบว่าเป็นประเภทการลาที่ไม่ต้องหักวันหรือไม่ (จาก LeaveType.isNonDeductible)
+    const leaveType = await db.leaveType.findUnique({
+      where: { id: Number(leaveTypeId) },
+      select: { isNonDeductible: true }
+    });
+    
+    // ตรวจสอบจาก Rank ว่าเป็นประเภทที่ไม่ต้องหักวันหรือไม่
+    const userRank = await db.userRank.findFirst({
+      where: {
+        userId,
+        rank: {
+          leaveTypeId: Number(leaveTypeId)
+        }
+      },
+      include: {
+        rank: true
+      }
+    });
+
+    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+    
+    if (leaveType?.isNonDeductible || isNonDeductible) {
+      // สำหรับประเภทการลาที่ไม่ต้องหักวัน: คืนเฉพาะ pendingDays แต่ไม่คำนวณ remainingDays
+      const days = Number(rollbackDays) || 0;
+      const currentPending = Number(balance.pendingDays) || 0;
+      const newPending = Math.max(currentPending - days, 0);
+      
+      console.log(`✅ คืน pendingDays สำหรับ leaveTypeId ${leaveTypeId}: ${currentPending} - ${days} = ${newPending}`);
+      
+      return await db.leaveBalance.update({
+        where: { id: balance.id },
+        data: {
+          pendingDays: newPending,
+          // usedDays และ remainingDays คงเดิม
+        },
+      });
+    }
 
     const days = Number(rollbackDays) || 0;
     if (days <= 0) throw createError(400, "จำนวนวันที่จะ rollback ไม่ถูกต้อง");

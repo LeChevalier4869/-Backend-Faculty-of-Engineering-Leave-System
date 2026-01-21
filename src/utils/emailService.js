@@ -33,27 +33,22 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendEmail = async (toEmail, subject, message) => {
     try {
-      // const mailOptions = {
-      //   from: `"ระบบจัดการวันลาคณะวิศวกรรมศาสตร์" <eleave.systemv1@gmail.com>`, // จำเป็นต้องใช้ email ที่ยืนยันแล้ว กับ sendgrid
-      //   to: toEmail,
-      //   subject,
-      //   html: message,
-      // };
 
       const msg = {
         to: toEmail,
-        from: `"ระบบจัดการวันลาคณะวิศวกรรมศาสตร์" <eleave.systemv1@gmail.com>`,
+        from: 'ระบบวันลาคณะวิศวกรรมศาสตร์ <eleave.systemv1@gmail.com>', // ลองแบบ simple format
         subject,
         html: message,
       };
       await sgMail.send(msg);
 
-      // const info = await transporter.sendMail(mailOptions);
-      // console.log("Email sent: " + info.response);
       console.log("ส่งอีเมลสำเร็จแล้ว");
-      // return info;
     } catch (error) {
       console.error("Error sending email: ", error);
+      if (error.response) {
+        console.error("SendGrid Response Body:", error.response.body);
+        console.error("SendGrid Response Code:", error.response.statusCode);
+      }
     }
   };
 
@@ -68,10 +63,7 @@ const sendEmailTest = async (toEmail, subject, message) => {
 
     const msg = {
       to: toEmail,
-      from: {
-        email: 'eleave.systemv1@gmail.com', // ต้องเป็นอีเมลที่ verify แล้วใน SendGrid
-        name: 'ระบบจัดการวันลาคณะวิศวกรรมศาสตร์'
-      },
+      from: 'ระบบวันลาคณะวิศวกรรมศาสตร์ <eleave.systemv1@gmail.com>', // ลองแบบ simple format
       subject,
       html: message,
     };
@@ -83,6 +75,10 @@ const sendEmailTest = async (toEmail, subject, message) => {
     // return info;
   } catch (error) {
     console.error("Error sending email: ", error);
+    if (error.response) {
+      console.error("SendGrid Response Body:", error.response.body);
+      console.error("SendGrid Response Code:", error.response.statusCode);
+    }
     throw error;
   }
 };
