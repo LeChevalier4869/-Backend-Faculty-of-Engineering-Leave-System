@@ -131,12 +131,7 @@ async function resetLeaveBalance() {
       } else if (Number(leaveTypeId) === 4) {
         // ลาพักผ่อน: จัดการเสมอ
         if (leaveType?.resetOnFiscalYear) {
-          // ถ้ารีเซ็ตปีใหม่ ให้ทำ carry over
-          const balanceVacation = await prisma.leaveBalance.findFirst({
-            where: { userId: id, leaveTypeId: 4, year: year - 1 },
-            select: { remainingDays: true },
-          });
-          const carryOverDays = balanceVacation?.remainingDays ?? 0;
+          // ถ้ารีเซ็ตปีใหม่ ให้ทำ carry over (ใช้ค่าที่คำนวณไว้แล้วข้างต้น)
           newRemainingDays = daysToUse + carryOverDays;
           console.log(`💰 ลาพักผ่อน userId ${id}: ใหม่ ${daysToUse} + carryOver ${carryOverDays} = ${newRemainingDays}`);
           

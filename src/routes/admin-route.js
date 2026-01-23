@@ -137,5 +137,10 @@ router.get('/setting/:id', authorize(["ADMIN"]), adminController.getSettingById)
 router.put('/setting/:id', authorize(["ADMIN"]), adminController.updateSetting);
 router.delete('/setting/:id', authorize(["ADMIN"]), adminController.deleteSetting);
 
+//---------------------------------- Leave Balance Reset -----------------------
+router.post('/reset-leave-balance', authorize(["ADMIN"]), adminController.resetLeaveBalance);
+router.get('/fiscal-year', authorize(["ADMIN"]), adminController.getFiscalYearInfo);
+router.put('/fiscal-year', authorize(["ADMIN"]), adminController.updateFiscalYear);
+
 
 module.exports = router;
