@@ -13,31 +13,26 @@ async function resetLeaveBalance() {
     ? parseInt(fiscalYearSetting.value)
     : new Date().getFullYear();
 
-  // 🟡 ดึง LeaveBalance ของปีปัจจุบันเพื่อตรวจสอบว่ามีอยู่แล้วหรือไม่
+  console.log(`📅 กำลังรีเซ็ตสำหรับปีงบประมาณ: ${year}`);
+
+  // 🟡 ตรวจสอบว่ามีข้อมูลปีปัจจุบันอยู่แล้วหรือไม่
   const currentLeaveBalances = await prisma.leaveBalance.findMany({
     where: { year },
   });
-  const existingMap = new Map();
-  for (const lb of currentLeaveBalances) {
-    const key = `${lb.userId}-${lb.leaveTypeId}`;
-    existingMap.set(key, true);
+  
+  if (currentLeaveBalances.length > 0) {
+    console.log(`⚠️ พบข้อมูล LeaveBalance ปี ${year} แล้ว ${currentLeaveBalances.length} รายการ`);
+    console.log("� จะทำการอัปเดตข้อมูลเดิมแทนการสร้างใหม่");
+  } else {
+    console.log(`✅ ไม่พบข้อมูล LeaveBalance ปี ${year} จะสร้างข้อมูลใหม่`);
   }
 
-  // 🛡️ ตรวจสอบว่ามีข้อมูลปีก่อนหรือไม่
-  if (currentLeaveBalances.length === 0) {
-    console.log("⚠️ ไม่พบข้อมูล LeaveBalance ปีก่อน จะข้ามการ reset");
-    // Continue processing instead of returning early
-  }
+  // 🛡️ ไม่ลบข้อมูลปีก่อน - เก็บไว้เป็นประวัติ
+  console.log("📚 คงข้อมูลปีก่อนไว้เพื่อประวัติและการอ้างอิง");
 
-  // 🧹 ลบข้อมูล LeaveBalance ของปีปัจจุบันก่อน (เพื่อป้องกันการสร้างซ้ำ)
-  await prisma.leaveBalance.deleteMany({
-    where: { year }
-  });
-  console.log("🧹 ลบข้อมูล LeaveBalance ปีปัจจุบันเรียบร้อย");
-
-  // ลบข้อมูล user_Rank ทั้งหมด
+  // ลบข้อมูล user_Rank ทั้งหมดเพื่อสร้างใหม่ตามอาวุโส
   await prisma.userRank.deleteMany({});
-  console.log("🧹 ลบข้อมูล user_Rank เรียบร้อย");
+  console.log("🧹 ลบข้อมูล user_Rank เรียบร้อย (เพื่อสร้างใหม่ตามอาวุโส)");
 
   // ดึงผู้ใช้งานทั้งหมดพร้อม personnelType และ hireDate
   const users = await prisma.user.findMany({
@@ -186,27 +181,32 @@ async function resetLeaveBalance() {
         continue;
       }
 
-      const key = `${id}-${leaveTypeId}`;
-      if (existingMap.has(key)) {
-        // ถ้ามีอยู่แล้ว ให้อัปเดต
-        await prisma.leaveBalance.updateMany({
-          where: {
-            userId: id,
-            leaveTypeId,
-            year
-          },
+      // 🔍 ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+      const existingBalance = await prisma.leaveBalance.findFirst({
+        where: {
+          userId: id,
+          leaveTypeId,
+          year
+        },
+        orderBy: { id: "desc" } // ดึงข้อมูลล่าสุดหากมีหลายรายการ
+      });
+
+      if (existingBalance) {
+        // อัปเดตข้อมูลเดิม
+        await prisma.leaveBalance.update({
+          where: { id: existingBalance.id },
           data: balanceData,
         });
         console.log(
-          `🔄 อัปเดต LeaveBalance ให้ userId ${id}, leaveType ${leaveTypeId}`
+          `🔄 อัปเดต LeaveBalance ให้ userId ${id}, leaveType ${leaveTypeId} (ปี ${year})`
         );
       } else {
-        // สร้างเฉพาะที่ยังไม่มี
+        // สร้างข้อมูลใหม่
         await prisma.leaveBalance.create({
           data: balanceData,
         });
         console.log(
-          `➕ เพิ่ม LeaveBalance ให้ userId ${id}, leaveType ${leaveTypeId}`
+          `➕ สร้าง LeaveBalance ใหม่ให้ userId ${id}, leaveType ${leaveTypeId} (ปี ${year})`
         );
       }
     }

@@ -973,10 +973,42 @@ exports.resetLeaveBalance = async (req, res, next) => {
     
     res.status(200).json({ 
       message: "รีเซ็ต Leave Balance สำเร็จ",
+      details: "ข้อมูลปีก่อนถูกเก็บรักษาไว้เป็นประวัติ",
       timestamp: new Date().toISOString()
     });
   } catch (err) {
     console.error("❌ เกิดข้อผิดพลาดในการรีเซ็ต Leave Balance:", err);
+    next(err);
+  }
+};
+
+exports.getAvailableYears = async (req, res, next) => {
+  try {
+    const years = await LeaveBalanceService.getAvailableYears();
+    
+    res.status(200).json({
+      message: "ดึงข้อมูลปีที่มีในระบบสำเร็จ",
+      data: years,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteLeaveBalanceByYear = async (req, res, next) => {
+  try {
+    const { year } = req.params;
+    
+    const result = await LeaveBalanceService.deleteLeaveBalanceByYear(year);
+
+    res.status(200).json({
+      message: result.message,
+      deletedCount: result.deletedCount,
+      year: result.year,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
     next(err);
   }
 };

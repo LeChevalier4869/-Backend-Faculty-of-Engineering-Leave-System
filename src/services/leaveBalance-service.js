@@ -30,16 +30,18 @@ class LeaveBalanceService {
       : null;
 
     if (Number.isFinite(fiscalYear)) {
+      // 🔍 หาข้อมูลปีงบประมาณก่อน ถ้าไม่มีค่อยหาปีอื่น
       const byFiscalYear = await db.leaveBalance.findFirst({
         where: { userId: uid, leaveTypeId: ltid, year: fiscalYear },
-        orderBy: [{ id: "desc" }],
+        orderBy: [{ id: "desc" }], // ดึงรายการล่าสุดของปีนั้น
       });
       if (byFiscalYear) return byFiscalYear;
     }
 
+    // ถ้าไม่พบปีงบประมาณ ให้หาข้อมูลล่าสุดจากทั้งหมด
     return await db.leaveBalance.findFirst({
       where: { userId: uid, leaveTypeId: ltid },
-      orderBy: [{ year: "desc" }, { id: "desc" }],
+      orderBy: [{ year: "desc" }, { id: "desc" }], // เรียงตามปีล่าสุด แล้วค่อยเรียงตาม ID
     });
   }
 
@@ -322,6 +324,59 @@ class LeaveBalanceService {
       throw createError(404, "ไม่พบข้อมูลสิทธิ์การลา");
     }
     return balance;
+  }
+/**
+   * Get all available years from leave balance records
+   */
+  static async getAvailableYears(opts = {}) {
+    const db = this._db(opts);
+    
+    const years = await db.leaveBalance.groupBy({
+      by: ['year'],
+      _count: {
+        id: true
+      },
+      orderBy: {
+        year: 'desc'
+      }
+    });
+
+    return years.map(item => ({
+      year: item.year,
+      count: item._count.id
+    }));
+  }
+
+/**
+   * Delete all leave balance records for a specific year
+   */
+  static async deleteLeaveBalanceByYear(year, opts = {}) {
+    const db = this._db(opts);
+    const targetYear = parseInt(year);
+    
+    if (isNaN(targetYear)) {
+      throw createError(400, "รูปแบบปีไม่ถูกต้อง");
+    }
+
+    // ตรวจสอบว่ามีข้อมูลจริง
+    const count = await db.leaveBalance.count({
+      where: { year: targetYear }
+    });
+
+    if (count === 0) {
+      throw createError(404, `ไม่พบข้อมูล LeaveBalance สำหรับปี ${targetYear}`);
+    }
+
+    // ลบข้อมูล
+    const result = await db.leaveBalance.deleteMany({
+      where: { year: targetYear }
+    });
+
+    return {
+      deletedCount: result.count,
+      year: targetYear,
+      message: `ลบข้อมูล LeaveBalance ปี ${targetYear} สำเร็จ`
+    };
   }
 }
 
