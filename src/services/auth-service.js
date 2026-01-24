@@ -26,10 +26,6 @@ async function generateTokens(userId) {
 }
 
 async function loginWithOAuth(provider, providerAccountId, email) {
-  // console.log("OAuth profile:", profile);
-  // console.log("provider:", provider);
-  // console.log("providerAccountId:", providerAccountId);
-
   let account = await prisma.account.findUnique({
     where: {
       provider_providerAccountId: { provider, providerAccountId },
@@ -37,18 +33,12 @@ async function loginWithOAuth(provider, providerAccountId, email) {
     include: { user: true },
   });
 
-  // Check if user with the email already exists
-  let userExist = await prisma.user.findUnique({
+  const userExist = await prisma.user.findFirst({
     where: { email },
-    include: { accounts: true },
   });
 
-  console.log("Existing user:", userExist);
-
-  // Temporary: บังคับให้มี account เท่านั้น
   if (userExist) {
     if (!account) {
-      // ถ้ามี user อยู่แล้ว ให้สร้าง account ใหม่
       account = await prisma.account.create({
         data: {
           provider,
@@ -57,6 +47,8 @@ async function loginWithOAuth(provider, providerAccountId, email) {
         },
         include: { user: true },
       });
+    } else {
+      console.log("Account already exists");
     }
     account = { user: userExist };
   } else {
@@ -64,15 +56,6 @@ async function loginWithOAuth(provider, providerAccountId, email) {
   }
 
   const tokens = await generateTokens(account.user.id);
-
-  // อัพเดท refresh token ใน account (maybe error)
-  // await prisma.account.update({
-  //   where: { id: account.id }, //----
-  //   data: {
-  //     refreshToken: tokens.refreshToken,
-  //   },
-  // });
-
   return { user: account.user, ...tokens };
 }
 

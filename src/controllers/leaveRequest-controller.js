@@ -72,10 +72,11 @@ exports.createLeaveRequest = async (req, res, next) => {
     if (Array.isArray(file) && file.length > 0) {
       const imagesPromiseArray = file.map((file) => cloudUpload(file.path));
       const imgUrlArray = await Promise.all(imagesPromiseArray);
-      const attachImages = imgUrlArray.map((imgUrl) => ({
+      const attachImages = imgUrlArray.map((imgUrl, index) => ({
         type: "EVIDENT",
         filePath: imgUrl,
         leaveRequestId: leaveRequest.id,
+        name: file[index]?.originalname || `evidence_${Date.now()}_${index}`,
       }));
       await LeaveRequestService.attachImages(attachImages);
     }
@@ -836,6 +837,7 @@ exports.adminCancelLeaveRequest = async (req, res, next) => {
         });
         return {
           filePath: result,
+          name: file.originalname || `paper_${Date.now()}`,
         };
       });
 

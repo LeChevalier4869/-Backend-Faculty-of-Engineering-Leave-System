@@ -23,6 +23,7 @@ model User {
   employmentType          String?
   profilePicturePath      String?
   accounts                Account[]
+  approverPositions       ApproverPosition[]
   auditLogs               AuditLog[]
   Department              Department[]         @relation("DepartmentHead")
   leaveBalances           LeaveBalance[]
@@ -42,6 +43,24 @@ model User {
   @@index([departmentId], map: "user_departmentId_fkey")
   @@index([personnelTypeId], map: "user_personnelTypeId_fkey")
   @@map("user")
+}
+
+model ApproverPosition {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  organizationId Int
+  level          Int
+  appointDate    DateTime?
+  endDate        DateTime?
+  isActive       Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId], map: "approver_position_organizationId_fkey")
+  @@index([userId], map: "approver_position_userId_fkey")
+  @@index([level])
+  @@index([isActive])
+  @@map("approver_position")
 }
 
 model PersonnelType {
@@ -69,9 +88,10 @@ model Department {
 }
 
 model Organization {
-  id          Int          @id @default(autoincrement())
-  name        String
-  departments Department[]
+  id                Int                @id @default(autoincrement())
+  name              String
+  approverPositions ApproverPosition[]
+  departments       Department[]
 
   @@map("organization")
 }
@@ -237,6 +257,7 @@ model LeaveRequest {
 model File {
   id             Int           @id @default(autoincrement())
   leaveRequestId Int?
+  name           String
   type           FileType
   filePath       String
   uploadedAt     DateTime      @default(now())

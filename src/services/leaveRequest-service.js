@@ -2260,6 +2260,7 @@ class LeaveRequestService {
           leaveRequestId: leaveRequest.id,
           type: "PAPER",
           filePath: file.filePath,
+          name: file.name,
         }));
         await tx.file.createMany({ data: fileData });
       }

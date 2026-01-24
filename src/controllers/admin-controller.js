@@ -121,10 +121,11 @@ exports.createRequestByAdmin = async (req, res, next) => {
     if (Array.isArray(file) && file.length > 0) {
       const imagesPromiseArray = file.map((file) => cloudUpload(file.path));
       const imgUrlArray = await Promise.all(imagesPromiseArray);
-      const attachImages = imgUrlArray.map((imgUrl) => ({
-        type: "EVIDENT",
+      const attachImages = imgUrlArray.map((imgUrl, index) => ({
+        type: "PAPER",
         filePath: imgUrl,
         leaveRequestId: leaveRequest.id,
+        name: file[index]?.originalname || `paper_${Date.now()}_${index}`,
       }));
       await LeaveRequestService.attachImages(attachImages);
     }
