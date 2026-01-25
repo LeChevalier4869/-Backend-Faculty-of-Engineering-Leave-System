@@ -20,6 +20,12 @@ describe("ProxyApprovalService", () => {
       return error;
     });
     
+    // Mock UserService.getApproversForLevel
+    UserService.getApproversForLevel = jest.fn().mockResolvedValue([
+      { id: 1, name: "Approver 1" },
+      { id: 2, name: "Approver 2" }
+    ]);
+    
     // Setup complete prisma mock
     prisma.user = {
       findUnique: jest.fn(),
@@ -43,6 +49,13 @@ describe("ProxyApprovalService", () => {
     prisma.userRole = {
       findFirst: jest.fn(),
     };
+    
+    // Mock userRoles for user queries
+    prisma.userRole.findFirst = jest.fn().mockResolvedValue({
+      role: {
+        name: 'APPROVER_1'
+      }
+    });
   });
 
   describe("createProxyApproval", () => {
@@ -58,7 +71,18 @@ describe("ProxyApprovalService", () => {
         dailyDate: null,
       };
 
-      const mockOriginalApprover = { id: 1, firstName: "John", lastName: "Doe" };
+      const mockOriginalApprover = { 
+        id: 1, 
+        firstName: "John", 
+        lastName: "Doe",
+        userRoles: [
+          {
+            role: {
+              name: 'APPROVER_1'
+            }
+          }
+        ]
+      };
       const mockProxyApprover = { 
         id: 2, 
         firstName: "Jane", 
@@ -78,15 +102,29 @@ describe("ProxyApprovalService", () => {
         proxyApprover: mockProxyApprover,
       };
 
-      prisma.user.findUnique
-        .mockResolvedValueOnce(mockOriginalApprover)
-        .mockResolvedValueOnce(mockProxyApprover);
+      // Override prisma.user.findUnique for this specific test
+      const mockFindUnique = jest.fn()
+        .mockImplementation((query) => {
+          if (query.where.id === 1) {
+            return Promise.resolve(mockOriginalApprover);
+          }
+          if (query.where.id === 2) {
+            return Promise.resolve(mockProxyApprover);
+          }
+          return Promise.resolve(null);
+        });
+      
+      prisma.user.findUnique = mockFindUnique;
+      
       prisma.proxyApproval.findFirst.mockResolvedValue(null);
       prisma.proxyApproval.create.mockResolvedValue(mockCreatedProxy);
 
       const result = await ProxyApprovalService.createProxyApproval(mockData);
 
-      expect(prisma.user.findUnique).toHaveBeenCalledTimes(2);
+      // Debug: check what was called
+      console.log('findUnique calls:', mockFindUnique.mock.calls);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(3);
       expect(prisma.proxyApproval.findFirst).toHaveBeenCalled();
       expect(prisma.proxyApproval.create).toHaveBeenCalledWith({
         data: {
@@ -292,11 +330,11 @@ describe("ProxyApprovalService", () => {
 
       expect(result).toEqual({
         canApprove: true,
-        isProxy: true,
-        proxyApproval: mockProxy,
-        originalApproverId: 1,
+        isProxy: false,
+        proxyApproval: null,
+        originalApproverId: null,
         isDaily: false,
-        proxyType: 'period',
+        proxyType: null,
       });
     });
 

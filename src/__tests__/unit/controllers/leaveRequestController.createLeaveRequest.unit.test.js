@@ -36,6 +36,8 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
   it("creates leave request, updates pending balance, creates audit log, returns 201", async () => {
     const req = {
       user: { id: 10 },
+      get: jest.fn(),
+      ip: "127.0.0.1",
       body: {
         leaveTypeId: 1,
         startDate: "2025-01-01",
@@ -63,8 +65,11 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
     expect(AuditLogService.createLog).toHaveBeenCalledWith(
       10,
       "Create Request",
+      "LeaveRequest",
       123,
-      expect.stringContaining("test")
+      expect.stringContaining("Created leave request: 123"),
+      "127.0.0.1",
+      undefined
     );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ message: "คำขอลาได้ถูกสร้าง", requestId: 123 });
@@ -73,6 +78,8 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
   it("attaches uploaded images when req.files provided", async () => {
     const req = {
       user: { id: 10 },
+      get: jest.fn(),
+      ip: "127.0.0.1",
       body: {
         leaveTypeId: 1,
         startDate: "2025-01-01",

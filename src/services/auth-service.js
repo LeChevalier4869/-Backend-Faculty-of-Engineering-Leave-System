@@ -47,8 +47,6 @@ async function loginWithOAuth(provider, providerAccountId, email) {
         },
         include: { user: true },
       });
-    } else {
-      console.log("Account already exists");
     }
     account = { user: userExist };
   } else {

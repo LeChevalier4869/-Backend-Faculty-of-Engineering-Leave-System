@@ -1,5 +1,17 @@
 // Mock Prisma
 const mockPrisma = {
+  $transaction: jest.fn().mockImplementation((callback) => {
+    // Mock transaction - just call the callback with mock tx
+    const mockTx = {
+      rank: mockPrisma.rank,
+      userRank: mockPrisma.userRank,
+      leaveBalance: mockPrisma.leaveBalance,
+      leaveType: mockPrisma.leaveType,
+      user: mockPrisma.user,
+      setting: mockPrisma.setting,
+    };
+    return callback(mockTx);
+  }),
   setting: {
     findUnique: jest.fn().mockResolvedValue({
       key: 'fiscalYear',
@@ -12,6 +24,9 @@ const mockPrisma = {
     deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     create: jest.fn().mockResolvedValue({ id: 1 }),
     update: jest.fn().mockResolvedValue({ id: 1 })
+  },
+  rank: {
+    findMany: jest.fn().mockResolvedValue([])
   },
   user: {
     findMany: jest.fn().mockResolvedValue([
@@ -27,6 +42,15 @@ const mockPrisma = {
     deleteMany: jest.fn().mockResolvedValue({ count: 0 })
   },
   leaveType: {
+    findMany: jest.fn().mockResolvedValue([
+      { id: 4, resetOnFiscalYear: true, isNonDeductible: false }, // เปลี่ยนเป็น true
+      { id: 5, resetOnFiscalYear: false, isNonDeductible: true },
+      { id: 6, resetOnFiscalYear: true, isNonDeductible: true },
+      { id: 7, resetOnFiscalYear: false, isNonDeductible: false },
+      { id: 10, resetOnFiscalYear: false, isNonDeductible: true },
+      { id: 11, resetOnFiscalYear: true, isNonDeductible: true },
+      { id: 13, resetOnFiscalYear: false, isNonDeductible: true }
+    ]),
     findUnique: jest.fn().mockImplementation((params) => {
       if (params.where.id === 4) {
         return Promise.resolve({
@@ -39,6 +63,18 @@ const mockPrisma = {
           id: 5,
           resetOnFiscalYear: true,
           isNonDeductible: true
+        });
+      } else if (params.where.id === 6) {
+        return Promise.resolve({
+          id: 6,
+          resetOnFiscalYear: true, // รีเซ็ตปีใหม่
+          isNonDeductible: true
+        });
+      } else if (params.where.id === 7) {
+        return Promise.resolve({
+          id: 7,
+          resetOnFiscalYear: false,
+          isNonDeductible: false
         });
       } else if (params.where.id === 13) {
         return Promise.resolve({
@@ -87,15 +123,15 @@ describe('resetLeaveBalance', () => {
   });
 
   test('should skip non-reset leave types', async () => {
-    // Mock กรณีประเภทที่ไม่รีเซ็ต
+    // Mock กรณีประเภทที่ไม่รีเซ็ตและไม่ใช่ non-deductible และไม่ใช่ลาพักผ่อน
     mockPrisma.leaveBalance.findMany.mockResolvedValue([]);
     mockPrisma.userRank.findMany.mockResolvedValue([
       {
         rank: {
-          leaveTypeId: 13,
-          maxDays: 0,
-          receiveDays: 0,
-          isBalance: 0
+          leaveTypeId: 7, // สมมติว่าเป็นประเภทที่ไม่รีเซ็ตและต้องหักวัน
+          maxDays: 5,
+          receiveDays: 5,
+          isBalance: true
         }
       }
     ]);
@@ -103,7 +139,7 @@ describe('resetLeaveBalance', () => {
     await resetLeaveBalance();
     
     expect(mockConsole.log).toHaveBeenCalledWith(
-      '⏭️ ข้าม LeaveType 13 (ไม่รีเซ็ตปีใหม่)'
+      '⏭️ ข้าม LeaveType 7 (ไม่รีเซ็ตปีใหม่)'
     );
   });
 
@@ -116,15 +152,12 @@ describe('resetLeaveBalance', () => {
     expect(mockPrisma.leaveBalance.findMany).toHaveBeenCalledWith({
       where: { year: 2025 }
     });
-    expect(mockPrisma.leaveBalance.deleteMany).toHaveBeenCalledWith({
-      where: { year: 2025 }
-    });
-    expect(mockPrisma.userRank.deleteMany).toHaveBeenCalled();
-    expect(mockUserService.assignRankToUser).toHaveBeenCalled();
+    expect(mockPrisma.rank.findMany).toHaveBeenCalled();
+    expect(mockPrisma.leaveType.findMany).toHaveBeenCalled();
     expect(mockConsole.log).toHaveBeenCalledWith(
-      '⚠️ ไม่พบข้อมูล LeaveBalance ปีก่อน จะข้ามการ reset'
+      '✅ ไม่พบข้อมูล LeaveBalance ปี 2025 จะสร้างข้อมูลใหม่'
     );
-    expect(mockConsole.log).toHaveBeenCalledWith('🧹 ลบข้อมูล LeaveBalance ปีปัจจุบันเรียบร้อย');
+    expect(mockConsole.log).toHaveBeenCalledWith('🧹 ลบข้อมูล user_Rank เรียบร้อย (เพื่อสร้างใหม่ตามอาวุโส)');
   });
 
   test('should handle vacation leave without reset', async () => {
@@ -136,7 +169,7 @@ describe('resetLeaveBalance', () => {
           leaveTypeId: 4,
           maxDays: 10,
           receiveDays: 10,
-          isBalance: 1
+          isBalance: true
         }
       }
     ]);
@@ -155,12 +188,12 @@ describe('resetLeaveBalance', () => {
       })
     });
     expect(mockConsole.log).toHaveBeenCalledWith(
-      expect.stringContaining('💰 ลาพักผ่อน userId 1: เดิม 0 + ใหม่ 10 = 10')
+      expect.stringContaining('💰 ลาพักผ่อน userId 1: ใหม่ 10 + carryOver 0 = 10')
     );
   });
 
   test('should handle non-deductible leave types', async () => {
-    // Mock กรณีประเภทไม่ต้องหักวัน
+    // Mock กรณีประเภทไม่ต้องหักวันที่มี isBalance: true
     mockPrisma.leaveBalance.findMany.mockResolvedValue([]);
     mockPrisma.userRank.findMany.mockResolvedValue([
       {
@@ -168,7 +201,7 @@ describe('resetLeaveBalance', () => {
           leaveTypeId: 5,
           maxDays: 0,
           receiveDays: 0,
-          isBalance: 1
+          isBalance: true
         }
       }
     ]);
@@ -188,6 +221,35 @@ describe('resetLeaveBalance', () => {
     });
   });
 
+  test('should handle non-deductible leave types that reset annually', async () => {
+    // Mock กรณีประเภทไม่ต้องหักวันที่รีเซ็ตปีใหม่ (เช่น LeaveType 6, 11)
+    mockPrisma.leaveBalance.findMany.mockResolvedValue([]);
+    mockPrisma.userRank.findMany.mockResolvedValue([
+      {
+        rank: {
+          leaveTypeId: 6,
+          maxDays: 0,
+          receiveDays: 0,
+          isBalance: false
+        }
+      }
+    ]);
+    
+    await resetLeaveBalance();
+    
+    expect(mockPrisma.leaveBalance.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 1,
+        leaveTypeId: 6,
+        maxDays: 0,
+        remainingDays: 0,
+        usedDays: 0,
+        pendingDays: 0,
+        year: 2025
+      })
+    });
+  });
+
   test('should handle carry over calculation correctly', async () => {
     // Mock กรณี carry over วันลาพักผ่อน
     mockPrisma.leaveBalance.findMany.mockResolvedValue([]);
@@ -197,7 +259,7 @@ describe('resetLeaveBalance', () => {
           leaveTypeId: 4,
           maxDays: 10,
           receiveDays: 10,
-          isBalance: 1
+          isBalance: true
         }
       }
     ]);
@@ -227,5 +289,4 @@ describe('resetLeaveBalance', () => {
       expect.stringContaining('คำนวณ carry over สำหรับ userId 1: สิทธิ์ 5/10, ใช้ไป 3, carry over 5')
     );
   });
-
-  });
+});
