@@ -3,7 +3,7 @@ const prisma = require("../config/prisma");
 const UserService = require("../services/user-service");
 
 // ฟังก์ชันสำหรับสร้าง userRank ใน transaction
-async function assignRankToUserInTransaction(userId, personnelTypeId, hireDate, tx) {
+async function assignRankToUserInTransaction(userId, personnelTypeId, hireDate, ranks, tx) {
   if (!hireDate) return;
 
   const currentDate = new Date();
@@ -11,11 +11,10 @@ async function assignRankToUserInTransaction(userId, personnelTypeId, hireDate, 
     (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
     (currentDate.getMonth() - hireDate.getMonth());
 
-  const allRanks = await tx.rank.findMany({
-    where: {
-      personnelTypeId: parseInt(personnelTypeId),
-    },
-  });
+  // กรอง ranks ตาม personnelTypeId
+  const allRanks = ranks.filter(rank => 
+    rank.personnelTypeId === parseInt(personnelTypeId)
+  );
 
   for (const rank of allRanks) {
     const { id: rankId, minHireMonths, maxHireMonths, leaveTypeId } = rank;
@@ -75,7 +74,7 @@ async function resetLeaveBalance() {
 
   // 4. ใช้ transaction สำหรับการรีเซ็ตข้อมูลทั้งหมด
   await prisma.$transaction(async (tx) => {
-    // 4.1 ดึงข้อมูล leaveType ทั้งหมดมาก่อน (เพื่อลดการ query ซ้ำ)
+    // 4.1 ดึงข้อมูลที่จำเป็นทั้งหมดมาก่อน (เพื่อลดการ query ซ้ำ)
     const allLeaveTypes = await tx.leaveType.findMany({
       select: { 
         id: true,
@@ -83,6 +82,8 @@ async function resetLeaveBalance() {
         isNonDeductible: true
       }
     });
+    
+    const allRanks = await tx.rank.findMany();
     
     // สร้าง map สำหรับค้นหาเร็วๆ
     const leaveTypeMap = new Map();
@@ -99,13 +100,51 @@ async function resetLeaveBalance() {
       where: { year }
     });
     
-    // 4.3 วนลูปสร้างข้อมูลใหม่
+    // 4.3 สร้าง userRanks ทั้งหมดในครั้งเดียว
+    const userRankData = [];
+    for (const user of users) {
+      const { id, personnelTypeId, hireDate } = user;
+      if (!personnelTypeId || !hireDate) continue;
+      
+      const currentDate = new Date();
+      const hireMonths =
+        (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
+        (currentDate.getMonth() - hireDate.getMonth());
+
+      // กรอง ranks ตาม personnelTypeId
+      const filteredRanks = allRanks.filter(rank => 
+        rank.personnelTypeId === parseInt(personnelTypeId)
+      );
+
+      for (const rank of filteredRanks) {
+        const { id: rankId, minHireMonths, maxHireMonths, leaveTypeId } = rank;
+        
+        // ตรวจสอบเงื่อนไข
+        const minPass = minHireMonths === null || hireMonths >= minHireMonths;
+        const maxPass = maxHireMonths === null || hireMonths <= maxHireMonths;
+        
+        if (minPass && maxPass && leaveTypeId !== null) {
+          userRankData.push({
+            userId: id,
+            rankId,
+          });
+        }
+      }
+    }
+    
+    // สร้าง userRanks ทั้งหมดในครั้งเดียว
+    if (userRankData.length > 0) {
+      console.log(`📝 สร้าง userRank ${userRankData.length} รายการ`);
+      await tx.userRank.createMany({
+        data: userRankData,
+        skipDuplicates: true
+      });
+    }
+    
+    // 4.4 วนลูปสร้างข้อมูล LeaveBalance
     for (const user of users) {
     const { id, personnelTypeId, hireDate } = user;
     if (!personnelTypeId || !hireDate) continue;
-    
-    // สร้าง userRank ใน transaction โดยตรง (ไม่ผ่าน UserService เพื่อหลีกเลี่ยงปัญหา prisma/tx)
-    await assignRankToUserInTransaction(id, personnelTypeId, new Date(hireDate), tx);
     
     // ดึง balance เก่ามาทบ เฉพาะของ ลาพักผ่อน (leaveType === 4) ที่ยังรีเซ็ตปีใหม่อยู่
     const leaveType4 = leaveTypeMap.get(4);
@@ -264,7 +303,7 @@ async function resetLeaveBalance() {
       }  
     }
     } // ปิด transaction
-  });
+  }, { timeout: 60000 }); // เพิ่ม timeout เป็น 60 วินาที
 
   console.log("🎉 รีเซ็ต Leave Balance และ Rank เรียบร้อยแล้ว");
 }
