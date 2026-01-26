@@ -1,3 +1,6 @@
+-- Drop existing foreign key constraint
+ALTER TABLE `audit_log` DROP FOREIGN KEY `audit_log_leaveRequestId_fkey`;
+
 -- AlterTable
 ALTER TABLE `audit_log` 
     ADD COLUMN `entityType` VARCHAR(191) NULL,
