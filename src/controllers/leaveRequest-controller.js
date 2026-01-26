@@ -8,6 +8,7 @@ const UserService = require("../services/user-service");
 const { sendEmail, sendNotification } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const prisma = require("../config/prisma");
+const fs = require("fs");
 
 /** create */
 exports.createLeaveRequest = async (req, res, next) => {
@@ -41,8 +42,11 @@ exports.createLeaveRequest = async (req, res, next) => {
     await AuditLogService.createLog(
       req.user.id,
       "Create Request",
+      "LeaveRequest",
       leaveRequest.id,
-      `คำขอถูกสร้าง: ${reason}${contact ? " ติดต่อ: " + contact : ""}`
+      `Created leave request: ${leaveRequest.id}`,
+      req.ip,
+      req.get("User-Agent")
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
@@ -68,10 +72,11 @@ exports.createLeaveRequest = async (req, res, next) => {
     if (Array.isArray(file) && file.length > 0) {
       const imagesPromiseArray = file.map((file) => cloudUpload(file.path));
       const imgUrlArray = await Promise.all(imagesPromiseArray);
-      const attachImages = imgUrlArray.map((imgUrl) => ({
+      const attachImages = imgUrlArray.map((imgUrl, index) => ({
         type: "EVIDENT",
         filePath: imgUrl,
         leaveRequestId: leaveRequest.id,
+        name: file[index]?.originalname || `evidence_${Date.now()}_${index}`,
       }));
       await LeaveRequestService.attachImages(attachImages);
     }
@@ -133,9 +138,11 @@ exports.updateLeaveStatus = async (req, res, next) => {
     await AuditLogService.createLog(
       req.user.id,
       "Update Status",
+      "LeaveRequest",
       requestId,
-      `สถานะเปลี่ยนเป็น: ${status}${remarks ? " เหตุผล: " + remarks : ""}`,
-      status === "REJECTED" ? "REJECTION" : "APPROVAL"
+      `Cancelled leave request: ${requestId}`,
+      req.ip,
+      req.get("User-Agent")
     );
     res
       .status(200)
@@ -387,18 +394,51 @@ exports.getAllLeaveRequests = async (req, res, next) => {
 
 exports.getLeaveRequestsForFirstApprover = async (req, res) => {
   try {
-    const headId = req.user.id; // ต้องมี auth middleware ตั้งค่า req.user
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(1, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_1 required)" });
+    }
+
     const leaveRequests =
-      await LeaveRequestService.getPendingRequestsByFirstApprover(headId);
+      await LeaveRequestService.getPendingRequestsByFirstApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests for head:", error);
+    console.error("Error fetching leave requests for first approver:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 exports.getLeaveRequestsForVerifier = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
+    const verifiers = await UserService.getApproversForLevel(2, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Verifier IDs:', verifierIds);
+    console.log('Is user verifier?', verifierIds.includes(req.user.id));
+    
+    if (!verifierIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (VERIFIER required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsByVerifier();
     res.status(200).json(leaveRequests);
@@ -410,33 +450,84 @@ exports.getLeaveRequestsForVerifier = async (req, res) => {
 
 exports.getLeaveRequestsForSecondApprover = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(3, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsBySecondApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests at step 2:", error);
+    console.error("Error fetching leave requests at step 4:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 exports.getLeaveRequestsForThirdApprover = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(4, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsByThirdApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests at step 2:", error);
+    console.error("Error fetching leave requests at step 5:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 exports.getLeaveRequestsForFourthApprover = async (req, res) => {
   try {
+    // ต้องมี user token ถึงจะเข้าใช้งานได้
+    if (!req.user) {
+      return res.status(401).json({ message: "กรุณา login ก่อนใช้งาน" });
+    }
+
+    // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
+    const approvers = await UserService.getApproversForLevel(5, new Date());
+    const approverIds = approvers.map(v => v.id);
+    
+    console.log('User ID:', req.user.id);
+    console.log('Approver IDs:', approverIds);
+    console.log('Is user approver?', approverIds.includes(req.user.id));
+    
+    if (!approverIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)" });
+    }
+
     const leaveRequests =
       await LeaveRequestService.getPendingRequestsByFourthApprover();
     res.status(200).json(leaveRequests);
   } catch (error) {
-    console.error("Error fetching leave requests at step 2:", error);
+    console.error("Error fetching leave requests at step 6:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -497,14 +588,43 @@ exports.approveByVerifier = async (req, res, next) => {
   const { remarks, comment } = req.body;
   const approverId = req.user.id;
 
+  console.log('🔥 APPROVE BY VERIFIER - REQUEST START:', {
+    id,
+    approverId,
+    remarks,
+    comment,
+    userAgent: req.get('User-Agent'),
+    ip: req.ip
+  });
+
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
       throw createError(400, "Invalid request ID format");
     }
+
+    // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
+    const verifiers = await UserService.getApproversForLevel(2, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    console.log('Approve - User ID:', req.user.id);
+    console.log('Approve - Verifier IDs:', verifierIds);
+    console.log('Approve - Is user verifier?', verifierIds.includes(req.user.id));
+    
+    if (!verifierIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
+    }
+
+    console.log('🔍 Controller - Calling service with:', {
+      id,
+      approverId: req.user.id,
+      remarks,
+      comment
+    });
+
     const result = await LeaveRequestService.approveByVerifier({
       id,
-      approverId,
+      approverId: req.user.id,
       remarks,
       comment,
     });
@@ -523,6 +643,18 @@ exports.rejectByVerifier = async (req, res, next) => {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
       throw createError(400, "Invalid request ID format");
+    }
+
+    // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
+    const verifiers = await UserService.getApproversForLevel(2, new Date());
+    const verifierIds = verifiers.map(v => v.id);
+    
+    console.log('Reject - User ID:', req.user.id);
+    console.log('Reject - Verifier IDs:', verifierIds);
+    console.log('Reject - Is user verifier?', verifierIds.includes(req.user.id));
+    
+    if (!verifierIds.includes(req.user.id)) {
+      return res.status(403).json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (VERIFIER required)" });
     }
 
     // เรียกใช้ service ในการ reject
@@ -675,6 +807,82 @@ exports.rejectByFourthApprover = async (req, res, next) => {
     });
 
     return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ────────────────────────────────
+// 🚫 ADMIN CANCEL LEAVE REQUEST
+// ────────────────────────────────
+
+exports.adminCancelLeaveRequest = async (req, res, next) => {
+  try {
+    const { leaveRequestNumber } = req.body;
+    const adminId = req.user.id;
+
+    if (!leaveRequestNumber) {
+      throw createError(400, "กรุณาระบุเลขที่ใบลา");
+    }
+
+    // จัดการไฟล์ paper (ถ้ามี)
+    let paperFileData = [];
+    if (req.files && req.files.length > 0) {
+      // อัปโหลดไฟล์ไปยัง cloud storage
+      const uploadPromises = req.files.map(async (file) => {
+        const result = await cloudUpload(file.path);
+        // ลบไฟล์ชั่วคราวหลังอัปโหลดเสร็จ
+        fs.unlink(file.path, (err) => {
+          if (err) console.error("Error deleting temp file:", err);
+        });
+        return {
+          filePath: result,
+          name: file.originalname || `paper_${Date.now()}`,
+        };
+      });
+
+      paperFileData = await Promise.all(uploadPromises);
+    }
+
+    // เรียกใช้ service ในการยกเลิกคำขอลา
+    const result = await LeaveRequestService.adminCancelLeaveRequest(
+      adminId,
+      leaveRequestNumber,
+      paperFileData
+    );
+
+    // บันทึก audit log สำหรับการทำงานของ admin
+    await AuditLogService.createLog(
+      adminId,
+      "ADMIN_CANCEL_LEAVE_REQUEST",
+      "LeaveRequest",
+      result.leaveRequest.id,
+      `Admin ยกเลิกคำขอลาเลขที่ ${leaveRequestNumber}`,
+      req.ip,
+      req.get("User-Agent")
+    );
+
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.findLeaveRequestByNumber = async (req, res, next) => {
+  try {
+    const { documentNumber } = req.params;
+
+    if (!documentNumber) {
+      throw createError(400, "กรุณาระบุเลขที่ใบลา");
+    }
+
+    const leaveRequest = await LeaveRequestService.findLeaveRequestByNumber(documentNumber);
+
+    if (!leaveRequest) {
+      throw createError(404, "ไม่พบคำขอลาที่อนุมัติแล้ว หรือเลขที่ใบลาไม่ถูกต้อง");
+    }
+
+    res.status(200).json(leaveRequest);
   } catch (error) {
     next(error);
   }

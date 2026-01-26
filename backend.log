@@ -1,0 +1,13 @@
+
+> backend@1.0.0 start
+> nodemon ./src/server.js
+
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node ./src/server.js`[39m
+🕐 [CRON] ตั้งค่า cron job สำหรับการจัดการการมอบอำนาจ:
+   - ตรวจสอบการหมดอายุ: 00:05 ทุกวัน (Asia/Bangkok)
+   - ทำความสะอาดข้อมูล: 02:00 ทุกวัน (Asia/Bangkok)
+Server is running on port 8000

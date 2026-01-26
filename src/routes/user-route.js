@@ -80,4 +80,7 @@ router.post("/reset-password",            authController.resetPassword);
 
 router.get("/all-approver", authController.getAllApprover);
 
+// get approvers for level with proxy support
+router.get("/approvers-for-level/:level", authController.getApproversForLevel);
+
 module.exports = router;

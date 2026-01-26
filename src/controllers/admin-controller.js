@@ -13,6 +13,7 @@ const UserService = require("../services/user-service");
 const cloudUpload = require("../utils/cloudUpload");
 const prisma = require("../config/prisma");
 const settingService = require("../services/setting-service");
+const resetLeaveBalance = require("../utils/resetLeaveBalance");
 
 exports.adminList = async (req, res, next) => {
   try {
@@ -120,10 +121,11 @@ exports.createRequestByAdmin = async (req, res, next) => {
     if (Array.isArray(file) && file.length > 0) {
       const imagesPromiseArray = file.map((file) => cloudUpload(file.path));
       const imgUrlArray = await Promise.all(imagesPromiseArray);
-      const attachImages = imgUrlArray.map((imgUrl) => ({
-        type: "EVIDENT",
+      const attachImages = imgUrlArray.map((imgUrl, index) => ({
+        type: "PAPER",
         filePath: imgUrl,
         leaveRequestId: leaveRequest.id,
+        name: file[index]?.originalname || `paper_${Date.now()}_${index}`,
       }));
       await LeaveRequestService.attachImages(attachImages);
     }
@@ -960,6 +962,104 @@ exports.deleteSetting = async (req, res) => {
     res.json({ message: "ลบค่าในระบบเสร็จสิ้น" });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+//--------------------- Leave Balance Reset --------------------
+exports.resetLeaveBalance = async (req, res, next) => {
+  try {
+    console.log("🔄 Admin กำลังรันการรีเซ็ต Leave Balance ด้วยตนเอง");
+    
+    await resetLeaveBalance();
+    
+    res.status(200).json({ 
+      message: "รีเซ็ต Leave Balance สำเร็จ",
+      details: "ข้อมูลปีก่อนถูกเก็บรักษาไว้เป็นประวัติ",
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error("❌ เกิดข้อผิดพลาดในการรีเซ็ต Leave Balance:", err);
+    next(err);
+  }
+};
+
+exports.getAvailableYears = async (req, res, next) => {
+  try {
+    const years = await LeaveBalanceService.getAvailableYears();
+    
+    res.status(200).json({
+      message: "ดึงข้อมูลปีที่มีในระบบสำเร็จ",
+      data: years,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteLeaveBalanceByYear = async (req, res, next) => {
+  try {
+    const { year } = req.params;
+    
+    const result = await LeaveBalanceService.deleteLeaveBalanceByYear(year);
+
+    res.status(200).json({
+      message: result.message,
+      deletedCount: result.deletedCount,
+      year: result.year,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getFiscalYearInfo = async (req, res, next) => {
+  try {
+    const fiscalYearSetting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+    });
+    
+    const currentYearSetting = await prisma.setting.findUnique({
+      where: { key: "currentYear" },
+    });
+
+    res.status(200).json({
+      message: "ดึงข้อมูลปีงบประมาณสำเร็จ",
+      data: {
+        fiscalYear: fiscalYearSetting ? parseInt(fiscalYearSetting.value) : new Date().getFullYear(),
+        currentYear: currentYearSetting ? parseInt(currentYearSetting.value) : new Date().getFullYear(),
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateFiscalYear = async (req, res, next) => {
+  try {
+    const { fiscalYear, currentYear } = req.body;
+    
+    if (fiscalYear) {
+      await prisma.setting.update({
+        where: { key: "fiscalYear" },
+        data: { value: String(fiscalYear) },
+      });
+    }
+    
+    if (currentYear) {
+      await prisma.setting.update({
+        where: { key: "currentYear" },
+        data: { value: String(currentYear) },
+      });
+    }
+
+    res.status(200).json({
+      message: "อัปเดตข้อมูลปีงบประมาณสำเร็จ",
+      data: { fiscalYear, currentYear }
+    });
+  } catch (err) {
+    next(err);
   }
 };
 

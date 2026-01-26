@@ -56,33 +56,25 @@ class AdminService {
 
     const approver1Id = user?.department?.headId ?? null;
 
-    const verifier = await UserService.getVerifier();
-    const verifierId = verifier?.id ?? null;
-
-    const [approver2, approver3, approver4] = await Promise.all([
-      prisma.userRole.findFirst({
-        where: { role: { name: "APPROVER_2" } },
-        orderBy: { id: "asc" },
-        select: { userId: true },
-      }),
-      prisma.userRole.findFirst({
-        where: { role: { name: "APPROVER_3" } },
-        orderBy: { id: "asc" },
-        select: { userId: true },
-      }),
-      prisma.userRole.findFirst({
-        where: { role: { name: "APPROVER_4" } },
-        orderBy: { id: "asc" },
-        select: { userId: true },
-      }),
+    // ดึง verifiers และ approvers ที่ใช้งานได้ในวันนี้
+    const [verifiers, approver2s, approver3s, approver4s] = await Promise.all([
+      UserService.getApproversForLevel(2, new Date()), // VERIFIER
+      UserService.getApproversForLevel(3, new Date()), // APPROVER_2
+      UserService.getApproversForLevel(4, new Date()), // APPROVER_3
+      UserService.getApproversForLevel(5, new Date()), // APPROVER_4
     ]);
+
+    const verifierId = verifiers && verifiers.length > 0 ? verifiers[0].id : null;
+    const approver2Id = approver2s && approver2s.length > 0 ? approver2s[0].id : null;
+    const approver3Id = approver3s && approver3s.length > 0 ? approver3s[0].id : null;
+    const approver4Id = approver4s && approver4s.length > 0 ? approver4s[0].id : null;
 
     const ids = [
       approver1Id,
       verifierId,
-      approver2?.userId,
-      approver3?.userId,
-      approver4?.userId,
+      approver2Id,
+      approver3Id,
+      approver4Id,
     ].filter((x) => x != null);
 
     const users = await prisma.user.findMany({
@@ -265,10 +257,10 @@ class AdminService {
           verifierId: verifierId ? verifierId : null,
           contact: contact ? contact.trim() : null,
           status: "APPROVED",
-          leavedDays: eligibility.balance.usedDays,
+          leavedDays: eligibility.balance?.usedDays ?? 0,
           thisTimeDays: requestedDays,
-          totalDays: eligibility.balance.usedDays + requestedDays,
-          balanceDays: eligibility.balance.remainingDays,
+          totalDays: (eligibility.balance?.usedDays ?? 0) + requestedDays,
+          balanceDays: eligibility.balance?.remainingDays ?? 0,
           documentNumber: docNo,
           documentIssuedDate: issuedAt,
         },
@@ -692,7 +684,6 @@ class AdminService {
     await prisma.leaveRequest.deleteMany({ where: { userId: id } });
     await prisma.leaveBalance.deleteMany({ where: { userId: id } });
     await prisma.userRank.deleteMany({ where: { userId: id } });
-    await prisma.approveStep.deleteMany({ where: { userId: id } });
 
     // Finally delete user
     await prisma.user.delete({ where: { id } });

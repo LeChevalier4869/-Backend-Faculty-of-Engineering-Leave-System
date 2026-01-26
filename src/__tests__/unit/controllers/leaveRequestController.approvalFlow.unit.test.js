@@ -11,7 +11,12 @@ jest.mock("../../../services/leaveRequest-service", () => ({
   rejectByFourthApprover: jest.fn(),
 }));
 
+jest.mock("../../../services/user-service", () => ({
+  getApproversForLevel: jest.fn(),
+}));
+
 const LeaveRequestService = require("../../../services/leaveRequest-service");
+const UserService = require("../../../services/user-service");
 const leaveRequestController = require("../../../controllers/leaveRequest-controller");
 
 const makeRes = () => {
@@ -26,6 +31,8 @@ const expectInvalidId = async (handler) => {
     params: { id: "abc" },
     body: { remarks: "r", comment: "c" },
     user: { id: 10 },
+    get: jest.fn(),
+    ip: "127.0.0.1",
   };
   const res = makeRes();
   const next = jest.fn();
@@ -57,6 +64,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -85,6 +94,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -111,11 +122,18 @@ describe("leaveRequest-controller approval/verifier flow", () => {
 
     it("approveByVerifier -> calls service and returns res.json", async () => {
       LeaveRequestService.approveByVerifier.mockResolvedValue({ ok: true });
+      
+      // Mock UserService.getApproversForLevel to return user as verifier
+      UserService.getApproversForLevel.mockResolvedValue([
+        { id: 10 }, // User is in verifier list
+      ]);
 
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -139,11 +157,18 @@ describe("leaveRequest-controller approval/verifier flow", () => {
 
     it("rejectByVerifier -> calls service and returns res.status(200).json", async () => {
       LeaveRequestService.rejectByVerifier.mockResolvedValue({ ok: true });
+      
+      // Mock UserService.getApproversForLevel to return user as verifier
+      UserService.getApproversForLevel.mockResolvedValue([
+        { id: 10 }, // User is in verifier list
+      ]);
 
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -175,6 +200,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -203,6 +230,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -234,6 +263,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -262,6 +293,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -293,6 +326,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -321,6 +356,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();

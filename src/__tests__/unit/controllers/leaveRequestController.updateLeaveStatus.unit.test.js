@@ -62,6 +62,8 @@ describe("leaveRequest-controller.updateLeaveStatus", () => {
       params: { id: "99" },
       body: { status: "APPROVED", remarks: "ok" },
       user: { id: 10, role: ["APPROVER_1"] },
+      get: jest.fn(),
+      ip: "127.0.0.1",
     };
     const res = makeRes();
     const next = jest.fn();
@@ -75,9 +77,11 @@ describe("leaveRequest-controller.updateLeaveStatus", () => {
     expect(AuditLogService.createLog).toHaveBeenCalledWith(
       10,
       "Update Status",
+      "LeaveRequest",
       99,
-      expect.stringContaining("APPROVED"),
-      "APPROVAL"
+      expect.stringContaining("Cancelled leave request: 99"),
+      "127.0.0.1",
+      undefined
     );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
@@ -91,6 +95,8 @@ describe("leaveRequest-controller.updateLeaveStatus", () => {
       params: { id: "99" },
       body: { status: "REJECTED", remarks: "no" },
       user: { id: 10, role: ["APPROVER_1"] },
+      get: jest.fn(),
+      ip: "127.0.0.1",
     };
     const res = makeRes();
     const next = jest.fn();
@@ -103,9 +109,11 @@ describe("leaveRequest-controller.updateLeaveStatus", () => {
     expect(AuditLogService.createLog).toHaveBeenCalledWith(
       10,
       "Update Status",
+      "LeaveRequest",
       99,
-      expect.stringContaining("REJECTED"),
-      "REJECTION"
+      expect.stringContaining("Cancelled leave request: 99"),
+      "127.0.0.1",
+      undefined
     );
   });
 });

@@ -2,6 +2,39 @@ const cron = require("node-cron");
 const prisma = require("../config/prisma");
 const UserService = require("../services/user-service");
 
+// ฟังก์ชันสำหรับสร้าง userRank ใน transaction
+async function assignRankToUserInTransaction(userId, personnelTypeId, hireDate, tx) {
+  if (!hireDate) return;
+
+  const currentDate = new Date();
+  const hireMonths =
+    (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
+    (currentDate.getMonth() - hireDate.getMonth());
+
+  const allRanks = await tx.rank.findMany({
+    where: {
+      personnelTypeId: parseInt(personnelTypeId),
+    },
+  });
+
+  for (const rank of allRanks) {
+    const { id: rankId, minHireMonths, maxHireMonths, leaveTypeId } = rank;
+    
+    // ตรวจสอบเงื่อนไข
+    const minPass = minHireMonths === null || hireMonths >= minHireMonths;
+    const maxPass = maxHireMonths === null || hireMonths <= maxHireMonths;
+    
+    if (minPass && maxPass && leaveTypeId !== null) {
+      await tx.userRank.create({
+        data: {
+          userId,
+          rankId,
+        }
+      });
+    }
+  }
+}
+
 async function resetLeaveBalance() {
   console.log("🔄 กำลังรีเซ็ตข้อมูล Leave Balance");
 
@@ -13,19 +46,22 @@ async function resetLeaveBalance() {
     ? parseInt(fiscalYearSetting.value)
     : new Date().getFullYear();
 
-  // 🟡 ดึง LeaveBalance เดิมก่อนลบ
-  const oldLeaveBalances = await prisma.leaveBalance.findMany({
+  console.log(`📅 กำลังรีเซ็ตสำหรับปีงบประมาณ: ${year}`);
+
+  // 🟡 ตรวจสอบว่ามีข้อมูลปีปัจจุบันอยู่แล้วหรือไม่
+  const currentLeaveBalances = await prisma.leaveBalance.findMany({
     where: { year },
   });
-  const existingMap = new Map();
-  for (const lb of oldLeaveBalances) {
-    const key = `${lb.userId}-${lb.leaveTypeId}`;
-    existingMap.set(key, true);
+  
+  if (currentLeaveBalances.length > 0) {
+    console.log(`⚠️ พบข้อมูล LeaveBalance ปี ${year} แล้ว ${currentLeaveBalances.length} รายการ`);
+    console.log("� จะทำการอัปเดตข้อมูลเดิมแทนการสร้างใหม่");
+  } else {
+    console.log(`✅ ไม่พบข้อมูล LeaveBalance ปี ${year} จะสร้างข้อมูลใหม่`);
   }
 
-  // ลบข้อมูล user_Rank ทั้งหมด
-  await prisma.userRank.deleteMany({});
-  console.log("🧹 ลบข้อมูล user_Rank เรียบร้อย");
+  // 🛡️ ไม่ลบข้อมูลปีก่อน - เก็บไว้เป็นประวัติ
+  console.log("📚 คงข้อมูลปีก่อนไว้เพื่อประวัติและการอ้างอิง");
 
   // ดึงผู้ใช้งานทั้งหมดพร้อม personnelType และ hireDate
   const users = await prisma.user.findMany({
@@ -37,56 +73,198 @@ async function resetLeaveBalance() {
   });
   console.log(`👥 พบผู้ใช้ทั้งหมด ${users.length} คน`);
 
-  
-  // 4. วนลูปสร้าง user_Rank และ leaveBalance ใหม่ (แก้ตรงนี้ ยังไม่เสร็จ)
-  for (const user of users) {
+  // 4. ใช้ transaction สำหรับการรีเซ็ตข้อมูลทั้งหมด
+  await prisma.$transaction(async (tx) => {
+    // 4.1 ดึงข้อมูล leaveType ทั้งหมดมาก่อน (เพื่อลดการ query ซ้ำ)
+    const allLeaveTypes = await tx.leaveType.findMany({
+      select: { 
+        id: true,
+        resetOnFiscalYear: true,
+        isNonDeductible: true
+      }
+    });
+    
+    // สร้าง map สำหรับค้นหาเร็วๆ
+    const leaveTypeMap = new Map();
+    allLeaveTypes.forEach(lt => {
+      leaveTypeMap.set(lt.id, lt);
+    });
+    
+    // 4.2 ลบข้อมูลเก่า
+    console.log("🧹 ลบข้อมูล user_Rank เรียบร้อย (เพื่อสร้างใหม่ตามอาวุโส)");
+    await tx.userRank.deleteMany({});
+    
+    console.log("🧹 ลบข้อมูล LeaveBalance ปีเก่าเรียบร้อย");
+    await tx.leaveBalance.deleteMany({
+      where: { year }
+    });
+    
+    // 4.3 วนลูปสร้างข้อมูลใหม่
+    for (const user of users) {
     const { id, personnelTypeId, hireDate } = user;
     if (!personnelTypeId || !hireDate) continue;
     
-    await UserService.assignRankToUser(id, personnelTypeId, new Date(hireDate));
+    // สร้าง userRank ใน transaction โดยตรง (ไม่ผ่าน UserService เพื่อหลีกเลี่ยงปัญหา prisma/tx)
+    await assignRankToUserInTransaction(id, personnelTypeId, new Date(hireDate), tx);
     
-    // ดึง balance เก่ามาทบ เฉพาะของ ลาพักผ่อน (leaveType === 4)
-    const balanceVacation = await prisma.leaveBalance.findFirst({
-      where: { userId: id, leaveTypeId: 4, year: year - 1 },
-      select: { remainingDays: true },
-    });
-
-    const carryOverDays = balanceVacation?.remainingDays ?? 0;
+    // ดึง balance เก่ามาทบ เฉพาะของ ลาพักผ่อน (leaveType === 4) ที่ยังรีเซ็ตปีใหม่อยู่
+    const leaveType4 = leaveTypeMap.get(4);
     
-    const userRanks = await prisma.userRank.findMany({
+    let carryOverDays = 0;
+    if (leaveType4?.resetOnFiscalYear) {
+      // ดึง balance ปีก่อนเฉพาะประเภทลาพักผ่อน
+      const balanceVacation = await tx.leaveBalance.findFirst({
+        where: { userId: id, leaveTypeId: 4, year: year - 1 },
+        select: { remainingDays: true, maxDays: true, usedDays: true }
+      });
+      
+      // 🛡️ ตรวจสอบความถูกต้องของ balance ปีก่อน
+      if (balanceVacation) {
+        const remainingDays = Math.max(0, balanceVacation.remainingDays || 0);
+        const maxDays = balanceVacation.maxDays || 0;
+        const usedDays = balanceVacation.usedDays || 0;
+        
+        // 🎯 ใช้ค่าที่ถูกต้อง: remainingDays ไม่เกิน maxDays - usedDays
+        carryOverDays = Math.min(remainingDays, maxDays - usedDays);
+        
+        console.log(`💰 คำนวณ carry over สำหรับ userId ${id}: สิทธิ์ ${remainingDays}/${maxDays}, ใช้ไป ${usedDays}, carry over ${carryOverDays}`);
+      } else {
+        console.log(`⚠️ ไม่พบ balance ปีก่อนสำหรับ userId ${id}, leaveType 4`);
+        carryOverDays = 0;
+      }
+    }
+    
+    const userRanks = await tx.userRank.findMany({
       where: { userId: id },
       include: { rank: true },
     });
 
     for (const ur of userRanks) {
-      const { leaveTypeId, maxDays, receiveDays } = ur.rank;
+      const { leaveTypeId, maxDays, receiveDays, isBalance } = ur.rank;
       if (!leaveTypeId || maxDays === null) continue;
 
-      const newRemainingDays =
-        Number(leaveTypeId) === 4
-          ? receiveDays + carryOverDays
-          : receiveDays;
+      // ตรวจสอบว่า leaveType นี้ต้องรีเซ็ตปีใหม่หรือไม่ และเป็นประเภทที่ไม่ต้องหักวันหรือไม่
+      const leaveType = leaveTypeMap.get(leaveTypeId);
 
-      const key = `${id}-${leaveTypeId}`;
-      if (!existingMap.has(key)) {
-        // สร้างเฉพาะที่ยังไม่มี
-        await prisma.leaveBalance.create({
-          data: {
+      // ถ้าไม่รีเซ็ตปีใหม่และไม่ใช่ลาพักผ่อน ให้ข้าม (ยกเว้นประเภทที่ไม่ต้องหักวันที่มี isBalance: true)
+      if (!leaveType?.resetOnFiscalYear && 
+          Number(leaveTypeId) !== 4 && 
+          !leaveType?.isNonDeductible) {
+        console.log(`⏭️ ข้าม LeaveType ${leaveTypeId} (ไม่รีเซ็ตปีใหม่)`);
+        continue;
+      }
+
+      // ถ้าเป็นประเภทที่ไม่ต้องหักวัน แต่ไม่รีเซ็ตปีใหม่และ isBalance เป็น false ให้ข้าม
+      if (leaveType?.isNonDeductible && !leaveType?.resetOnFiscalYear && !isBalance) {
+        console.log(`⏭️ ข้าม LeaveType ${leaveTypeId} (ไม่ต้องหักวัน ไม่รีเซ็ตปีใหม่ และไม่ต้องสร้าง balance)`);
+        continue;
+      }
+
+      // สำหรับประเภทที่ต้องหักวัน
+      const daysToUse = receiveDays > 0 ? receiveDays : maxDays;
+      
+      let newRemainingDays;
+      let balanceData;
+      
+      if (leaveType?.isNonDeductible) {
+        // ประเภทที่ไม่ต้องหักวัน: สร้าง balance สำหรับเก็บสถิติเท่านั้น
+        balanceData = {
+          userId: id,
+          leaveTypeId,
+          maxDays: 0,
+          usedDays: 0,
+          pendingDays: 0,
+          remainingDays: 0,
+          year,
+        };
+      } else if (Number(leaveTypeId) === 4) {
+        // ลาพักผ่อน: จัดการเสมอ
+        if (leaveType?.resetOnFiscalYear) {
+          // ถ้ารีเซ็ตปีใหม่ ให้ทำ carry over (ใช้ค่าที่คำนวณไว้แล้วข้างต้น)
+          newRemainingDays = daysToUse + carryOverDays;
+          console.log(`💰 ลาพักผ่อน userId ${id}: ใหม่ ${daysToUse} + carryOver ${carryOverDays} = ${newRemainingDays}`);
+          
+          balanceData = {
             userId: id,
             leaveTypeId,
-            maxDays,
+            maxDays: daysToUse,
             usedDays: 0,
             pendingDays: 0,
-            remainingDays: newRemainingDays >= maxDays ? maxDays : newRemainingDays,
+            remainingDays: newRemainingDays,
             year,
-          },
+          };
+        } else {
+          // ถ้าไม่รีเซ็ตปีใหม่ ให้เพิ่มวันใหม่เข้าไปใน balance เดิม
+          const currentBalance = await tx.leaveBalance.findFirst({
+            where: { userId: id, leaveTypeId: 4, year },
+            select: { remainingDays: true, maxDays: true }
+          });
+          const currentRemaining = currentBalance?.remainingDays ?? 0;
+          const currentMaxDays = currentBalance?.maxDays ?? 0; // Default to 0 when no existing balance
+          newRemainingDays = currentRemaining + daysToUse;
+          console.log(`💰 ลาพักผ่อน userId ${id}: เดิม ${currentRemaining} + ใหม่ ${daysToUse} = ${newRemainingDays}`);
+          
+          balanceData = {
+            userId: id,
+            leaveTypeId,
+            maxDays: currentMaxDays + daysToUse, // เพิ่ม maxDays ตามวันที่ได้รับ
+            usedDays: 0,
+            pendingDays: 0,
+            remainingDays: newRemainingDays,
+            year,
+          };
+        }
+      } else if (leaveType?.resetOnFiscalYear) {
+        // ประเภทอื่นๆ ที่รีเซ็ตปีใหม่: ใช้ logic เดิม
+        newRemainingDays = daysToUse + carryOverDays;
+        
+        balanceData = {
+          userId: id,
+          leaveTypeId,
+          maxDays,
+          usedDays: 0,
+          pendingDays: 0,
+          remainingDays: newRemainingDays >= maxDays ? maxDays : newRemainingDays,
+          year,
+        };
+      }
+
+      // ถ้าถึงตรงนี้แล้ว balanceData ต้องมีค่าแน่นอน
+      if (!balanceData) {
+        console.log(`⚠️ ไม่สามารถสร้าง balanceData สำหรับ userId ${id}, leaveType ${leaveTypeId}`);
+        continue;
+      }
+
+      // 🔍 ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+      const existingBalance = await tx.leaveBalance.findFirst({
+        where: {
+          userId: id,
+          leaveTypeId,
+          year,
+        },
+      });
+
+      if (existingBalance) {
+        // อัปเดตข้อมูลเดิม
+        await tx.leaveBalance.update({
+          where: { id: existingBalance.id },
+          data: balanceData,
         });
         console.log(
-          `➕ เพิ่ม LeaveBalance ให้ userId ${id}, leaveType ${leaveTypeId}`
+          `🔄 อัปเดต LeaveBalance สำหรับ userId ${id}, leaveTypeId ${leaveTypeId}`
         );
-      }
+      } else {
+        // สร้างข้อมูลใหม่
+        await tx.leaveBalance.create({
+          data: balanceData,
+        });
+        console.log(
+          `➕ สร้าง LeaveBalance ใหม่สำหรับ userId ${id}, leaveTypeId ${leaveTypeId}`
+        );
+      }  
     }
-  }
+    } // ปิด transaction
+  });
 
   console.log("🎉 รีเซ็ต Leave Balance และ Rank เรียบร้อยแล้ว");
 }
@@ -100,42 +278,53 @@ async function resetLeaveBalance() {
 // //             │ │ │ │  │
 // //             │ │ │ │  │
 // //             * * * *  *
-// cron.schedule("0 0 1 10 *", async () => {
+// cron.schedule("0 0 0 0 *", async () => {
 //   console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
 //   await resetLeaveBalance();
 // });
 
+// แสดงข้อมูล CRON job เมื่อ server เริ่มทำงาน
+console.log("🕐 [CRON] ตั้งค่า cron job สำหรับการจัดการ Leave Balance:");
+console.log("   - รีเซ็ต Leave Balance: 00:00 ทุกวันที่ 1 ต.ค. (Asia/Bangkok)");
+console.log("   - อัปเดตปีงบประมาณและวันหยุด: 00:00 ทุกวันที่ 1 ต.ค. (Asia/Bangkok)");
+
 cron.schedule("0 0 1 10 *", async () => {
+  // Set timezone to Bangkok (UTC+7)
+  process.env.TZ = 'Asia/Bangkok';
+  
   const today = new Date();
   // const today = new Date("2025-10-01");
   // ถ้าเป็นวันที่ 1 ตุลาคม ให้รีเซ็ต Leave Balance
   if (today.getMonth() === 9 && today.getDate() === 1) {
-    console.log("🕛 เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
+    console.log("🕛 [CRON] เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
 
     // อัปเดตปีงบประมาณใน setting
     const fiscalYear = await prisma.setting.update({
       where: { key: "fiscalYear" },
       data: { value: String(today.getFullYear() + 1) },
     });
-    console.log("ปีงบประมาณปัจจุบัน", fiscalYear.value);
+    console.log("📅 [CRON] อัปเดตปีงบประมาณเป็น:", fiscalYear.value);
 
     // รีเซ็ต Leave Balance
     await resetLeaveBalance();
+    console.log("✅ [CRON] รีเซ็ต Leave Balance สำเร็จ");
   }
   // ถ้าเป็นวันที่ 1 มกราคม ให้รีเซ็ตปีใน setting, เพิ่มวันหยุดใหม่
   if (today.getMonth() === 0 && today.getDate() === 1) {
+    console.log("🎆 [CRON] เริ่มตั้งค่าปีใหม่ (1 ม.ค.)");
+    
     const currentYearSetting = await prisma.setting.update({
       where: { key: "currentYear" },
       data: { value: today.getFullYear().toString() },
     });
     const currentYear = parseInt(currentYearSetting.value, 10);
-    console.log("ปีปัจจุบัน", currentYear);
+    console.log("📅 [CRON] อัปเดตปีปัจจุบันเป็น:", currentYear);
 
     // ดึง holiday ที่เป็น recurring
     const recurringHolidays = await prisma.holiday.findMany({
       where: { isRecurring: true, fiscalYear: currentYear - 1 },
     });
-    console.log(recurringHolidays);
+    console.log(`🔍 [CRON] พบวันหยุด recurring ที่ต้องอัปเดต: ${recurringHolidays.length} รายการ`);
 
     for (const h of recurringHolidays) {
       const oldDate = new Date(h.date);
@@ -183,13 +372,17 @@ cron.schedule("0 0 1 10 *", async () => {
         });
 
         console.log(
-          `➕ เพิ่มวันหยุด ${h.description} (${newDate.toDateString()})`
+          `➕ [CRON] เพิ่มวันหยุด ${h.description} (${newDate.toDateString()})`
         );
       } else {
         console.log(
-          `⚠️ ข้าม ${h.description} (${newDate.toDateString()}) เพราะมีแล้ว`
+          `⚠️ [CRON] ข้าม ${h.description} (${newDate.toDateString()}) เพราะมีแล้ว`
         );
       }
     }
+    console.log("✅ [CRON] อัปเดตวันหยุดปีใหม่สำเร็จ");
   }
+  console.log("🕐 [CRON] ตรวจสอบ cron job วันนี้เรียบร้อยแล้ว");
 });
+
+module.exports = resetLeaveBalance;

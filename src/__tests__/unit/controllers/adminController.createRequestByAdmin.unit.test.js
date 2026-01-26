@@ -206,14 +206,16 @@ describe("admin-controller", () => {
 
       expect(LeaveRequestService.attachImages).toHaveBeenCalledWith([
         {
-          type: "EVIDENT",
+          type: "PAPER",
           filePath: "http://img/1.png",
           leaveRequestId: 777,
+          name: expect.any(String),
         },
         {
-          type: "EVIDENT",
+          type: "PAPER",
           filePath: "http://img/2.png",
           leaveRequestId: 777,
+          name: expect.any(String),
         },
       ]);
       expect(res.status).toHaveBeenCalledWith(201);

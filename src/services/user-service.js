@@ -343,9 +343,167 @@ class UserService {
       include: { userRoles: { include: { role: true } } },
     });
 
-    if (!user) throw createError(404, "ไม่พบผู้ตรวจสอบ (Verifier");
+    if (!user) throw createError(404, "ไม่พบผู้ตรวจสอบ (Verifier)");
 
     return user;
+  }
+
+  static async getApproversForLevel(level, date) {
+    try {
+      // แปลง level เป็น role name
+      const roleMap = {
+        1: 'APPROVER_1',
+        2: 'VERIFIER', 
+        3: 'APPROVER_2',
+        4: 'APPROVER_3',
+        5: 'APPROVER_4'
+      };
+      const roleName = roleMap[level];
+      if (!roleName) {
+        throw createError(400, `Invalid approver level: ${level}`);
+      }
+      
+      // 1. ดึง users ที่มี role นั้น (original approvers)
+      const originalApprovers = await prisma.user.findMany({
+        where: {
+          userRoles: {
+            some: {
+              role: {
+                name: roleName
+              }
+            }
+          }
+        },
+        include: {
+          userRoles: {
+            include: {
+              role: true
+            }
+          }
+        }
+      });
+
+      // 1.5. ดึง proxy users ที่เป็น proxy ใน role นั้น (แม้ไม่มี role นั้น)
+      const proxyUsersForRole = await prisma.user.findMany({
+        where: {
+          proxyApprovals: {
+            some: {
+              approverLevel: level,
+              status: 'ACTIVE'
+            }
+          }
+        },
+        include: {
+          userRoles: {
+            include: {
+              role: true
+            }
+          }
+        }
+      });
+
+      // รวม users ทั้งสองกลุ่ม และลบตัวซ้ำ
+      const allUsers = [...originalApprovers, ...proxyUsersForRole];
+      const uniqueUsers = allUsers.filter((user, index, self) => 
+        index === self.findIndex(u => u.id === user.id)
+      );
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // แปลงเป็น UTC midnight ให้ตรงกับข้อมูลในฐานข้อมูล
+      const utcToday = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+      
+      const proxies = await prisma.proxyApproval.findMany({
+        where: {
+          approverLevel: level,
+          status: 'ACTIVE',
+          OR: [
+            // กรณีรายวัน
+            {
+              isDaily: true,
+              dailyDate: utcToday
+            },
+            // กรณีช่วงเวลา
+            {
+              isDaily: false,
+              startDate: { lte: utcToday },
+              endDate: { gte: utcToday }
+            }
+          ]
+        },
+        include: {
+          originalApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              userRoles: {
+                include: {
+                  role: true
+                }
+              }
+            }
+          },
+          proxyApprover: {
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              userRoles: {
+                include: {
+                  role: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // 3. รวม proxy users
+      const proxyUserIds = proxies.map(p => p.proxyApproverId);
+      const proxyUsers = await prisma.user.findMany({
+        where: { 
+          id: { in: proxyUserIds }
+        },
+        include: {
+          userRoles: {
+            include: {
+              role: true
+            }
+          }
+        }
+      });
+
+      // 5. เพิ่มข้อมูลว่าเป็น original หรือ proxy
+      const usersWithProxyInfo = uniqueUsers.map(user => {
+        const proxyInfo = proxies.find(p => p.proxyApproverId === user.id);
+        const originalInfo = proxies.find(p => p.originalApproverId === user.id);
+        
+        // Validate: ถ้า user มี role นี้อยู่แล้ว ไม่ต้องแสดงเป็น proxy
+        const hasOriginalRole = user.userRoles.some(ur => ur.role.name === roleName);
+        
+        return {
+          ...user,
+          isProxy: !!proxyInfo, // แสดงเป็น proxy ถ้ามี proxyInfo (ไม่สนว่ามี role อยู่แล้วหรือไม่)
+          isOriginal: !!originalInfo,
+          proxyInfo: proxyInfo ? {
+            originalApprover: proxyInfo.originalApprover,
+            approverLevel: proxyInfo.approverLevel,
+            reason: proxyInfo.reason
+          } : null
+        };
+      });
+
+      return usersWithProxyInfo;
+    } catch (error) {
+      console.error('Error getting approvers for level:', error);
+      throw createError(500, 'ไม่สามารถดึงข้อมูลผู้อนุมัติได้');
+    }
   }
 
   static async getHeadOfDepartment(departmentId) {
@@ -589,27 +747,36 @@ class UserService {
     });
 
     for (const userRank of userRanks) {
-      const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
+      const { leaveTypeId, maxDays, receiveDays, isBalance } = userRank.rank;
 
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
+      // สำหรับประเภทการลาที่ไม่ต้องหักวัน (receiveDays = 0 && isBalance = 1)
+      // ให้ตั้งค่าเป็น 0 เพื่อบอกว่าไม่ต้องตรวจสอบยอดคงเหลือ
+      const balanceData = {
+        userId,
+        leaveTypeId,
+        maxDays: (receiveDays === 0 && isBalance === 1) ? 0 : maxDays,
+        usedDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        pendingDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        remainingDays: (receiveDays === 0 && isBalance === 1) ? 0 : receiveDays,
+        year: yearValue,
+      };
+
       await prisma.leaveBalance.create({
-        data: {
-          userId,
-          leaveTypeId,
-          maxDays,
-          usedDays: 0,
-          pendingDays: 0,
-          remainingDays: receiveDays,
-          year: yearValue,
-        },
+        data: balanceData,
       });
       // console.log(`➕ เพิ่ม LeaveBalance ให้ userId ${userId}, leaveType ${leaveTypeId}`);
     }
   }
 
   static async assignLeaveBalanceFromRanksForReset(userId, carryOverDays) {
+    const fiscalYearSetting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+    });
+    const yearValue = parseInt(fiscalYearSetting.value, 10);
+
     const userRanks = await prisma.userRank.findMany({
       where: { userId },
       include: {
@@ -618,20 +785,37 @@ class UserService {
     });
 
     for (const userRank of userRanks) {
-      const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
+      const { leaveTypeId, maxDays, receiveDays, isBalance } = userRank.rank;
 
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
+      // สำหรับประเภทการลาที่ไม่ต้องหักวัน (receiveDays = 0 && isBalance = 1)
+      // และเป็นลาพักผ่อน (leaveTypeId = 4) ให้ทำ carry over
+      let newRemainingDays;
+      if (receiveDays === 0 && isBalance === 1) {
+        // ไม่ต้องหักวัน ไม่ต้องคำนวณ carry over
+        newRemainingDays = 0;
+      } else if (Number(leaveTypeId) === 4) {
+        // ลาพักผ่อนทำ carry over
+        newRemainingDays = receiveDays + carryOverDays;
+      } else {
+        // ประเภทอื่นๆ ใช้ receiveDays ปกติ
+        newRemainingDays = receiveDays;
+      }
+
+      const balanceData = {
+        userId,
+        leaveTypeId,
+        maxDays: (receiveDays === 0 && isBalance === 1) ? 0 : maxDays,
+        usedDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        pendingDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        remainingDays: (receiveDays === 0 && isBalance === 1) ? 0 : newRemainingDays,
+        year: yearValue,
+      };
+
       await prisma.leaveBalance.create({
-        data: {
-          userId,
-          leaveTypeId,
-          maxDays,
-          usedDays: 0,
-          pendingDays: 0,
-          remainingDays: carryOverDays + receiveDays,
-        },
+        data: balanceData,
       });
     }
   }
