@@ -31,6 +31,8 @@ const expectInvalidId = async (handler) => {
     params: { id: "abc" },
     body: { remarks: "r", comment: "c" },
     user: { id: 10 },
+    get: jest.fn(),
+    ip: "127.0.0.1",
   };
   const res = makeRes();
   const next = jest.fn();
@@ -62,6 +64,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -90,6 +94,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -126,6 +132,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -159,6 +167,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -190,6 +200,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -218,6 +230,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -249,6 +263,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -277,6 +293,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -308,6 +326,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -336,6 +356,8 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
         user: { id: 10 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();

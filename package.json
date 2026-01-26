@@ -9,6 +9,7 @@
     "test:e2e": "jest --testPathPattern=src/__tests__/system",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "test:reset": "jest src/__tests__/unit/utils/resetLeaveBalance.test.js --passWithNoTests",
     "start": "nodemon ./src/server.js"
   },
   "author": "",

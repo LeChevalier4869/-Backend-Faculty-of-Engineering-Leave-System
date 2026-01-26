@@ -408,15 +408,29 @@ class UserService {
         index === self.findIndex(u => u.id === user.id)
       );
       
-      const today = new Date(date);
-      today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00 ตามมาตรฐาน
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // แปลงเป็น UTC midnight ให้ตรงกับข้อมูลในฐานข้อมูล
+      const utcToday = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
       
       const proxies = await prisma.proxyApproval.findMany({
         where: {
           approverLevel: level,
           status: 'ACTIVE',
-          startDate: { lte: today },
-          endDate: { gte: today }
+          OR: [
+            // กรณีรายวัน
+            {
+              isDaily: true,
+              dailyDate: utcToday
+            },
+            // กรณีช่วงเวลา
+            {
+              isDaily: false,
+              startDate: { lte: utcToday },
+              endDate: { gte: utcToday }
+            }
+          ]
         },
         include: {
           originalApprover: {
@@ -733,27 +747,36 @@ class UserService {
     });
 
     for (const userRank of userRanks) {
-      const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
+      const { leaveTypeId, maxDays, receiveDays, isBalance } = userRank.rank;
 
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
+      // สำหรับประเภทการลาที่ไม่ต้องหักวัน (receiveDays = 0 && isBalance = 1)
+      // ให้ตั้งค่าเป็น 0 เพื่อบอกว่าไม่ต้องตรวจสอบยอดคงเหลือ
+      const balanceData = {
+        userId,
+        leaveTypeId,
+        maxDays: (receiveDays === 0 && isBalance === 1) ? 0 : maxDays,
+        usedDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        pendingDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        remainingDays: (receiveDays === 0 && isBalance === 1) ? 0 : receiveDays,
+        year: yearValue,
+      };
+
       await prisma.leaveBalance.create({
-        data: {
-          userId,
-          leaveTypeId,
-          maxDays,
-          usedDays: 0,
-          pendingDays: 0,
-          remainingDays: receiveDays,
-          year: yearValue,
-        },
+        data: balanceData,
       });
       // console.log(`➕ เพิ่ม LeaveBalance ให้ userId ${userId}, leaveType ${leaveTypeId}`);
     }
   }
 
   static async assignLeaveBalanceFromRanksForReset(userId, carryOverDays) {
+    const fiscalYearSetting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+    });
+    const yearValue = parseInt(fiscalYearSetting.value, 10);
+
     const userRanks = await prisma.userRank.findMany({
       where: { userId },
       include: {
@@ -762,20 +785,37 @@ class UserService {
     });
 
     for (const userRank of userRanks) {
-      const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
+      const { leaveTypeId, maxDays, receiveDays, isBalance } = userRank.rank;
 
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
+      // สำหรับประเภทการลาที่ไม่ต้องหักวัน (receiveDays = 0 && isBalance = 1)
+      // และเป็นลาพักผ่อน (leaveTypeId = 4) ให้ทำ carry over
+      let newRemainingDays;
+      if (receiveDays === 0 && isBalance === 1) {
+        // ไม่ต้องหักวัน ไม่ต้องคำนวณ carry over
+        newRemainingDays = 0;
+      } else if (Number(leaveTypeId) === 4) {
+        // ลาพักผ่อนทำ carry over
+        newRemainingDays = receiveDays + carryOverDays;
+      } else {
+        // ประเภทอื่นๆ ใช้ receiveDays ปกติ
+        newRemainingDays = receiveDays;
+      }
+
+      const balanceData = {
+        userId,
+        leaveTypeId,
+        maxDays: (receiveDays === 0 && isBalance === 1) ? 0 : maxDays,
+        usedDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        pendingDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
+        remainingDays: (receiveDays === 0 && isBalance === 1) ? 0 : newRemainingDays,
+        year: yearValue,
+      };
+
       await prisma.leaveBalance.create({
-        data: {
-          userId,
-          leaveTypeId,
-          maxDays,
-          usedDays: 0,
-          pendingDays: 0,
-          remainingDays: carryOverDays + receiveDays,
-        },
+        data: balanceData,
       });
     }
   }

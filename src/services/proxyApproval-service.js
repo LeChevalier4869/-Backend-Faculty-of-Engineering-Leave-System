@@ -139,12 +139,29 @@ class ProxyApprovalService {
       throw createError(400, "ระดับผู้อนุมัติไม่ถูกต้อง");
     }
 
-    const hasRequiredRole = proxyApprover.userRoles.some(userRole => 
+    // แก้ไข: ตรวจสอบว่า original approver มี role ที่ตรงกับ approverLevel หรือไม่
+    // ไม่จำเป็นต้องตรวจสอบ role ของ proxy approver
+    const originalApproverWithRoles = await prisma.user.findUnique({
+      where: { id: originalApproverId },
+      include: { 
+        userRoles: { 
+          include: { 
+            role: true 
+          } 
+        } 
+      }
+    });
+
+    if (!originalApproverWithRoles) {
+      throw createError(404, "ไม่พบข้อมูลผู้อนุมัติต้นทาง");
+    }
+
+    const hasOriginalRequiredRole = originalApproverWithRoles.userRoles.some(userRole => 
       userRole.role.name === requiredRole
     );
 
-    if (!hasRequiredRole) {
-      throw createError(400, `ผู้อนุมัติแทนต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถทำงานแทนได้`);
+    if (!hasOriginalRequiredRole) {
+      throw createError(400, `ผู้อนุมัติต้นทางต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถมอบอำนาได้`);
     }
 
     // ตรวจสอบว่ามีการมอบอำนาจที่ทับซ้อนกันหรือไม่
@@ -343,27 +360,24 @@ class ProxyApprovalService {
     const [data, totalCount] = await Promise.all([
       prisma.proxyApproval.findMany({
         where: {
-          AND: [
+          OR: [
             { status: 'ACTIVE' },
             {
-              OR: [
+              AND: [
                 // การมอบอำนาจรายวันสำหรับวันนี้
                 {
                   isDaily: true,
                   dailyDate: {
-                    gte: today,
-                    lt: tomorrow
+                    gte: today
                   }
                 },
                 // การมอบอำนาจช่วงเวลาที่ครอบคลุมวันนี้
                 {
                   isDaily: false,
-                  startDate: {
-                    lte: today
-                  },
-                  endDate: {
-                    gte: today
-                  }
+                  AND: [
+                    { startDate: { gte: today } },
+                    { endDate: { gte: today } }
+                  ]
                 }
               ]
             }
@@ -459,15 +473,15 @@ class ProxyApprovalService {
                 }
               }
             },
-            // การมอบอำนาจช่วงเวลาที่ไม่ได้ครอบคลุมวันนี้
+            // การมอบอำนาจช่วงเวลาที่ไม่ได้ครอบคลุมวันนี้ (เริ่มแล้ว แต่หมดอายุแล้ว)
             {
               isDaily: false,
-              OR: [
-                { startDate: { gt: today } },
-                { endDate: { lt: today } }
+              AND: [
+                { startDate: { gt: today } },  // เริ่มแล้ว
+                { endDate: { lt: today } }       // สิ้นสุดแล้ว
               ]
             },
-            // การมอบอำนาจที่ไม่ active
+            // การมอบอำนาจที่ไม่ active (รวม EXPIRED, CANCELLED)
             { status: { not: 'ACTIVE' } }
           ]
         },
@@ -624,7 +638,7 @@ class ProxyApprovalService {
     });
   }
 
-  // ตรวจสอบว่ามีการมอบอำนาจที่ใช้ได้ในปัจจุบันหรือไม่
+  // ตรวจสอบว่ามีการมอบอำนาจที่ใช้ได้ในปัจจุบันหรือไม่ (สำหรับ original approver)
   static async getActiveProxyApproval(originalApproverId, approverLevel, date = new Date()) {
     const checkDate = new Date(date);
     checkDate.setHours(0, 0, 0, 0);
@@ -668,6 +682,79 @@ class ProxyApprovalService {
     return await prisma.proxyApproval.findFirst({
       where: {
         originalApproverId: parseInt(originalApproverId),
+        approverLevel: parseInt(approverLevel),
+        isDaily: false,
+        status: "ACTIVE",
+        startDate: { lte: checkDate },
+        endDate: { gte: checkDate },
+      },
+      include: {
+        originalApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        proxyApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  // ตรวจสอบว่าผู้ใช้เป็น proxy approver ที่ active หรือไม่ (สำหรับ proxy approver)
+  static async getActiveProxyApprovalForProxyApprover(proxyApproverId, approverLevel, date = new Date()) {
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+
+    // ตรวจสอบการมอบอำนาจรายวันก่อน (priority สูงกว่า)
+    const dailyProxy = await prisma.proxyApproval.findFirst({
+      where: {
+        proxyApproverId: parseInt(proxyApproverId),
+        approverLevel: parseInt(approverLevel),
+        isDaily: true,
+        dailyDate: checkDate,
+        status: "ACTIVE",
+      },
+      include: {
+        originalApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        proxyApprover: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (dailyProxy) {
+      return dailyProxy;
+    }
+
+    // ตรวจสอบการมอบอำนาจแบบช่วงเวลา
+    return await prisma.proxyApproval.findFirst({
+      where: {
+        proxyApproverId: parseInt(proxyApproverId),
         approverLevel: parseInt(approverLevel),
         isDaily: false,
         status: "ACTIVE",
@@ -833,9 +920,9 @@ class ProxyApprovalService {
       await AuditLogService.createLog(
         cancelledBy,
         "Cancel Proxy Approval",
+        "ProxyApproval",
         id,
-        `ยกเลิกการมอบอำนาจ: ${existingProxy.originalApproverId} -> ${existingProxy.proxyApproverId}`,
-        "CANCELLED"
+        `Cancelled proxy approval: ${id}`
       );
 
       return cancelledProxy;
@@ -1009,59 +1096,39 @@ class ProxyApprovalService {
 
   // ตรวจสอบว่าผู้ใช้มีสิทธิ์อนุมัติในระดับที่กำหนดหรือไม่ (รวมถึงการอนุมัติแทน)
   static async canUserApprove(userId, approverLevel, date = new Date()) {
-    // ตรวจสอบว่าผู้ใช้เป็นผู้อนุมัติแทนในระดับที่กำหนดหรือไม่
-    const activeProxy = await this.getActiveProxyApproval(userId, approverLevel, date);
+    // ใช้วิธีเดียวกับ controller - ตรวจสอบจาก UserService.getApproversForLevel
+    const UserService = require("./user-service");
+    const approvers = await UserService.getApproversForLevel(approverLevel, date);
+    const approverIds = approvers.map(a => a.id);
     
-    if (activeProxy) {
+    if (!approverIds.includes(userId)) {
       return {
-        canApprove: true,
-        isProxy: true,
-        proxyApproval: activeProxy,
-        originalApproverId: activeProxy.originalApproverId,
-        isDaily: activeProxy.isDaily,
-        proxyType: activeProxy.isDaily ? 'daily' : 'period',
+        canApprove: false,
+        isProxy: false,
+        proxyApproval: null,
+        originalApproverId: null,
+        isDaily: false,
+        proxyType: null,
       };
     }
 
-    // ตรวจสอบว่าผู้ใช้เป็นผู้อนุมัติต้นฉบับในระดับที่กำหนดหรือไม่
-    // (ตรวจสอบตาม logic เดิมของระบบ)
-    let canApproveAsOriginal = false;
-
-    switch (approverLevel) {
-      case 1:
-        // ตรวจสอบว่าเป็นหัวหน้าสาขาหรือไม่
-        const department = await prisma.department.findFirst({
-          where: { headId: parseInt(userId) },
-        });
-        canApproveAsOriginal = !!department;
-        break;
-      
-      case 2:
-        // ตรวจสอบว่าเป็น Verifier หรือไม่
-        const verifierRole = await prisma.userRole.findFirst({
-          where: {
-            userId: parseInt(userId),
-            role: { name: "VERIFIER" },
-          },
-        });
-        canApproveAsOriginal = !!verifierRole;
-        break;
-      
-      case 3:
-      case 4:
-        // ตรวจสอบว่าเป็น Approver ระดับสูงหรือไม่
-        const approverStep = await prisma.approveStep.findFirst({
-          where: {
-            userId: parseInt(userId),
-            level: approverLevel,
-          },
-        });
-        canApproveAsOriginal = !!approverStep;
-        break;
+    // หาว่าเป็น proxy หรือไม่
+    const user = approvers.find(a => a.id === userId);
+    const isProxy = user && user.isProxy;
+    
+    if (isProxy) {
+      return {
+        canApprove: true,
+        isProxy: true,
+        proxyApproval: user.proxyInfo,
+        originalApproverId: user.proxyInfo ? user.proxyInfo.originalApprover.id : null,
+        isDaily: user.proxyInfo ? user.proxyInfo.isDaily : false,
+        proxyType: user.proxyInfo ? (user.proxyInfo.isDaily ? 'daily' : 'period') : null,
+      };
     }
 
     return {
-      canApprove: canApproveAsOriginal,
+      canApprove: true,
       isProxy: false,
       proxyApproval: null,
       originalApproverId: null,
@@ -1071,56 +1138,45 @@ class ProxyApprovalService {
   }
 
   // ดึงข้อมูลผู้อนุมัติที่เป็นไปได้สำหรับระดับที่กำหนด
-  static async getPotentialApprovers(approverLevel) {
+  static async getPotentialApprovers(approverLevel, currentUserId = null) {
     let potentialApprovers = [];
 
-    switch (approverLevel) {
-      case 1:
-        // ดึงรายชื่อหัวหน้าสาขา
-        potentialApprovers = await prisma.user.findMany({
-          where: {
-            department: {
-              headId: { not: null },
-            },
-          },
-          include: {
-            department: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        });
-        break;
-      
-      case 2:
-        // ดึงรายชื่อ Verifier
-        potentialApprovers = await prisma.user.findMany({
-          where: {
-            userRoles: {
-              some: {
-                role: { name: "VERIFIER" },
-              },
-            },
-          },
-        });
-        break;
-      
-      case 3:
-      case 4:
-        // ดึงรายชื่อ Approver ระดับสูง
-        potentialApprovers = await prisma.user.findMany({
-          where: {
-            approveSteps: {
-              some: {
-                level: approverLevel,
-              },
-            },
-          },
-        });
-        break;
+    const roleMapping = {
+      1: 'APPROVER_1',
+      2: 'VERIFIER', 
+      3: 'APPROVER_2',
+      4: 'APPROVER_3',
+      5: 'APPROVER_4'
+    };
+
+    const requiredRole = roleMapping[approverLevel];
+    if (!requiredRole) {
+      return [];
     }
+
+    potentialApprovers = await prisma.user.findMany({
+      where: {
+        userRoles: {
+          some: {
+            role: { name: requiredRole },
+          },
+        },
+        ...(currentUserId && { id: { not: parseInt(currentUserId) } }),
+      },
+      select: {
+        id: true,
+        prefixName: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
 
     return potentialApprovers.map(user => ({
       id: user.id,

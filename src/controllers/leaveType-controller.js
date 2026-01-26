@@ -4,11 +4,11 @@ const cloudUpload = require("../utils/cloudUpload");
 
 exports.createLeaveType = async (req, res, next) => {
   try {
-    const name = req.body;
+    const { name, isAvailable, resetOnFiscalYear } = req.body;
     if (!name) throw createError(400, "กรุณาระบุชื่อประเภทการลา");
 
-    console.log("🔍 สร้างประเภทการลา:", { name });
-    const leaveType = await LeaveTypeService.createLeaveType(name);
+    console.log("🔍 สร้างประเภทการลา:", { name, isAvailable, resetOnFiscalYear });
+    const leaveType = await LeaveTypeService.createLeaveType({ name, isAvailable, resetOnFiscalYear });
     res
       .status(201)
       .json({ message: "สร้างประเภทการลาเรียบร้อยแล้ว", data: leaveType });

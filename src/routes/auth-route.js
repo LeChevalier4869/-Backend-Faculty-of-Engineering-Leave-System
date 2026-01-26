@@ -20,7 +20,6 @@ const prisma = require("../config/prisma");
 router.post('/register', registerLimiter, upload.single('images'), authController.register);
 router.post('/login', loginLimiter, uploadFile.uploadProfile.none(), authController.login);
 router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.getMe);
-// router.get('/me', uploadFile.uploadProfile.none(), authenticateJWT, authController.getMe);
 router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 router.get('/user-info/:id', authenticate, authController.getUserInfoById);
@@ -97,107 +96,123 @@ router.get(
 );
 
 // Google callback
-// router.get(
-//   "/google/callback",
-//   passport.authenticate("google", { failureRedirect: "/auth/fail" }),
-//   (req, res) => res.json(req.user)
-// );
-
 router.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: "/auth/fail", session: false }),
+  async (req, res, next) => {
+    passport.authenticate("google", { session: false }, (err, user, info) => {
+      if (err) {
+        const isDev = process.env.NODE_ENV !== "production";
+        const allowedOrigins = isDev
+          ? ["http://localhost:5173"]
+          : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+
+        const targetOrigin = allowedOrigins[0];
+        const errorMessage = encodeURIComponent(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+        
+        const failRedirectUrl = `${targetOrigin}/callback?error=${errorMessage}`;
+        return res.redirect(failRedirectUrl);
+      }
+      
+      if (!user) {
+        const noUserRedirectUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/callback?error=ไม่พบข้อมูลผู้ใช้`;
+        return res.redirect(noUserRedirectUrl);
+      }
+      
+      req.user = user;
+      return next();
+    })(req, res, next);
+  },
   async (req, res) => {
-    const user = req.user;
+    try {
+      const user = req.user;
 
-    // สร้าง JWT
-    const { accessToken, refreshToken } = await AuthService.generateTokens(user.id);
+      const { accessToken, refreshToken } = await AuthService.generateTokens(user.id);
 
-    // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
-    // const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    // console.log("Redirecting to:", `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`);
+      // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
+      const isDev = process.env.NODE_ENV !== "production";
+      const allowedOrigins = isDev
+        ? ["http://localhost:5173"]
+        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
 
-    // Redirect ไป frontend For 2 urls
-    // define allowed frontends: use always FRONTEND_URL in env
-    // add localhost for development purpose (NODE_ENV === 'development')
-   
-    const isDev = process.env.NODE_ENV !== "production";
-    const allowedOrigins = isDev
-      ? ["http://localhost:5173"]
-      : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+      if (!allowedOrigins.length) {
+        return res.status(500).send("No allowed frontend URL configured.");
+      }
 
-    if (!allowedOrigins.length) {
-      console.error("No allowed origins configured in .env");
-      return res.status(500).send("No allowed frontend URL configured.");
+      const requestOrigin = req.headers.origin?.replace(/\/+$/, "");
+
+      let targetOrigin;
+      if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+        targetOrigin = requestOrigin;
+      } else {
+        targetOrigin = allowedOrigins[0];
+      }
+
+      if (targetOrigin.includes("localhost")) {
+        targetOrigin = targetOrigin.replace(/^https:\/\//, "http://");
+      }
+
+      // set refresh token as HttpOnly cookie
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
+      const redirectUrl = `${targetOrigin}/callback?access=${encodeURIComponent(accessToken)}`;
+      res.redirect(redirectUrl);
+    } catch (err) {
+      console.error("Error in Google OAuth callback:", err);
+      
+      // เมื่อเกิด error ใน callback ให้ redirect ไป frontend พร้อม error info
+      const isDev = process.env.NODE_ENV !== "production";
+      const allowedOrigins = isDev
+        ? ["http://localhost:5173"]
+        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+
+      const targetOrigin = allowedOrigins[0];
+      const errorMessage = encodeURIComponent(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+      
+      const failRedirectUrl = `${targetOrigin}/callback?error=${errorMessage}`;
+      console.log("Error redirecting to:", failRedirectUrl);
+      
+      res.redirect(failRedirectUrl);
     }
-
-    const requestOrigin = req.headers.origin?.replace(/\/+$/, "");
-
-    let targetOrigin;
-    if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
-      targetOrigin = requestOrigin;
-    } else {
-      targetOrigin = allowedOrigins[0];
-    }
-
-    if (targetOrigin.includes("localhost")) {
-      targetOrigin = targetOrigin.replace(/^https:\/\//, "http://");
-    }
-
-    // set refresh token as HttpOnly cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    });
-
-    const redirectUrl = `${targetOrigin}/callback?access=${encodeURIComponent(accessToken)}`;
-    console.log("Redirecting to:", redirectUrl);
-
-    // res.redirect(
-    //   `${frontendUrl}/callback?access=${accessToken}&refresh=${refreshToken}`
-    // );
-    res.redirect(redirectUrl);
   }
 );
-
-
 
 router.get("/profile", authenticate, async (req, res) => {
   // req.user มีข้อมูล user ที่ login แล้ว
   res.json({ message: "This is protected", user: req.user });
 });
 
-router.get("/fail", (req, res) =>
-  res.status(401).json({ message: "Login failed" })
-);
+router.get("/fail", (req, res) => {
+  console.log("=== /auth/fail route called ===");
+  console.log("Query params:", req.query);
+  console.log("Headers:", req.headers);
+  res.status(401).json({ message: "Login failed" });
+});
 
 // Refresh access token
 router.post("/refresh", async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    const { accessToken, refreshToken: newRefreshToken } =
-      await AuthService.refreshToken(refreshToken); // ใช้ฟังก์ชันใน service
+    const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshToken(refreshToken);
     res.json({ accessToken, refreshToken: newRefreshToken });
   } catch (err) {
     res.status(401).json({ error: err.message });
   }
 });
 
-
 // Logout
 router.post("/logout", async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    console.log("debug req.body:",req.body);
-    console.log("debug refresh:",refreshToken);
     if (!refreshToken) return res.status(400).json({ error: "Missing token" });
   
     const tokens = await prisma.refreshToken.findMany({
       where: { revoked: false },
     });
-  
-    console.log("debug tokens:",tokens);
   
     for (const t of tokens) {
       if (await bcrypt.compare(refreshToken, t.tokenHash)) {

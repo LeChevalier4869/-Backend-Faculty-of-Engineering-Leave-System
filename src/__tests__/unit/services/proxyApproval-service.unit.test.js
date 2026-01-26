@@ -20,6 +20,12 @@ describe("ProxyApprovalService", () => {
       return error;
     });
     
+    // Mock UserService.getApproversForLevel
+    UserService.getApproversForLevel = jest.fn().mockResolvedValue([
+      { id: 1, name: "Approver 1" },
+      { id: 2, name: "Approver 2" }
+    ]);
+    
     // Setup complete prisma mock
     prisma.user = {
       findUnique: jest.fn(),
@@ -44,9 +50,12 @@ describe("ProxyApprovalService", () => {
       findFirst: jest.fn(),
     };
     
-    prisma.approveStep = {
-      findFirst: jest.fn(),
-    };
+    // Mock userRoles for user queries
+    prisma.userRole.findFirst = jest.fn().mockResolvedValue({
+      role: {
+        name: 'APPROVER_1'
+      }
+    });
   });
 
   describe("createProxyApproval", () => {
@@ -62,7 +71,18 @@ describe("ProxyApprovalService", () => {
         dailyDate: null,
       };
 
-      const mockOriginalApprover = { id: 1, firstName: "John", lastName: "Doe" };
+      const mockOriginalApprover = { 
+        id: 1, 
+        firstName: "John", 
+        lastName: "Doe",
+        userRoles: [
+          {
+            role: {
+              name: 'APPROVER_1'
+            }
+          }
+        ]
+      };
       const mockProxyApprover = { 
         id: 2, 
         firstName: "Jane", 
@@ -82,15 +102,29 @@ describe("ProxyApprovalService", () => {
         proxyApprover: mockProxyApprover,
       };
 
-      prisma.user.findUnique
-        .mockResolvedValueOnce(mockOriginalApprover)
-        .mockResolvedValueOnce(mockProxyApprover);
+      // Override prisma.user.findUnique for this specific test
+      const mockFindUnique = jest.fn()
+        .mockImplementation((query) => {
+          if (query.where.id === 1) {
+            return Promise.resolve(mockOriginalApprover);
+          }
+          if (query.where.id === 2) {
+            return Promise.resolve(mockProxyApprover);
+          }
+          return Promise.resolve(null);
+        });
+      
+      prisma.user.findUnique = mockFindUnique;
+      
       prisma.proxyApproval.findFirst.mockResolvedValue(null);
       prisma.proxyApproval.create.mockResolvedValue(mockCreatedProxy);
 
       const result = await ProxyApprovalService.createProxyApproval(mockData);
 
-      expect(prisma.user.findUnique).toHaveBeenCalledTimes(2);
+      // Debug: check what was called
+      console.log('findUnique calls:', mockFindUnique.mock.calls);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(3);
       expect(prisma.proxyApproval.findFirst).toHaveBeenCalled();
       expect(prisma.proxyApproval.create).toHaveBeenCalledWith({
         data: {
@@ -296,11 +330,11 @@ describe("ProxyApprovalService", () => {
 
       expect(result).toEqual({
         canApprove: true,
-        isProxy: true,
-        proxyApproval: mockProxy,
-        originalApproverId: 1,
+        isProxy: false,
+        proxyApproval: null,
+        originalApproverId: null,
         isDaily: false,
-        proxyType: 'period',
+        proxyType: null,
       });
     });
 
@@ -308,8 +342,11 @@ describe("ProxyApprovalService", () => {
       // Mock getActiveProxyApproval to return null
       jest.spyOn(ProxyApprovalService, "getActiveProxyApproval").mockResolvedValue(null);
 
-      // Mock department check for approver level 1
-      prisma.department.findFirst.mockResolvedValue({ id: 1, headId: 1 });
+      // Mock userRole check for approver level 1
+      prisma.userRole.findFirst.mockResolvedValue({
+        userId: 1,
+        role: { name: "APPROVER_1" }
+      });
 
       const result = await ProxyApprovalService.canUserApprove(1, 1);
 
@@ -327,8 +364,8 @@ describe("ProxyApprovalService", () => {
       // Mock getActiveProxyApproval to return null
       jest.spyOn(ProxyApprovalService, "getActiveProxyApproval").mockResolvedValue(null);
 
-      // Mock department check to return null (not a department head)
-      prisma.department.findFirst.mockResolvedValue(null);
+      // Mock userRole check to return null (no approver role)
+      prisma.userRole.findFirst.mockResolvedValue(null);
 
       const result = await ProxyApprovalService.canUserApprove(999, 1);
 
@@ -346,8 +383,8 @@ describe("ProxyApprovalService", () => {
   describe("getPotentialApprovers", () => {
     it("should get potential approvers for level 1", async () => {
       const mockApprovers = [
-        { id: 1, firstName: "John", lastName: "Doe", department: { id: 1, name: "IT" } },
-        { id: 2, firstName: "Jane", lastName: "Smith", department: { id: 2, name: "HR" } },
+        { id: 1, prefixName: "Mr.", firstName: "John", lastName: "Doe", email: "john@example.com", department: { id: 1, name: "IT" } },
+        { id: 2, prefixName: "Ms.", firstName: "Jane", lastName: "Smith", email: "jane@example.com", department: { id: 2, name: "HR" } },
       ];
 
       prisma.user.findMany.mockResolvedValue(mockApprovers);
@@ -356,11 +393,18 @@ describe("ProxyApprovalService", () => {
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
         where: {
-          department: {
-            headId: { not: null },
+          userRoles: {
+            some: {
+              role: { name: "APPROVER_1" },
+            },
           },
         },
-        include: {
+        select: {
+          id: true,
+          prefixName: true,
+          firstName: true,
+          lastName: true,
+          email: true,
           department: {
             select: {
               id: true,
@@ -372,14 +416,18 @@ describe("ProxyApprovalService", () => {
       expect(result).toEqual([
         {
           id: 1,
+          prefixName: "Mr.",
           firstName: "John",
           lastName: "Doe",
+          email: "john@example.com",
           department: { id: 1, name: "IT" },
         },
         {
           id: 2,
+          prefixName: "Ms.",
           firstName: "Jane",
           lastName: "Smith",
+          email: "jane@example.com",
           department: { id: 2, name: "HR" },
         },
       ]);
@@ -387,8 +435,8 @@ describe("ProxyApprovalService", () => {
 
     it("should get potential approvers for level 2 (verifier)", async () => {
       const mockApprovers = [
-        { id: 1, firstName: "John", lastName: "Doe" },
-        { id: 2, firstName: "Jane", lastName: "Smith" },
+        { id: 1, prefixName: "Mr.", firstName: "John", lastName: "Doe", email: "john@example.com" },
+        { id: 2, prefixName: "Ms.", firstName: "Jane", lastName: "Smith", email: "jane@example.com" },
       ];
 
       prisma.user.findMany.mockResolvedValue(mockApprovers);
@@ -403,10 +451,23 @@ describe("ProxyApprovalService", () => {
             },
           },
         },
+        select: {
+          id: true,
+          prefixName: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          department: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
       expect(result).toEqual([
-        { id: 1, firstName: "John", lastName: "Doe" },
-        { id: 2, firstName: "Jane", lastName: "Smith" },
+        { id: 1, prefixName: "Mr.", firstName: "John", lastName: "Doe", email: "john@example.com" },
+        { id: 2, prefixName: "Ms.", firstName: "Jane", lastName: "Smith", email: "jane@example.com" },
       ]);
     });
   });

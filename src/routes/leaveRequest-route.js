@@ -213,4 +213,26 @@ router.patch(
   // authorize(["APPROVER_4"]), // ไม่ใช้ authorize ตรงๆ ให้ controller จัดการ
   leaveRequestController.rejectByFourthApprover
 );
+
+// ────────────────────────────────
+// 🚫 ADMIN CANCEL LEAVE REQUEST
+// ────────────────────────────────
+
+// Admin cancel leave request by document number
+router.post(
+  "/admin/cancel",
+  authenticate,
+  authorize(["ADMIN"]),
+  upload.array("paperFiles", 3), // รับไฟล์ paper สูงสุด 3 ไฟล์
+  leaveRequestController.adminCancelLeaveRequest
+);
+
+// Search leave request by document number (for admin)
+router.get(
+  "/admin/search/:documentNumber",
+  authenticate,
+  authorize(["ADMIN"]),
+  leaveRequestController.findLeaveRequestByNumber
+);
+
 module.exports = router;

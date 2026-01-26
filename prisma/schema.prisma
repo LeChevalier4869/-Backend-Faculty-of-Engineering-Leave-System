@@ -9,42 +9,58 @@ datasource db {
 }
 
 model User {
-  id                  Int                  @id @default(autoincrement())
-  departmentId        Int
-  personnelTypeId     Int
-  prefixName          String?
-  firstName           String
-  lastName            String
-  sex                 String
-  email               String               @unique
-  phone               String?
-  position            String?
-  hireDate            DateTime
-  employmentType      String?
-  profilePicturePath  String?
-  accounts            Account[]
-  approveSteps        ApproveStep[]
-  auditLogs           AuditLog[]
-  Department          Department[]         @relation("DepartmentHead")
-  leaveBalances       LeaveBalance[]
-  LeaveRequest        LeaveRequest[]
-  leaveRequestDetails LeaveRequestDetail[]
-  notifications       Notification[]
-  refreshTokens       RefreshToken[]
-  signatures          Signature[]
-  department          Department           @relation(fields: [departmentId], references: [id])
-  personnelType       PersonnelType        @relation(fields: [personnelTypeId], references: [id])
-  leaveRequestsAsVerifier LeaveRequest[]     @relation("LeaveRequestVerifier")
-  userRanks           UserRank[]
-  userRoles           UserRole[]
-  
-  // Proxy approval relationships
-  originalApproverProxies ProxyApproval[] @relation("OriginalApproverProxy")
-  proxyApprovals        ProxyApproval[] @relation("ProxyApprover")
+  id                      Int                  @id @default(autoincrement())
+  departmentId            Int
+  personnelTypeId         Int
+  prefixName              String?
+  firstName               String
+  lastName                String
+  sex                     String
+  email                   String               @unique
+  phone                   String?
+  position                String?
+  hireDate                DateTime
+  employmentType          String?
+  profilePicturePath      String?
+  accounts                Account[]
+  approverPositions       ApproverPosition[]
+  auditLogs               AuditLog[]
+  Department              Department[]         @relation("DepartmentHead")
+  leaveBalances           LeaveBalance[]
+  LeaveRequest            LeaveRequest[]
+  leaveRequestsAsVerifier LeaveRequest[]       @relation("LeaveRequestVerifier")
+  leaveRequestDetails     LeaveRequestDetail[]
+  notifications           Notification[]
+  originalApproverProxies ProxyApproval[]      @relation("OriginalApproverProxy")
+  proxyApprovals          ProxyApproval[]      @relation("ProxyApprover")
+  refreshTokens           RefreshToken[]
+  signatures              Signature[]
+  department              Department           @relation(fields: [departmentId], references: [id])
+  personnelType           PersonnelType        @relation(fields: [personnelTypeId], references: [id])
+  userRanks               UserRank[]
+  userRoles               UserRole[]
 
   @@index([departmentId], map: "user_departmentId_fkey")
   @@index([personnelTypeId], map: "user_personnelTypeId_fkey")
   @@map("user")
+}
+
+model ApproverPosition {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  organizationId Int
+  level          Int
+  appointDate    DateTime?
+  endDate        DateTime?
+  isActive       Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId], map: "approver_position_organizationId_fkey")
+  @@index([userId], map: "approver_position_userId_fkey")
+  @@index([level])
+  @@index([isActive])
+  @@map("approver_position")
 }
 
 model PersonnelType {
@@ -72,26 +88,33 @@ model Department {
 }
 
 model Organization {
-  id           Int           @id @default(autoincrement())
-  name         String
-  approveSteps ApproveStep[]
-  departments  Department[]
+  id                Int                @id @default(autoincrement())
+  name              String
+  approverPositions ApproverPosition[]
+  departments       Department[]
 
   @@map("organization")
 }
 
 model AuditLog {
-  id             Int          @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   userId         Int
-  leaveRequestId Int
+  leaveRequestId Int?
   action         String
   details        String?
-  createdAt      DateTime     @default(now())
-  leaveRequest   LeaveRequest @relation(fields: [leaveRequestId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
+  createdAt      DateTime      @default(now())
+  entityId       Int?
+  entityType     String?
+  ipAddress      String?
+  userAgent      String?
+  leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
 
-  @@index([leaveRequestId], map: "audit_log_leaveRequestId_fkey")
-  @@index([userId], map: "audit_log_userId_fkey")
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([leaveRequestId])
   @@map("audit_log")
 }
 
@@ -134,21 +157,6 @@ model Signature {
 
   @@index([userId], map: "signature_userId_fkey")
   @@map("signature")
-}
-
-model ApproveStep {
-  id             Int          @id @default(autoincrement())
-  approveId      Int?
-  userId         Int
-  organizationId Int
-  level          Int
-  appointDate    DateTime?
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
-
-  @@index([organizationId], map: "approve_step_organizationId_fkey")
-  @@index([userId], map: "approve_step_userId_fkey")
-  @@map("approve_step")
 }
 
 model Rank {
@@ -202,13 +210,15 @@ model LeaveBalance {
 }
 
 model LeaveType {
-  id            Int            @id @default(autoincrement())
-  name          String
-  isAvailable   Boolean        @default(true)
-  template      String?
-  leaveBalances LeaveBalance[]
-  leaveRequests LeaveRequest[]
-  Rank          Rank[]
+  id                Int            @id @default(autoincrement())
+  name              String
+  isAvailable       Boolean        @default(true)
+  resetOnFiscalYear Boolean        @default(true)
+  isNonDeductible   Boolean        @default(false)
+  template          String?
+  leaveBalances     LeaveBalance[]
+  leaveRequests     LeaveRequest[]
+  Rank              Rank[]
 
   @@map("leave_type")
 }
@@ -230,25 +240,24 @@ model LeaveRequest {
   documentNumber      String?
   documentIssuedDate  DateTime?
   contact             String?
-  
-  verifierId          Int?                
-  verifier            User?                @relation("LeaveRequestVerifier", fields: [verifierId], references: [id])
-
+  verifierId          Int?
   auditLogs           AuditLog[]
   files               File[]
   leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
   user                User                 @relation(fields: [userId], references: [id])
+  verifier            User?                @relation("LeaveRequestVerifier", fields: [verifierId], references: [id])
   leaveRequestDetails LeaveRequestDetail[]
 
   @@index([leaveTypeId], map: "leave_request_leaveTypeId_fkey")
   @@index([userId], map: "leave_request_userId_fkey")
+  @@index([verifierId], map: "leave_request_verifierId_fkey")
   @@map("leave_request")
 }
-
 
 model File {
   id             Int           @id @default(autoincrement())
   leaveRequestId Int?
+  name           String
   type           FileType
   filePath       String
   uploadedAt     DateTime      @default(now())
@@ -259,18 +268,18 @@ model File {
 }
 
 model LeaveRequestDetail {
-  id             Int                @id @default(autoincrement())
-  approverId     Int
-  leaveRequestId Int
-  stepOrder      Int
-  status         LeaveRequestStatus @default(PENDING)
-  reviewedAt     DateTime?          @default(now())
-  remarks        String?
-  comment        String?
-  proxyApprovalId Int?              // อ้างอิงถึงการอนุมัติแทน (ถ้ามี)
-  approver       User               @relation(fields: [approverId], references: [id])
-  leaveRequest   LeaveRequest       @relation(fields: [leaveRequestId], references: [id])
-  proxyApproval  ProxyApproval?    @relation(fields: [proxyApprovalId], references: [id])
+  id              Int                @id @default(autoincrement())
+  approverId      Int
+  leaveRequestId  Int
+  stepOrder       Int
+  status          LeaveRequestStatus @default(PENDING)
+  reviewedAt      DateTime?          @default(now())
+  remarks         String?
+  comment         String?
+  proxyApprovalId Int?
+  approver        User               @relation(fields: [approverId], references: [id])
+  leaveRequest    LeaveRequest       @relation(fields: [leaveRequestId], references: [id])
+  proxyApproval   ProxyApproval?     @relation(fields: [proxyApprovalId], references: [id])
 
   @@index([approverId])
   @@index([leaveRequestId])
@@ -328,22 +337,21 @@ model RefreshToken {
 }
 
 model ProxyApproval {
-  id               Int       @id @default(autoincrement())
-  originalApproverId Int      // ผู้อนุมัติต้นฉบับ
-  proxyApproverId   Int      // ผู้อนุมัติแทน
-  approverLevel     Int      // ระดับผู้อนุมัติ (1-4)
-  startDate         DateTime // วันเริ่มต้นการมอบอำนาจ
-  endDate           DateTime // วันสิ้นสุดการมอบอำนาจ
-  reason            String?  // เหตุผลการมอบอำนาจ
-  status            ProxyApprovalStatus @default(ACTIVE)
-  isDaily           Boolean   @default(false) // การมอบอำนาจรายวัน (true = รายวัน, false = ช่วงเวลา)
-  dailyDate         DateTime? // วันที่เฉพาะสำหรับการมอบอำนาจรายวัน (null ถ้าไม่ใช่รายวัน)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  originalApprover  User @relation("OriginalApproverProxy", fields: [originalApproverId], references: [id])
-  proxyApprover     User @relation("ProxyApprover", fields: [proxyApproverId], references: [id])
+  id                  Int                  @id @default(autoincrement())
+  originalApproverId  Int
+  proxyApproverId     Int
+  approverLevel       Int
+  startDate           DateTime
+  endDate             DateTime
+  reason              String?
+  status              ProxyApprovalStatus  @default(ACTIVE)
+  isDaily             Boolean              @default(false)
+  dailyDate           DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   leaveRequestDetails LeaveRequestDetail[]
+  originalApprover    User                 @relation("OriginalApproverProxy", fields: [originalApproverId], references: [id])
+  proxyApprover       User                 @relation("ProxyApprover", fields: [proxyApproverId], references: [id])
 
   @@index([originalApproverId])
   @@index([proxyApproverId])
@@ -357,6 +365,7 @@ enum LeaveRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  CANCELLED
 }
 
 enum ProxyApprovalStatus {

@@ -8,6 +8,7 @@ const UserService = require("../services/user-service");
 const { sendEmail, sendNotification } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const prisma = require("../config/prisma");
+const fs = require("fs");
 
 /** create */
 exports.createLeaveRequest = async (req, res, next) => {
@@ -41,8 +42,11 @@ exports.createLeaveRequest = async (req, res, next) => {
     await AuditLogService.createLog(
       req.user.id,
       "Create Request",
+      "LeaveRequest",
       leaveRequest.id,
-      `คำขอถูกสร้าง: ${reason}${contact ? " ติดต่อ: " + contact : ""}`
+      `Created leave request: ${leaveRequest.id}`,
+      req.ip,
+      req.get("User-Agent")
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
@@ -68,10 +72,11 @@ exports.createLeaveRequest = async (req, res, next) => {
     if (Array.isArray(file) && file.length > 0) {
       const imagesPromiseArray = file.map((file) => cloudUpload(file.path));
       const imgUrlArray = await Promise.all(imagesPromiseArray);
-      const attachImages = imgUrlArray.map((imgUrl) => ({
+      const attachImages = imgUrlArray.map((imgUrl, index) => ({
         type: "EVIDENT",
         filePath: imgUrl,
         leaveRequestId: leaveRequest.id,
+        name: file[index]?.originalname || `evidence_${Date.now()}_${index}`,
       }));
       await LeaveRequestService.attachImages(attachImages);
     }
@@ -133,9 +138,11 @@ exports.updateLeaveStatus = async (req, res, next) => {
     await AuditLogService.createLog(
       req.user.id,
       "Update Status",
+      "LeaveRequest",
       requestId,
-      `สถานะเปลี่ยนเป็น: ${status}${remarks ? " เหตุผล: " + remarks : ""}`,
-      status === "REJECTED" ? "REJECTION" : "APPROVAL"
+      `Cancelled leave request: ${requestId}`,
+      req.ip,
+      req.get("User-Agent")
     );
     res
       .status(200)
@@ -581,6 +588,15 @@ exports.approveByVerifier = async (req, res, next) => {
   const { remarks, comment } = req.body;
   const approverId = req.user.id;
 
+  console.log('🔥 APPROVE BY VERIFIER - REQUEST START:', {
+    id,
+    approverId,
+    remarks,
+    comment,
+    userAgent: req.get('User-Agent'),
+    ip: req.ip
+  });
+
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
@@ -599,9 +615,16 @@ exports.approveByVerifier = async (req, res, next) => {
       return res.status(403).json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
     }
 
+    console.log('🔍 Controller - Calling service with:', {
+      id,
+      approverId: req.user.id,
+      remarks,
+      comment
+    });
+
     const result = await LeaveRequestService.approveByVerifier({
       id,
-      approverId,
+      approverId: req.user.id,
       remarks,
       comment,
     });
@@ -784,6 +807,82 @@ exports.rejectByFourthApprover = async (req, res, next) => {
     });
 
     return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ────────────────────────────────
+// 🚫 ADMIN CANCEL LEAVE REQUEST
+// ────────────────────────────────
+
+exports.adminCancelLeaveRequest = async (req, res, next) => {
+  try {
+    const { leaveRequestNumber } = req.body;
+    const adminId = req.user.id;
+
+    if (!leaveRequestNumber) {
+      throw createError(400, "กรุณาระบุเลขที่ใบลา");
+    }
+
+    // จัดการไฟล์ paper (ถ้ามี)
+    let paperFileData = [];
+    if (req.files && req.files.length > 0) {
+      // อัปโหลดไฟล์ไปยัง cloud storage
+      const uploadPromises = req.files.map(async (file) => {
+        const result = await cloudUpload(file.path);
+        // ลบไฟล์ชั่วคราวหลังอัปโหลดเสร็จ
+        fs.unlink(file.path, (err) => {
+          if (err) console.error("Error deleting temp file:", err);
+        });
+        return {
+          filePath: result,
+          name: file.originalname || `paper_${Date.now()}`,
+        };
+      });
+
+      paperFileData = await Promise.all(uploadPromises);
+    }
+
+    // เรียกใช้ service ในการยกเลิกคำขอลา
+    const result = await LeaveRequestService.adminCancelLeaveRequest(
+      adminId,
+      leaveRequestNumber,
+      paperFileData
+    );
+
+    // บันทึก audit log สำหรับการทำงานของ admin
+    await AuditLogService.createLog(
+      adminId,
+      "ADMIN_CANCEL_LEAVE_REQUEST",
+      "LeaveRequest",
+      result.leaveRequest.id,
+      `Admin ยกเลิกคำขอลาเลขที่ ${leaveRequestNumber}`,
+      req.ip,
+      req.get("User-Agent")
+    );
+
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.findLeaveRequestByNumber = async (req, res, next) => {
+  try {
+    const { documentNumber } = req.params;
+
+    if (!documentNumber) {
+      throw createError(400, "กรุณาระบุเลขที่ใบลา");
+    }
+
+    const leaveRequest = await LeaveRequestService.findLeaveRequestByNumber(documentNumber);
+
+    if (!leaveRequest) {
+      throw createError(404, "ไม่พบคำขอลาที่อนุมัติแล้ว หรือเลขที่ใบลาไม่ถูกต้อง");
+    }
+
+    res.status(200).json(leaveRequest);
   } catch (error) {
     next(error);
   }

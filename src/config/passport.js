@@ -29,9 +29,6 @@ passport.deserializeUser(async (id, done) => {
      ? `${process.env.BACKEND_URL}/auth/google/callback`
      : 'http://localhost:8000/auth/google/callback';
    
-  //  console.log("NODE_ENV:", process.env.NODE_ENV);
-  //  console.log("BACKEND_URL:", process.env.BACKEND_URL);
-  //  console.log("Google OAuth Callback URL:", callbackURL);
    
    passport.use(
      new GoogleStrategy(
@@ -42,25 +39,18 @@ passport.deserializeUser(async (id, done) => {
          passReqToCallback: true,
        },
        async (req, accessToken, refreshToken, profile, done) => {
-         try {
-           console.log("Frontend origin:", req?.headers?.origin);
-           
-           // ดึง profile จาก Google
-           const googleId = profile.id;
-           const email = profile.emails[0].value;
-           // const firstName = profile.name.givenName;
-           // const lastName = profile.name.familyName;
+        try {
+          const googleId = profile.id;
+          const email = profile.emails[0].value;
+          
+          const { user, accessToken: jwtAccess, refreshToken: jwtRefresh } =
+            await AuthService.loginWithOAuth("google", googleId, email);
 
-           console.log("email form passport :", email);
-           const { user, accessToken: jwtAccess, refreshToken: jwtRefresh } =
-             await AuthService.loginWithOAuth("google", googleId, email);
-
-           // return ทั้ง user + token กลับไป
-           return done(null, { ...user, jwtAccess, jwtRefresh });
-         } catch (err) {
-           done(err, null);
-         }
-       }
+          return done(null, { ...user, jwtAccess, jwtRefresh });
+        } catch (err) {
+          return done(err, null, { error: err.message });
+        }
+      }
      )
    );
  }

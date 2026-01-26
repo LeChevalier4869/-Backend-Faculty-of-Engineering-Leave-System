@@ -44,6 +44,8 @@ describe("Proxy Approval Controller", () => {
       const req = {
         body: mockProxyApproval,
         user: { id: 1 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = makeNext();
@@ -66,6 +68,8 @@ describe("Proxy Approval Controller", () => {
       const req = {
         body: {},
         user: { id: 1 },
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = makeNext();
@@ -241,13 +245,13 @@ describe("Proxy Approval Controller", () => {
 
       ProxyApprovalService.getPotentialApprovers.mockResolvedValue(mockApprovers);
 
-      const req = { query: { approverLevel: "1" } };
+      const req = { query: { approverLevel: "1" }, user: { id: 1 } };
       const res = makeRes();
       const next = makeNext();
 
       await proxyApprovalController.getPotentialApprovers(req, res, next);
 
-      expect(ProxyApprovalService.getPotentialApprovers).toHaveBeenCalledWith(1);
+      expect(ProxyApprovalService.getPotentialApprovers).toHaveBeenCalledWith(1, 1);
       expect(res.json).toHaveBeenCalledWith({
         message: "ดึงข้อมูลผู้อนุมัติที่เป็นไปได้สำเร็จ",
         data: mockApprovers,
@@ -262,7 +266,7 @@ describe("Proxy Approval Controller", () => {
       ProxyApprovalService.updateProxyApproval.mockResolvedValue(mockUpdatedApproval);
       AuditLogService.createLog.mockResolvedValue({});
 
-      const req = { params: { id: "1" }, body: { reason: "Updated reason" }, user: { id: 1 } };
+      const req = { params: { id: "1" }, body: { reason: "Updated reason" }, user: { id: 1 }, get: jest.fn(), ip: "127.0.0.1" };
       const res = makeRes();
       const next = makeNext();
 

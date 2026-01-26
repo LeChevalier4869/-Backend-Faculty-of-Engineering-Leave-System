@@ -3,7 +3,7 @@ const createError = require("../utils/createError");
 
 class LeaveTypeService {
   // สร้างประเภทการลา
-  static async createLeaveType({ name, isAvailable = true }) {
+  static async createLeaveType({ name, isAvailable = true, resetOnFiscalYear = true }) {
     console.log("Creating LeaveType with name:", name);
     if (!name) {
       throw createError(400, "ต้องระบุชื่อประเภทการลา");
@@ -20,7 +20,7 @@ class LeaveTypeService {
 
     return await prisma.leaveType.create({
       // เปลี่ยน leaveType เป็น LeaveType
-      data: { name, isAvailable },
+      data: { name, isAvailable, resetOnFiscalYear },
     });
   }
 
