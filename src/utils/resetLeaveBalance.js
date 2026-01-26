@@ -107,9 +107,10 @@ async function resetLeaveBalance() {
       if (!personnelTypeId || !hireDate) continue;
       
       const currentDate = new Date();
+      const hireDateObj = new Date(hireDate); // แปลงเป็น Date object
       const hireMonths =
-        (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
-        (currentDate.getMonth() - hireDate.getMonth());
+        (currentDate.getFullYear() - hireDateObj.getFullYear()) * 12 +
+        (currentDate.getMonth() - hireDateObj.getMonth());
 
       // กรอง ranks ตาม personnelTypeId
       const filteredRanks = allRanks.filter(rank => 
