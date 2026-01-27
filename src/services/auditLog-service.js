@@ -1,18 +1,19 @@
 const prisma = require("../config/prisma");
 
 class AuditLogService {
-<<<<<<< HEAD
   // สร้าง Log เพื่อเก็บการกระทำของผู้ใช้งาน (Generic version)
-  static async createLog(userId, action, entityType, entityId = null, details = null, ipAddress = null, userAgent = null) {
+  static async createLog(userId, action, entityType, entityId = null, details = null, ipAddress = null, userAgent = null, entityData = null) {
     console.log("=== AUDIT LOG ===");
     console.log(`User: ${userId}, Action: ${action}, Entity: ${entityType}, ID: ${entityId}`);
     if (details) console.log(`Details: ${details}`);
 
-=======
-  //สร้าง Log เพื่อเก็บการกระทำของผู้ใช้งาน
-  static async createLog(userId, action, leaveRequestId = null, details = null) {
->>>>>>> 4f8175b6186a6d5d02012d948d2d2dae2d36aee4
     try {
+      // ถ้าไม่มี entityData → ดึงข้อมูล entity ปัจจุบันเสมอ
+      let snapshotData = entityData;
+      if (!snapshotData && entityId) {
+        snapshotData = await this.getEntitySnapshot(entityType, entityId);
+      }
+
       return await prisma.auditLog.create({
         data: {
           userId,
@@ -22,6 +23,7 @@ class AuditLogService {
           details,
           ipAddress,
           userAgent,
+          entityData: snapshotData ? JSON.stringify(snapshotData) : null,
           // For backward compatibility - if it's a LeaveRequest, also set leaveRequestId
           leaveRequestId: entityType === 'LeaveRequest' && entityId ? parseInt(entityId) : null,
         },
@@ -34,8 +36,139 @@ class AuditLogService {
     }
   }
 
-<<<<<<< HEAD
-  // สร้าง Log สำหรับ Leave Request (Backward compatibility)
+  // ดึงข้อมูล entity สำหรับ snapshot ก่อนลบ
+  static async getEntitySnapshot(entityType, entityId) {
+    try {
+      let entity = null;
+
+      switch (entityType) {
+        case 'User':
+          entity = await prisma.user.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              prefixName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              position: true,
+              employmentType: true,
+              hireDate: true,
+              department: { select: { id: true, name: true } },
+              personnelType: { select: { id: true, name: true } }
+            }
+          });
+          break;
+
+        case 'Department':
+          entity = await prisma.department.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              name: true,
+              appointDate: true,
+              organization: { select: { id: true, name: true } },
+              head: { select: { id: true, prefixName: true, firstName: true, lastName: true } }
+            }
+          });
+          break;
+
+        case 'Holiday':
+          entity = await prisma.holiday.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              date: true,
+              description: true,
+              fiscalYear: true,
+              isRecurring: true,
+              holidayType: true
+            }
+          });
+          break;
+
+        case 'LeaveType':
+          entity = await prisma.leaveType.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              name: true,
+              isAvailable: true,
+              resetOnFiscalYear: true,
+              template: true
+            }
+          });
+          break;
+
+        case 'LeaveRequest':
+          entity = await prisma.leaveRequest.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              documentNumber: true,
+              startDate: true,
+              endDate: true,
+              totalDays: true,
+              status: true,
+              leaveType: { select: { id: true, name: true } },
+              user: { select: { id: true, prefixName: true, firstName: true, lastName: true } }
+            }
+          });
+          break;
+
+        default:
+          console.log(`Unsupported entity type for snapshot: ${entityType}`);
+          break;
+      }
+
+      return entity;
+    } catch (error) {
+      console.error('Error getting entity snapshot:', error);
+      return null;
+    }
+  }
+
+  // ดึงข้อมูล entity จาก Audit Log (สำหรับ entity ที่ถูกลบไปแล้ว)
+  static async getEntityFromAuditLog(entityType, entityId) {
+    try {
+      const auditLog = await prisma.auditLog.findFirst({
+        where: {
+          entityType,
+          entityId: parseInt(entityId),
+          entityData: { not: null }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (auditLog && auditLog.entityData) {
+        return JSON.parse(auditLog.entityData);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error getting entity from audit log:', error);
+      return null;
+    }
+  }
+
+  // ดึงข้อมูล entity (จากตารางจริง หรือ Audit Log ถ้าถูกลบ)
+  static async getEntityData(entityType, entityId) {
+    try {
+      // ลองดูจากตารางจริงก่อน
+      let entity = await this.getEntitySnapshot(entityType, entityId);
+
+      // ถ้าไม่เจอ ลองดูจาก Audit Log
+      if (!entity) {
+        entity = await this.getEntityFromAuditLog(entityType, entityId);
+      }
+
+      return entity;
+    } catch (error) {
+      console.error('Error getting entity data:', error);
+      return null;
+    }
+  }
   static async createLeaveRequestLog(userId, action, leaveRequestId, details) {
     return await this.createLog(userId, action, 'LeaveRequest', leaveRequestId, details);
   }
@@ -49,12 +182,6 @@ class AuditLogService {
           { entityType: 'LeaveRequest', entityId: parseInt(leaveRequestId) }
         ]
       },
-=======
-  //ดึง Log ทั้งหมดของคำขอลานี้
-  static async getLogsByLeaveRequestId(leaveRequestId) {
-    return await prisma.auditLog.findMany({ 
-      where: { leaveRequestId },
->>>>>>> 4f8175b6186a6d5d02012d948d2d2dae2d36aee4
       orderBy: { createdAt: "asc" },
       include: {
         user: {
@@ -70,10 +197,19 @@ class AuditLogService {
     });
   }
 
-<<<<<<< HEAD
   // ดึง Log ทั้งหมดตามเงื่อนไขต่างๆ
   static async getLogs(filters = {}) {
-    const { userId, entityType, entityId, action, startDate, endDate, limit = 100, offset = 0 } = filters;
+    const {
+      userId,
+      entityType,
+      entityId,
+      action,
+      startDate,
+      endDate,
+      ipAddress,
+      limit = 100,
+      offset = 0
+    } = filters;
 
     const where = {};
 
@@ -81,6 +217,7 @@ class AuditLogService {
     if (entityType) where.entityType = entityType;
     if (entityId) where.entityId = parseInt(entityId);
     if (action) where.action = action;
+    if (ipAddress) where.ipAddress = ipAddress;
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -131,7 +268,15 @@ class AuditLogService {
 
   // นับจำนวน Log ตาม filters
   static async countLogs(filters = {}) {
-    const { userId, entityType, entityId, action, startDate, endDate } = filters;
+    const {
+      userId,
+      entityType,
+      entityId,
+      action,
+      startDate,
+      endDate,
+      ipAddress
+    } = filters;
 
     const where = {};
 
@@ -139,6 +284,7 @@ class AuditLogService {
     if (entityType) where.entityType = entityType;
     if (entityId) where.entityId = parseInt(entityId);
     if (action) where.action = action;
+    if (ipAddress) where.ipAddress = ipAddress;
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -147,73 +293,37 @@ class AuditLogService {
     }
 
     return await prisma.auditLog.count({ where });
-=======
-  //ดึง Log ทั้งหมด (สำหรับ Admin)
+  }
+
+  // ดึงข้อมูล Audit Log ทั้งหมด (สำหรับ Admin) - มี pagination
   static async getAllLogs(options = {}) {
-    const { page = 1, limit = 50, userId, action, startDate, endDate } = options;
-    
-    const skip = (page - 1) * limit;
-    const where = {};
+    const {
+      page = 1,
+      limit = 50,
+      userId,
+      action,
+      startDate,
+      endDate,
+      entityType,
+      entityId,
+      ipAddress
+    } = options;
 
-    if (userId) {
-      where.userId = parseInt(userId);
-    }
-
-    if (action) {
-      where.action = {
-        contains: action,
-        mode: 'insensitive'
-      };
-    }
-
-    if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) {
-        where.createdAt.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.createdAt.lte = new Date(endDate);
-      }
-    }
+    const filters = {
+      userId,
+      action,
+      startDate,
+      endDate,
+      entityType,
+      entityId,
+      ipAddress,
+      limit,
+      offset: (page - 1) * limit
+    };
 
     const [logs, total] = await Promise.all([
-      prisma.auditLog.findMany({
-        where,
-        skip,
-        take: parseInt(limit),
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: {
-            select: {
-              id: true,
-              prefixName: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              department: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-          leaveRequest: {
-            select: {
-              id: true,
-              startDate: true,
-              endDate: true,
-              status: true,
-              leaveType: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      }),
-      prisma.auditLog.count({ where }),
+      this.getLogs(filters),
+      this.countLogs({ userId, action, startDate, endDate, entityType, entityId, ipAddress })
     ]);
 
     return {
@@ -222,67 +332,39 @@ class AuditLogService {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        totalPages: Math.ceil(total / limit),
-      },
+        pages: Math.ceil(total / limit)
+      }
     };
   }
 
-  //ดึง Log ตาม userId
+  // ดึงข้อมูล Audit Log ตาม userId - มี pagination
   static async getLogsByUserId(userId, options = {}) {
-    const { page = 1, limit = 50, action, startDate, endDate } = options;
-    
-    const skip = (page - 1) * limit;
-    const where = { userId: parseInt(userId) };
+    const {
+      page = 1,
+      limit = 50,
+      action,
+      startDate,
+      endDate,
+      entityType,
+      entityId,
+      ipAddress
+    } = options;
 
-    if (action) {
-      where.action = {
-        contains: action,
-        mode: 'insensitive'
-      };
-    }
-
-    if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) {
-        where.createdAt.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.createdAt.lte = new Date(endDate);
-      }
-    }
+    const filters = {
+      userId,
+      action,
+      startDate,
+      endDate,
+      entityType,
+      entityId,
+      ipAddress,
+      limit,
+      offset: (page - 1) * limit
+    };
 
     const [logs, total] = await Promise.all([
-      prisma.auditLog.findMany({
-        where,
-        skip,
-        take: parseInt(limit),
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: {
-            select: {
-              id: true,
-              prefixName: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          leaveRequest: {
-            select: {
-              id: true,
-              startDate: true,
-              endDate: true,
-              status: true,
-              leaveType: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      }),
-      prisma.auditLog.count({ where }),
+      this.getLogs(filters),
+      this.countLogs({ userId, action, startDate, endDate, entityType, entityId, ipAddress })
     ]);
 
     return {
@@ -291,63 +373,43 @@ class AuditLogService {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        totalPages: Math.ceil(total / limit),
-      },
+        pages: Math.ceil(total / limit)
+      }
     };
   }
 
-  //ดึงข้อมูลสถิติการกระทำ (สำหรับ Dashboard)
-  static async getActionStats(startDate = null, endDate = null) {
+  // ดึงข้อมูลสถิติการกระทำ (สำหรับ Dashboard)
+  static async getActionStats(startDate, endDate) {
     const where = {};
-    
+
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) {
-        where.createdAt.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.createdAt.lte = new Date(endDate);
-      }
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
     const stats = await prisma.auditLog.groupBy({
       by: ['action'],
       where,
       _count: {
-        action: true,
+        id: true
       },
       orderBy: {
         _count: {
-          action: 'desc',
-        },
-      },
+          id: 'desc'
+        }
+      }
     });
 
     return stats.map(stat => ({
       action: stat.action,
-      count: stat._count.action,
+      count: stat._count.id
     }));
   }
 
-  //บันทึกการกระทำเฉพาะ (Login, Logout, Create, Update, Delete)
+  // สร้าง Log สำหรับการกระทำของผู้ใช้ (สำหรับระบบอัตโนมัติ)
   static async logUserAction(userId, action, details = null) {
-    const actionDetails = {
-      LOGIN: 'เข้าสู่ระบบ',
-      LOGOUT: 'ออกจากระบบ',
-      CREATE_USER: 'สร้างผู้ใช้งาน',
-      UPDATE_USER: 'อัปเดตข้อมูลผู้ใช้งาน',
-      DELETE_USER: 'ลบผู้ใช้งาน',
-      CREATE_REQUEST: 'สร้างคำขอลา',
-      UPDATE_STATUS: 'อัปเดตสถานะคำขอลา',
-      CANCEL_REQUEST: 'ยกเลิกคำขอลา',
-      CREATE_PROXY: 'สร้างการมอบอำนาจ',
-      UPDATE_PROXY: 'อัปเดตการมอบอำนาจ',
-      CANCEL_PROXY: 'ยกเลิกการมอบอำนาจ',
-    };
-
-    const actionText = actionDetails[action] || action;
-    return await this.createLog(userId, actionText, null, details);
->>>>>>> 4f8175b6186a6d5d02012d948d2d2dae2d36aee4
+    return await this.createLog(userId, action, 'UserAction', null, details);
   }
 }
 

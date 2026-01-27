@@ -1,4 +1,5 @@
 const LeaveTypeService = require("../services/leaveType-service");
+const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
 const cloudUpload = require("../utils/cloudUpload");
 
@@ -9,6 +10,18 @@ exports.createLeaveType = async (req, res, next) => {
 
     console.log("🔍 สร้างประเภทการลา:", { name, isAvailable, resetOnFiscalYear });
     const leaveType = await LeaveTypeService.createLeaveType({ name, isAvailable, resetOnFiscalYear });
+
+    // บันทึก Audit Log การสร้างประเภทการลา
+    await AuditLogService.createLog(
+      req.user.id,
+      "CREATE",
+      "LeaveType",
+      leaveType.id,
+      `สร้างประเภทการลา: ${name} (Available: ${isAvailable}, Reset: ${resetOnFiscalYear})`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res
       .status(201)
       .json({ message: "สร้างประเภทการลาเรียบร้อยแล้ว", data: leaveType });
@@ -44,6 +57,17 @@ exports.updateLeaveType = async (req, res, next) => {
       numID,
       updates,
       dataToUpdate
+    );
+
+    // บันทึก Audit Log การอัปเดตประเภทการลา
+    await AuditLogService.createLog(
+      req.user.id,
+      "UPDATE",
+      "LeaveType",
+      numID,
+      `อัปเดตประเภทการลา: ${JSON.stringify(updates)} ${file ? '(อัปโหลดไฟล์ PDF)' : ''}`,
+      req.ip,
+      req.get('User-Agent')
     );
 
     res.status(200).json({
@@ -85,6 +109,17 @@ exports.deleteLeaveType = async (req, res, next) => {
 
     const deleted = await LeaveTypeService.deleteLeaveType(numID);
     if (!deleted) throw createError(404, "ไม่พบประเภทการลาที่ต้องการลบ");
+
+    // บันทึก Audit Log การลบประเภทการลา
+    await AuditLogService.createLog(
+      req.user.id,
+      "DELETE",
+      "LeaveType",
+      numID,
+      `ลบประเภทการลา (ID: ${numID})`,
+      req.ip,
+      req.get('User-Agent')
+    );
 
     res.status(200).json({ message: "ลบประเภทการลาเรียบร้อยแล้ว" });
   } catch (err) {

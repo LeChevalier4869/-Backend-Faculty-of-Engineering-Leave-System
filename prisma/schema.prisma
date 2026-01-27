@@ -107,6 +107,7 @@ model AuditLog {
   entityType     String?
   ipAddress      String?
   userAgent      String?
+  entityData      String?        // เก็บข้อมูล entity ก่อนลบ (JSON)
   leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
   user           User          @relation(fields: [userId], references: [id])
 
@@ -257,7 +258,7 @@ model LeaveRequest {
 model File {
   id             Int           @id @default(autoincrement())
   leaveRequestId Int?
-  name           String
+  name           String?       // ทำให้เป็น optional ชั่วคราวเพื่อให้ push ได้
   type           FileType
   filePath       String
   uploadedAt     DateTime      @default(now())

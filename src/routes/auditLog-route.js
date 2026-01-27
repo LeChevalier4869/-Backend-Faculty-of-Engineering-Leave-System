@@ -58,4 +58,12 @@ router.post(
   auditLogController.logUserAction
 );
 
+// ดึงข้อมูล entity จาก Audit Log
+router.get(
+  "/entity/:entityType/:entityId",
+  authenticate,
+  authorize(["ADMIN"]),
+  auditLogController.getEntityData
+);
+
 module.exports = router;
