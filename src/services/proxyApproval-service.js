@@ -139,8 +139,12 @@ class ProxyApprovalService {
       throw createError(400, "ระดับผู้อนุมัติไม่ถูกต้อง");
     }
 
+<<<<<<< HEAD
     // แก้ไข: ตรวจสอบว่า original approver มี role ที่ตรงกับ approverLevel หรือไม่
     // ไม่จำเป็นต้องตรวจสอบ role ของ proxy approver
+=======
+    // ตรวจสอบ original approver ว่ามี role ที่ต้องการจะมอบอำนาจหรือไม่
+>>>>>>> 4f8175b6186a6d5d02012d948d2d2dae2d36aee4
     const originalApproverWithRoles = await prisma.user.findUnique({
       where: { id: originalApproverId },
       include: {
@@ -152,6 +156,7 @@ class ProxyApprovalService {
       }
     });
 
+<<<<<<< HEAD
     if (!originalApproverWithRoles) {
       throw createError(404, "ไม่พบข้อมูลผู้อนุมัติต้นทาง");
     }
@@ -162,6 +167,23 @@ class ProxyApprovalService {
 
     if (!hasOriginalRequiredRole) {
       throw createError(400, `ผู้อนุมัติต้นทางต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถมอบอำนาได้`);
+=======
+    const originalHasRequiredRole = originalApproverWithRoles.userRoles.some(userRole => 
+      userRole.role.name === requiredRole
+    );
+
+    if (!originalHasRequiredRole) {
+      throw createError(400, `ผู้อนุมัติต้นฉบับต้องมีสิทธิ์ระดับ ${requiredRole} จึงจะสามารถมอบอำนาจได้`);
+    }
+
+    // ตรวจสอบว่า proxy approver ไม่มี role ที่จะเป็นผู้อนุมัติแทน (ป้องกันการมอบอำนาจให้คนที่มี role เดียวกัน)
+    const proxyHasSameRole = proxyApprover.userRoles.some(userRole => 
+      userRole.role.name === requiredRole
+    );
+
+    if (proxyHasSameRole) {
+      throw createError(400, `ผู้อนุมัติแทนมีสิทธิ์ระดับ ${requiredRole} อยู่แล้ว ไม่สามารถมอบอำนาจซ้ำได้`);
+>>>>>>> 4f8175b6186a6d5d02012d948d2d2dae2d36aee4
     }
 
     // ตรวจสอบว่ามีการมอบอำนาจที่ทับซ้อนกันหรือไม่
@@ -374,10 +396,19 @@ class ProxyApprovalService {
                 // การมอบอำนาจช่วงเวลาที่ครอบคลุมวันนี้
                 {
                   isDaily: false,
+<<<<<<< HEAD
                   AND: [
                     { startDate: { gte: today } },
                     { endDate: { gte: today } }
                   ]
+=======
+                  startDate: {
+                    gte: today
+                  },
+                  endDate: {
+                    gte: today
+                  }
+>>>>>>> 4f8175b6186a6d5d02012d948d2d2dae2d36aee4
                 }
               ]
             }
@@ -686,6 +717,7 @@ class ProxyApprovalService {
         isDaily: false,
         status: "ACTIVE",
         startDate: { gte: checkDate },
+<<<<<<< HEAD
         endDate: { gte: checkDate },
       },
       include: {
@@ -832,6 +864,8 @@ class ProxyApprovalService {
         isDaily: false,
         status: "ACTIVE",
         startDate: { lte: checkDate },
+=======
+>>>>>>> 4f8175b6186a6d5d02012d948d2d2dae2d36aee4
         endDate: { gte: checkDate },
       },
       include: {
