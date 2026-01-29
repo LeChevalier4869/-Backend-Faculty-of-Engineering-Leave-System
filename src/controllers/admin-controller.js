@@ -610,6 +610,18 @@ exports.createPersonnelType = async (req, res, next) => {
     const { name } = req.body;
     const personnelType = await OrgAndDeptService.createPersonnelType(name);
     if (!personnelType) throw createError(400, "สร้างประเภทบุคคลากรไม่สำเร็จ");
+
+    // บันทึก Audit Log การสร้างประเภทบุคคลากร
+    await AuditLogService.createLog(
+      req.user.id,
+      "CREATE",
+      "PersonnelType",
+      personnelType.id,
+      `สร้างประเภทบุคคลากร: ${name}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(201).json({
       message: "สร้างประเภทบุคคลากรเรียบร้อยแล้ว",
       data: personnelType,
@@ -625,11 +637,28 @@ exports.updatePersonnelType = async (req, res, next) => {
     const { name } = req.body;
     if (!id) throw createError(404, "ไม่พบข้อมูล id");
     if (!name) throw createError(400, "กรุณาระบุ name");
+
+    // ดึงข้อมูลเดิมก่อนอัปเดตเพื่อบันทึกใน audit log
+    const oldPersonnelType = await OrgAndDeptService.getPersonnelTypeById(parseInt(id));
+    const oldName = oldPersonnelType?.name;
+
     const personnelType = await OrgAndDeptService.updatePersonnelType(
       parseInt(id),
       name
     );
     if (!personnelType) throw createError(400, "อัปเดตประเภทบุคคลากรไม่สำเร็จ");
+
+    // บันทึก Audit Log การอัปเดตประเภทบุคคลากร
+    await AuditLogService.createLog(
+      req.user.id,
+      "UPDATE",
+      "PersonnelType",
+      parseInt(id),
+      `อัปเดตประเภทบุคคลากร: ${oldName} → ${name}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(200).json({
       message: "อัปเดตประเภทบุคคลากรเรียบร้อยแล้ว",
       data: personnelType,
@@ -643,7 +672,24 @@ exports.deletePersonnelType = async (req, res, next) => {
   try {
     const { id } = req.params;
     if (!id) throw createError(404, "ไม่พบข้อมูล id");
+
+    // ดึงข้อมูลก่อนลบเพื่อบันทึกใน audit log
+    const personnelTypeToDelete = await OrgAndDeptService.getPersonnelTypeById(parseInt(id));
+    const typeName = personnelTypeToDelete?.name;
+
     await OrgAndDeptService.deletePersonnelType(parseInt(id));
+
+    // บันทึก Audit Log การลบประเภทบุคคลากร
+    await AuditLogService.createLog(
+      req.user.id,
+      "DELETE",
+      "PersonnelType",
+      parseInt(id),
+      `ลบประเภทบุคคลากร: ${typeName}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(200).json({ message: "ลบประเภทบุคคลากรเรียบร้อยแล้ว" });
   } catch (err) {
     next(err);

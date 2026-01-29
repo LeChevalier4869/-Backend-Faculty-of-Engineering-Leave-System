@@ -117,6 +117,16 @@ class AuditLogService {
           });
           break;
 
+        case 'PersonnelType':
+          entity = await prisma.personnelType.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              name: true
+            }
+          });
+          break;
+
         default:
           console.log(`Unsupported entity type for snapshot: ${entityType}`);
           break;
@@ -163,10 +173,27 @@ class AuditLogService {
         entity = await this.getEntityFromAuditLog(entityType, entityId);
       }
 
+      // ถ้ายังไม่เจอ ให้ส่ง empty object
+      if (!entity) {
+        return {
+          entityType,
+          entityId: parseInt(entityId),
+          isDeleted: true,
+          message: 'Entity not found in database or audit log'
+        };
+      }
+
       return entity;
     } catch (error) {
       console.error('Error getting entity data:', error);
-      return null;
+      // ถ้าเกิด error ให้ส่ง empty object
+      return {
+        entityType,
+        entityId: parseInt(entityId),
+        isDeleted: true,
+        message: 'Error retrieving entity data',
+        error: error.message
+      };
     }
   }
   static async createLeaveRequestLog(userId, action, leaveRequestId, details) {
