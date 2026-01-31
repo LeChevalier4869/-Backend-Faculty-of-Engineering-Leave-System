@@ -117,6 +117,16 @@ exports.createRequestByAdmin = async (req, res, next) => {
       approvalDetailsParsed
     );
 
+    await AuditLogService.createLog(
+      adminId,
+      "CREATE",
+      "LeaveRequest",
+      leaveRequest.id,
+      `Admin สร้างคำขอลาแทนผู้ใช้ userId=${userId}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     // แนบไฟล์
     const file = req.files;
     if (Array.isArray(file) && file.length > 0) {
@@ -205,6 +215,9 @@ exports.updateHoliday = async (req, res, next) => {
       throw createError(400, "Invalid holiday ID");
     }
 
+    const oldHoliday = await prisma.holiday.findUnique({ where: { id } });
+    if (!oldHoliday) throw createError(404, "ไม่พบวันหยุดที่จะอัปเดต");
+
     const { date, description, isRecurring, holidayType } = req.body;
     const updateData = {};
 
@@ -224,16 +237,15 @@ exports.updateHoliday = async (req, res, next) => {
 
     const updatedHoliday = await AdminService.updateHolidayById(id, updateData);
 
-    // บันทึก Audit Log การอัปเดตวันหยุด
-    await AuditLogService.createLog(
+    // บันทึก Audit Log การอัปเดตวันหยุด (พร้อม diff)
+    await AuditLogService.createUpdateLog(
       req.user.id,
-      "UPDATE",
       "Holiday",
       id,
-      `อัปเดตวันหยุด: ${description || ''} (ID: ${id})`,
+      oldHoliday,
+      updatedHoliday,
       req.ip,
       req.get('User-Agent')
-      // ไม่ส่ง entityData - จะดึงอัตโนมัติ
     );
 
     res.status(200).json({
@@ -648,13 +660,13 @@ exports.updatePersonnelType = async (req, res, next) => {
     );
     if (!personnelType) throw createError(400, "อัปเดตประเภทบุคคลากรไม่สำเร็จ");
 
-    // บันทึก Audit Log การอัปเดตประเภทบุคคลากร
-    await AuditLogService.createLog(
+    // บันทึก Audit Log การอัปเดตประเภทบุคคลากร (พร้อม diff)
+    await AuditLogService.createUpdateLog(
       req.user.id,
-      "UPDATE",
       "PersonnelType",
       parseInt(id),
-      `อัปเดตประเภทบุคคลากร: ${oldName} → ${name}`,
+      oldPersonnelType,
+      personnelType,
       req.ip,
       req.get('User-Agent')
     );
@@ -763,6 +775,9 @@ exports.departmentUpdate = async (req, res, next) => {
     const id = +req.params.id;
     if (isNaN(id)) throw createError(400, "Invalid department ID");
 
+    const oldDept = await prisma.department.findUnique({ where: { id } });
+    if (!oldDept) throw createError(404, "ไม่พบแผนกที่จะอัปเดต");
+
     const { name, organizationId, headId, appointDate } = req.body;
     if (!name && !organizationId && headId == null && !appointDate) {
       throw createError(400, "ไม่มีข้อมูลจะอัปเดต");
@@ -777,13 +792,13 @@ exports.departmentUpdate = async (req, res, next) => {
     const updated = await AdminService.updateDepartment({ id, ...updateData });
     if (!updated) throw createError(404, "ไม่พบแผนกที่จะอัปเดต");
 
-    // บันทึก Audit Log การอัปเดตแผนก
-    await AuditLogService.createLog(
+    // บันทึก Audit Log การอัปเดตแผนก (พร้อม diff)
+    await AuditLogService.createUpdateLog(
       req.user.id,
-      "UPDATE",
       "Department",
       id,
-      `อัปเดตแผนก: ${name || ''} (ID: ${id})`,
+      oldDept,
+      updated,
       req.ip,
       req.get('User-Agent')
     );
@@ -993,6 +1008,9 @@ exports.updateUserById = async (req, res, next) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) throw createError(400, "ID ต้องเป็นตัวเลข");
 
+    const oldUser = await prisma.user.findUnique({ where: { id } });
+    if (!oldUser) throw createError(404, "ไม่พบผู้ใช้งาน");
+
     const {
       prefixName,
       firstName,
@@ -1023,11 +1041,14 @@ exports.updateUserById = async (req, res, next) => {
 
     const updatedUser = await AdminService.updateUserById(id, updateData);
 
-    // Log user update
-    await AuditLogService.logUserAction(
+    await AuditLogService.createUpdateLog(
       req.user.id,
-      'UPDATE_USER',
-      `อัปเดตผู้ใช้ ID: ${id}, ข้อมูล: ${JSON.stringify(updateData)}`
+      "User",
+      id,
+      oldUser,
+      updatedUser,
+      req.ip,
+      req.get('User-Agent')
     );
 
     res
@@ -1046,16 +1067,20 @@ exports.deleteUser = async (req, res, next) => {
     // Get user info before deletion for audit log
     const userToDelete = await prisma.user.findUnique({
       where: { id },
-      select: { firstName: true, lastName: true, email: true }
+      select: { id: true, firstName: true, lastName: true, email: true }
     });
 
     await AdminService.deleteUserById(id);
 
-    // Log user deletion
-    await AuditLogService.logUserAction(
+    await AuditLogService.createLog(
       req.user.id,
-      'DELETE_USER',
-      `ลบผู้ใช้: ${userToDelete?.firstName} ${userToDelete?.lastName} (${userToDelete?.email})`
+      "DELETE",
+      "User",
+      id,
+      `ลบผู้ใช้: ${userToDelete?.firstName} ${userToDelete?.lastName} (${userToDelete?.email})`,
+      req.ip,
+      req.get('User-Agent'),
+      userToDelete
     );
 
     res.status(200).json({ message: "ลบผู้ใช้เรียบร้อยแล้ว" });

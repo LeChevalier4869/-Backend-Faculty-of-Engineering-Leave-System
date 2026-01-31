@@ -347,18 +347,6 @@ class AdminService {
 
       await tx.leaveRequestDetail.createMany({ data: detailRows });
 
-      // audit log
-      if (adminId) {
-        await tx.auditLog.create({
-          data: {
-            userId: adminId,
-            leaveRequestId: created.id,
-            action: "AdminCreateLeave",
-            details: `Admin created leave for userId=${userId}`,
-          },
-        });
-      }
-
       return created;
     }); // จบ transaction
 

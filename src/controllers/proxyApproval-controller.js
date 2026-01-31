@@ -1,6 +1,7 @@
 const ProxyApprovalService = require("../services/proxyApproval-service");
 const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
+const prisma = require("../config/prisma");
 
 // ────────────────────────────────
 // 🟢 CREATE
@@ -335,6 +336,12 @@ exports.updateProxyApproval = async (req, res, next) => {
     const { id } = req.params;
     const updateData = req.body;
 
+    const proxyId = parseInt(id);
+    if (isNaN(proxyId)) throw createError(400, "Invalid proxy approval ID");
+
+    const oldProxy = await prisma.proxyApproval.findUnique({ where: { id: proxyId } });
+    if (!oldProxy) throw createError(404, "ไม่พบข้อมูลการมอบอำนาจ");
+
     console.log('🔍 Debug - Update Proxy Approval:');
     console.log('ID:', id);
     console.log('UpdateData:', updateData);
@@ -342,13 +349,13 @@ exports.updateProxyApproval = async (req, res, next) => {
 
     const updatedProxy = await ProxyApprovalService.updateProxyApproval(id, updateData);
 
-    // บันทึก log การทำงาน
-    await AuditLogService.createLog(
+    // บันทึก log การทำงาน (พร้อม diff)
+    await AuditLogService.createUpdateLog(
       req.user.id,
-      "Update Proxy Approval",
       "ProxyApproval",
-      parseInt(id),
-      `Updated proxy approval: ${id}`,
+      proxyId,
+      oldProxy,
+      updatedProxy,
       req.ip,
       req.get("User-Agent")
     );

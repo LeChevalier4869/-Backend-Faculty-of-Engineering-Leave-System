@@ -14,6 +14,10 @@ class AuditLogService {
         snapshotData = await this.getEntitySnapshot(entityType, entityId);
       }
 
+      if (snapshotData && entityId) {
+        snapshotData = this.normalizeEntityData(snapshotData, entityId);
+      }
+
       return await prisma.auditLog.create({
         data: {
           userId,
@@ -34,6 +38,29 @@ class AuditLogService {
       // แต่ log ไว้ให้ตรวจสอบ
       return null;
     }
+  }
+
+  static normalizeEntityData(data, entityId) {
+    if (!data || typeof data !== 'object') return data;
+
+    const idNum = entityId != null ? parseInt(entityId) : null;
+    const withId = (obj) => {
+      if (!obj || typeof obj !== 'object') return obj;
+      if (obj.id == null && idNum != null && !Number.isNaN(idNum)) {
+        return { ...obj, id: idNum };
+      }
+      return obj;
+    };
+
+    if ('oldData' in data || 'newData' in data) {
+      return {
+        ...data,
+        oldData: withId(data.oldData),
+        newData: withId(data.newData),
+      };
+    }
+
+    return withId(data);
   }
 
   // ดึงข้อมูล entity สำหรับ snapshot ก่อนลบ
@@ -127,6 +154,54 @@ class AuditLogService {
           });
           break;
 
+        case 'ProxyApproval':
+          entity = await prisma.proxyApproval.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              originalApproverId: true,
+              proxyApproverId: true,
+              approverLevel: true,
+              startDate: true,
+              endDate: true,
+              reason: true,
+              status: true,
+              isDaily: true,
+              dailyDate: true,
+              createdAt: true,
+              updatedAt: true,
+              originalApprover: {
+                select: {
+                  id: true,
+                  prefixName: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+              proxyApprover: {
+                select: {
+                  id: true,
+                  prefixName: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            }
+          });
+          break;
+
+        case 'Organization':
+          entity = await prisma.organization.findUnique({
+            where: { id: parseInt(entityId) },
+            select: {
+              id: true,
+              name: true,
+            }
+          });
+          break;
+
         default:
           console.log(`Unsupported entity type for snapshot: ${entityType}`);
           break;
@@ -196,11 +271,190 @@ class AuditLogService {
       };
     }
   }
-  static async createLeaveRequestLog(userId, action, leaveRequestId, details) {
+  static async createLeaveRequestLog(userId, action, leaveRequestId, details, ..._rest) {
     return await this.createLog(userId, action, 'LeaveRequest', leaveRequestId, details);
   }
 
-  // ดึง Log ทั้งหมดของคำขอลานี้ (Backward compatibility)
+  // สร้าง Log พร้อมการเปรียบเทียบข้อมูลสำหรับ UPDATE
+  static async createUpdateLog(userId, entityType, entityId, oldData, newData, ipAddress = null, userAgent = null) {
+    console.log("=== AUDIT LOG (UPDATE) ===");
+    console.log(`User: ${userId}, Entity: ${entityType}, ID: ${entityId}`);
+
+    try {
+      const normalizedOldData = this.normalizeEntityData(oldData, entityId);
+      const normalizedNewData = this.normalizeEntityData(newData, entityId);
+
+      // สร้าง diff ระหว่างข้อมูลเก่าและใหม่
+      const diff = this.calculateDiff(normalizedOldData, normalizedNewData);
+      
+      const details = `อัปเดต${this.getEntityTypeLabel(entityType)}: ${diff.summary}`;
+      
+      // เก็บข้อมูลเก่าและใหม่ไว้ใน entityData
+      const entityData = {
+        oldData: normalizedOldData,
+        newData: normalizedNewData,
+        diff: diff.changes,
+        timestamp: new Date().toISOString()
+      };
+
+      return await this.createLog(
+        userId, 
+        'UPDATE', 
+        entityType, 
+        entityId, 
+        details, 
+        ipAddress, 
+        userAgent, 
+        entityData
+      );
+    } catch (error) {
+      console.error('AuditLog Update Error:', error.message);
+      return null;
+    }
+  }
+
+  // สร้าง Log สำหรับการอนุมัติคำขอลา
+  static async createApproveLog(userId, entityType, entityId, oldData, newData, approverLevel, ipAddress = null, userAgent = null) {
+    console.log("=== AUDIT LOG (APPROVE) ===");
+    console.log(`User: ${userId}, Entity: ${entityType}, ID: ${entityId}, Level: ${approverLevel}`);
+
+    try {
+      const normalizedOldData = this.normalizeEntityData(oldData, entityId);
+      const normalizedNewData = this.normalizeEntityData(newData, entityId);
+      const diff = this.calculateDiff(normalizedOldData, normalizedNewData);
+      
+      const levelLabel = this.getApproverLevelLabel(approverLevel);
+      const details = `อนุมัติคำขอลา (${levelLabel})`;
+      
+      const entityData = {
+        oldData: normalizedOldData,
+        newData: normalizedNewData,
+        diff: diff.changes,
+        approverLevel,
+        timestamp: new Date().toISOString()
+      };
+
+      return await this.createLog(
+        userId, 
+        'APPROVE', 
+        entityType, 
+        entityId, 
+        details, 
+        ipAddress, 
+        userAgent, 
+        entityData
+      );
+    } catch (error) {
+      console.error('AuditLog Approve Error:', error.message);
+      return null;
+    }
+  }
+
+  // สร้าง Log สำหรับการปฏิเสธคำขอลา
+  static async createRejectLog(userId, entityType, entityId, oldData, newData, approverLevel, ipAddress = null, userAgent = null) {
+    console.log("=== AUDIT LOG (REJECT) ===");
+    console.log(`User: ${userId}, Entity: ${entityType}, ID: ${entityId}, Level: ${approverLevel}`);
+
+    try {
+      const normalizedOldData = this.normalizeEntityData(oldData, entityId);
+      const normalizedNewData = this.normalizeEntityData(newData, entityId);
+      const diff = this.calculateDiff(normalizedOldData, normalizedNewData);
+      
+      const levelLabel = this.getApproverLevelLabel(approverLevel);
+      const details = `ปฏิเสธคำขอลา (${levelLabel})`;
+      
+      const entityData = {
+        oldData: normalizedOldData,
+        newData: normalizedNewData,
+        diff: diff.changes,
+        approverLevel,
+        timestamp: new Date().toISOString()
+      };
+
+      return await this.createLog(
+        userId, 
+        'REJECT', 
+        entityType, 
+        entityId, 
+        details, 
+        ipAddress, 
+        userAgent, 
+        entityData
+      );
+    } catch (error) {
+      console.error('AuditLog Reject Error:', error.message);
+      return null;
+    }
+  }
+
+  // ดึงชื่อระดับผู้อนุมัติเป็นภาษาไทย
+  static getApproverLevelLabel(level) {
+    const labels = {
+      1: 'ผู้อนุมัติลำดับที่ 1',
+      2: 'ผู้ตรวจสอบ',
+      3: 'ผู้อนุมัติลำดับที่ 2',
+      4: 'ผู้อนุมัติลำดับที่ 3',
+      5: 'ผู้อนุมัติลำดับที่ 4'
+    };
+    return labels[level] || `ระดับ ${level}`;
+  }
+
+  // คำนวณความแตกต่างระหว่างข้อมูลเก่าและใหม่
+  static calculateDiff(oldData, newData) {
+    const changes = [];
+    let changeCount = 0;
+
+    // เปรียบเทียบทุก key
+    for (const key in newData) {
+      const oldValue = oldData[key];
+      const newValue = newData[key];
+
+      if (oldValue !== newValue) {
+        changes.push({
+          field: key,
+          oldValue,
+          newValue,
+          type: oldValue === undefined ? 'added' : 
+                newValue === undefined ? 'removed' : 'changed'
+        });
+        changeCount++;
+      }
+    }
+
+    // ตรวจสอบ key ที่ถูกลบ
+    for (const key in oldData) {
+      if (!(key in newData)) {
+        changes.push({
+          field: key,
+          oldValue: oldData[key],
+          newValue: undefined,
+          type: 'removed'
+        });
+        changeCount++;
+      }
+    }
+
+    return {
+      changes,
+      summary: `${changeCount} ฟิลด์ถูกเปลี่ยนแปลง`,
+      changeCount
+    };
+  }
+
+  // ดึงชื่อ entity type เป็นภาษาไทย
+  static getEntityTypeLabel(entityType) {
+    const labels = {
+      'User': 'ผู้ใช้',
+      'Department': 'แผนก',
+      'LeaveRequest': 'คำขอลา',
+      'LeaveType': 'ประเภทการลา',
+      'Holiday': 'วันหยุด',
+      'PersonnelType': 'ประเภทบุคคลากร',
+      'Rank': 'ตำแหน่ง',
+      'ProxyApproval': 'การมอบอำนาจ'
+    };
+    return labels[entityType] || entityType;
+  }
   static async getLogsByLeaveRequestId(leaveRequestId) {
     return await prisma.auditLog.findMany({
       where: {
@@ -228,6 +482,7 @@ class AuditLogService {
   static async getLogs(filters = {}) {
     const {
       userId,
+      userName,
       entityType,
       entityId,
       action,
@@ -246,10 +501,26 @@ class AuditLogService {
     if (action) where.action = action;
     if (ipAddress) where.ipAddress = ipAddress;
 
+    // Filter by userName (search in user's name)
+    if (userName) {
+      where.user = {
+        OR: [
+          { firstName: { contains: userName } },
+          { lastName: { contains: userName } },
+          { prefixName: { contains: userName } }
+        ]
+      };
+    }
+
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
-      if (endDate) where.createdAt.lte = new Date(endDate);
+      if (endDate) {
+        // Set end date to end of day
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endOfDay;
+      }
     }
 
     return await prisma.auditLog.findMany({
@@ -297,6 +568,7 @@ class AuditLogService {
   static async countLogs(filters = {}) {
     const {
       userId,
+      userName,
       entityType,
       entityId,
       action,
@@ -313,10 +585,24 @@ class AuditLogService {
     if (action) where.action = action;
     if (ipAddress) where.ipAddress = ipAddress;
 
+    if (userName) {
+      where.user = {
+        OR: [
+          { firstName: { contains: userName } },
+          { lastName: { contains: userName } },
+          { prefixName: { contains: userName } }
+        ]
+      };
+    }
+
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
-      if (endDate) where.createdAt.lte = new Date(endDate);
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endOfDay;
+      }
     }
 
     return await prisma.auditLog.count({ where });
@@ -328,6 +614,7 @@ class AuditLogService {
       page = 1,
       limit = 50,
       userId,
+      userName,
       action,
       startDate,
       endDate,
@@ -338,6 +625,7 @@ class AuditLogService {
 
     const filters = {
       userId,
+      userName,
       action,
       startDate,
       endDate,
@@ -350,7 +638,7 @@ class AuditLogService {
 
     const [logs, total] = await Promise.all([
       this.getLogs(filters),
-      this.countLogs({ userId, action, startDate, endDate, entityType, entityId, ipAddress })
+      this.countLogs({ userId, userName, action, startDate, endDate, entityType, entityId, ipAddress })
     ]);
 
     return {

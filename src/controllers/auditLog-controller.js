@@ -8,18 +8,26 @@ exports.getAllAuditLogs = async (req, res, next) => {
       page = 1,
       limit = 50,
       userId,
+      userName,
       action,
       startDate,
-      endDate
+      endDate,
+      entityType,
+      entityId,
+      ipAddress
     } = req.query;
 
     const options = {
       page: parseInt(page),
       limit: parseInt(limit),
       userId,
+      userName,
       action,
       startDate,
       endDate,
+      entityType,
+      entityId,
+      ipAddress,
     };
 
     const result = await AuditLogService.getAllLogs(options);
@@ -109,13 +117,26 @@ exports.getActionStats = async (req, res, next) => {
 // สร้าง Audit Log ใหม่ (สำหรับการทดสอบหรือการใช้งานพิเศษ)
 exports.createAuditLog = async (req, res, next) => {
   try {
-    const { userId, action, leaveRequestId, details } = req.body;
+    const { userId, action, entityType, entityId, leaveRequestId, details, ipAddress, userAgent, entityData } = req.body;
 
     if (!userId || !action) {
       throw createError(400, "ต้องระบุ userId และ action");
     }
 
-    const log = await AuditLogService.createLog(userId, action, leaveRequestId, details);
+    // Backward compatibility: if caller only provides leaveRequestId, treat it as LeaveRequest entity
+    const resolvedEntityType = entityType || (leaveRequestId ? 'LeaveRequest' : null);
+    const resolvedEntityId = entityId != null ? entityId : (leaveRequestId != null ? leaveRequestId : null);
+
+    const log = await AuditLogService.createLog(
+      userId,
+      action,
+      resolvedEntityType,
+      resolvedEntityId,
+      details,
+      ipAddress || null,
+      userAgent || null,
+      entityData || null
+    );
 
     res.status(201).json({
       message: "สร้าง Audit Log สำเร็จ",

@@ -26,16 +26,32 @@ describe("AuditLogService", () => {
         createdAt: new Date(),
       };
 
+      const entityData = { foo: "bar" };
+
       prisma.auditLog.create.mockResolvedValue(mockLog);
 
-      const result = await AuditLogService.createLog(1, "Test Action", 123, "Test details");
+      const result = await AuditLogService.createLog(
+        1,
+        "Test Action",
+        "LeaveRequest",
+        123,
+        "Test details",
+        null,
+        null,
+        entityData
+      );
 
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: {
           userId: 1,
-          leaveRequestId: 123,
           action: "Test Action",
+          entityType: "LeaveRequest",
+          entityId: 123,
           details: "Test details",
+          ipAddress: null,
+          userAgent: null,
+          entityData: JSON.stringify(entityData),
+          leaveRequestId: 123,
         },
       });
       expect(result).toEqual(mockLog);
@@ -45,7 +61,18 @@ describe("AuditLogService", () => {
       const error = new Error("Database error");
       prisma.auditLog.create.mockRejectedValue(error);
 
-      const result = await AuditLogService.createLog(1, "Test Action", 123, "Test details");
+      const entityData = { foo: "bar" };
+
+      const result = await AuditLogService.createLog(
+        1,
+        "Test Action",
+        "LeaveRequest",
+        123,
+        "Test details",
+        null,
+        null,
+        entityData
+      );
 
       expect(result).toBeNull();
     });
@@ -62,14 +89,19 @@ describe("AuditLogService", () => {
 
       prisma.auditLog.create.mockResolvedValue(mockLog);
 
-      const result = await AuditLogService.createLog(1, "Test Action");
+      const result = await AuditLogService.createLog(1, "Test Action", null, null, null);
 
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: {
           userId: 1,
-          leaveRequestId: null,
           action: "Test Action",
+          entityType: null,
+          entityId: null,
           details: null,
+          ipAddress: null,
+          userAgent: null,
+          entityData: null,
+          leaveRequestId: null,
         },
       });
       expect(result).toEqual(mockLog);
@@ -93,9 +125,14 @@ describe("AuditLogService", () => {
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: {
           userId: 1,
-          leaveRequestId: null,
           action: "เข้าสู่ระบบ",
+          entityType: "UserAction",
+          entityId: null,
           details: "User logged in",
+          ipAddress: null,
+          userAgent: null,
+          entityData: null,
+          leaveRequestId: null,
         },
       });
       expect(result).toEqual(mockLog);
@@ -117,9 +154,14 @@ describe("AuditLogService", () => {
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: {
           userId: 1,
-          leaveRequestId: null,
           action: "CUSTOM_ACTION",
+          entityType: "UserAction",
+          entityId: null,
           details: "Custom details",
+          ipAddress: null,
+          userAgent: null,
+          entityData: null,
+          leaveRequestId: null,
         },
       });
       expect(result).toEqual(mockLog);

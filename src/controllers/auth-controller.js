@@ -561,6 +561,18 @@ exports.createOrganization = async (req, res, next) => {
 
     const newOrganization = await OrgAndDeptService.createOrganization(name);
 
+    if (req.user?.id) {
+      await AuditLogService.createLog(
+        req.user.id,
+        "CREATE",
+        "Organization",
+        newOrganization.id,
+        `สร้างองค์กร: ${name}`,
+        req.ip,
+        req.get('User-Agent')
+      );
+    }
+
     res
       .status(201)
       .json({ message: "สร้างองค์กรสำเร็จ", data: newOrganization });
@@ -578,6 +590,11 @@ exports.updateOrganization = async (req, res, next) => {
       throw createError(400, "กรุณากรอกชื่อองค์กร");
     }
 
+    const oldOrganization = await OrgAndDeptService.getOrganizationById(id);
+    if (!oldOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
     const updatedOrganization = await OrgAndDeptService.updateOrganization(
       id,
       name
@@ -585,6 +602,18 @@ exports.updateOrganization = async (req, res, next) => {
 
     if (!updatedOrganization) {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    if (req.user?.id) {
+      await AuditLogService.createUpdateLog(
+        req.user.id,
+        "Organization",
+        parseInt(id),
+        oldOrganization,
+        updatedOrganization,
+        req.ip,
+        req.get('User-Agent')
+      );
     }
 
     res
@@ -598,10 +627,29 @@ exports.updateOrganization = async (req, res, next) => {
 exports.deleteOrganization = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    const oldOrganization = await OrgAndDeptService.getOrganizationById(id);
+    if (!oldOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
     const deletedOrganization = await OrgAndDeptService.deleteOrganization(id);
 
     if (!deletedOrganization) {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    if (req.user?.id) {
+      await AuditLogService.createLog(
+        req.user.id,
+        "DELETE",
+        "Organization",
+        parseInt(id),
+        `ลบองค์กร: ${oldOrganization.name} (ID: ${id})`,
+        req.ip,
+        req.get('User-Agent'),
+        oldOrganization
+      );
     }
 
     res

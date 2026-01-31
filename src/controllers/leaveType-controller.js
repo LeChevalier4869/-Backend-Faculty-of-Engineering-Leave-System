@@ -41,6 +41,9 @@ exports.updateLeaveType = async (req, res, next) => {
       throw createError(400, "รหัสประเภทการลาไม่ถูกต้อง");
     }
 
+    const oldLeaveType = await LeaveTypeService.getLeaveTypeById(numID);
+    if (!oldLeaveType) throw createError(404, "ไม่พบประเภทการลาที่ต้องการอัปเดต");
+
     const dataToUpdate = {};
 
     // ถ้ามีไฟล์แนบ → upload แล้วเก็บเป็น URL
@@ -59,13 +62,13 @@ exports.updateLeaveType = async (req, res, next) => {
       dataToUpdate
     );
 
-    // บันทึก Audit Log การอัปเดตประเภทการลา
-    await AuditLogService.createLog(
+    // บันทึก Audit Log การอัปเดตประเภทการลา (พร้อม diff)
+    await AuditLogService.createUpdateLog(
       req.user.id,
-      "UPDATE",
       "LeaveType",
       numID,
-      `อัปเดตประเภทการลา: ${JSON.stringify(updates)} ${file ? '(อัปโหลดไฟล์ PDF)' : ''}`,
+      oldLeaveType,
+      leaveType,
       req.ip,
       req.get('User-Agent')
     );

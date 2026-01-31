@@ -107,7 +107,7 @@ model AuditLog {
   entityType     String?
   ipAddress      String?
   userAgent      String?
-  entityData     String?  // เก็บข้อมูล entity ก่อนลบ (JSON)
+  entityData     String? @db.LongText    // เก็บข้อมูล entity ก่อนลบ (JSON) - เปลี่ยนเป็น LongText
   user           User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
