@@ -97,18 +97,18 @@ model Organization {
 }
 
 model AuditLog {
-  id             Int           @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   userId         Int
   leaveRequestId Int?
   action         String
   details        String?
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime @default(now())
   entityId       Int?
   entityType     String?
   ipAddress      String?
   userAgent      String?
-  leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
-  user           User          @relation(fields: [userId], references: [id])
+  entityData     String? @db.LongText    // เก็บข้อมูล entity ก่อนลบ (JSON) - เปลี่ยนเป็น LongText
+  user           User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([entityType, entityId])
@@ -213,9 +213,9 @@ model LeaveType {
   id                Int            @id @default(autoincrement())
   name              String
   isAvailable       Boolean        @default(true)
-  resetOnFiscalYear Boolean        @default(true)
-  isNonDeductible   Boolean        @default(false)
   template          String?
+  isNonDeductible   Boolean        @default(false)
+  resetOnFiscalYear Boolean        @default(true)
   leaveBalances     LeaveBalance[]
   leaveRequests     LeaveRequest[]
   Rank              Rank[]
@@ -241,7 +241,6 @@ model LeaveRequest {
   documentIssuedDate  DateTime?
   contact             String?
   verifierId          Int?
-  auditLogs           AuditLog[]
   files               File[]
   leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
   user                User                 @relation(fields: [userId], references: [id])
@@ -257,10 +256,10 @@ model LeaveRequest {
 model File {
   id             Int           @id @default(autoincrement())
   leaveRequestId Int?
-  name           String
   type           FileType
   filePath       String
   uploadedAt     DateTime      @default(now())
+  name           String
   leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
 
   @@index([leaveRequestId], map: "file_leaveRequestId_fkey")

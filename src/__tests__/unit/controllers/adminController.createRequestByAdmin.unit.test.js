@@ -147,6 +147,8 @@ describe("admin-controller", () => {
           approvalDetails: JSON.stringify([{ stepOrder: 1 }]),
         },
         files: [],
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();
@@ -193,6 +195,8 @@ describe("admin-controller", () => {
           documentNumber: 10,
         },
         files: [{ path: "p1" }, { path: "p2" }],
+        get: jest.fn(),
+        ip: "127.0.0.1",
       };
       const res = makeRes();
       const next = jest.fn();

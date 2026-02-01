@@ -44,7 +44,7 @@ exports.createLeaveRequest = async (req, res, next) => {
       "Create Request",
       "LeaveRequest",
       leaveRequest.id,
-      `Created leave request: ${leaveRequest.id}`,
+      `สร้างคำขอลา: ${leaveRequest.id}`,
       req.ip,
       req.get("User-Agent")
     );
@@ -129,18 +129,22 @@ exports.updateLeaveStatus = async (req, res, next) => {
     const user = req.user;
     const userRole = Array.isArray(user.role) ? user.role : [user.role];
 
+    const oldRequest = await prisma.leaveRequest.findUnique({ where: { id: requestId } });
+    if (!oldRequest) throw createError(404, "ไม่พบคำขอลา");
+
     const updatedStatus = await LeaveRequestService.updateRequestStatus(
       requestId,
       status,
       approverId,
       remarks,
     );
-    await AuditLogService.createLog(
+
+    await AuditLogService.createUpdateLog(
       req.user.id,
-      "Update Status",
       "LeaveRequest",
       requestId,
-      `Cancelled leave request: ${requestId}`,
+      oldRequest,
+      updatedStatus,
       req.ip,
       req.get("User-Agent")
     );
@@ -162,11 +166,11 @@ exports.getLeaveRequest = async (req, res, next) => {
     const leaveRequests = await LeaveRequestService.getRequestsById(requestId);
     // console.log("Debug leaveRequest: ", leaveRequests);
     if (!leaveRequests) {
-      throw createError(404, "Leave request not found");
+      throw createError(404, "ไม่พบคำขอลา");
     }
 
     if (!user.department || !user.department.id) {
-      throw createError(400, "User has no department assigned.");
+      throw createError(400, "ผู้ใช้ไม่มีแผนกที่กำหนด");
     }
 
     // ค้นหาหัวหน้าสาขาของคำขอลานี้
@@ -200,7 +204,7 @@ exports.getLeaveRequestIsMine = async (req, res, next) => {
     const leaveRequests = await LeaveRequestService.getRequestIsMine(userId);
 
     if (!leaveRequests) {
-      throw createError(404, "Leave request not found");
+      throw createError(404, "ไม่พบคำขอลา");
     }
 
     res.status(200).json({
@@ -249,7 +253,7 @@ exports.getMyLastApprovedLeaveRequest = async (req, res, next) => {
     );
 
     if (!lastApproved) {
-      throw createError(404, "No approved leave request found");
+      throw createError(404, "ไม่พบคำขอลาที่อนุมัติแล้ว");
     }
 
     res.status(200).json({
@@ -269,10 +273,10 @@ exports.updateLeaveRequest = async (req, res, next) => {
       leaveRequestId
     );
     if (!leaveRequest) {
-      throw createError(404, "Leave request not found");
+      throw createError(404, "ไม่พบคำขอลา");
     }
     if (leaveRequest.userId !== req.user.id) {
-      throw createError(403, "You are not allowed to update");
+      throw createError(403, "ไม่มีสิทธิอัปเดต");
     }
 
     const updateRequest = await LeaveRequestService.updateRequest(
@@ -280,7 +284,7 @@ exports.updateLeaveRequest = async (req, res, next) => {
       updateData
     );
     res.status(200).json({
-      message: "Leave request updated",
+      message: "อัปเดตคำขอลา",
       data: updateRequest,
     });
   } catch (err) {
@@ -289,49 +293,6 @@ exports.updateLeaveRequest = async (req, res, next) => {
 };
 
 // ────────────────────────────────
-// 🟢   APPROVED AND REJECTED
-// ────────────────────────────────
-
-exports.approveLeaveRequest = async (req, res, next) => {
-  try {
-    const leaveRequestId = parseInt(req.params.id);
-    const approverId = req.user.id;
-
-    const updatedLeaveRequest = await LeaveRequestService.approveRequest(
-      leaveRequestId,
-      approverId
-    );
-
-    res.status(200).json({
-      message: "Leave request approved",
-      leaveRequestId: updatedLeaveRequest,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.rejectLeaveRequest = async (req, res, next) => {
-  try {
-    const leaveRequestId = parseInt(req.params.id);
-    const { remarks } = req.body;
-    const approverId = req.user.id;
-
-    const updatedLeaveRequest = await LeaveRequestService.rejectRequest(
-      leaveRequestId,
-      remarks,
-      approverId
-    );
-
-    res.status(200).json({
-      message: "Leave request rejected",
-      leaveRequest: updatedLeaveRequest,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
 exports.deleteLeaveRequest = async (req, res, next) => {
   const leaveRequestId = parseInt(req.params.id);
 
@@ -342,7 +303,7 @@ exports.deleteLeaveRequest = async (req, res, next) => {
       return createError(400, "Leave request can't delete");
     }
 
-    res.status(200).json({ message: "Leave request deleted" });
+    res.status(200).json({ message: "ลบคำขอลา" });
   } catch (err) {
     next(err);
   }
@@ -367,18 +328,6 @@ exports.getLeaveRequestsByUserId = async (req, res) => {
 // ────────────────────────────────
 // 🟢 GET REQUEST FOR APPROVER
 // ────────────────────────────────
-
-exports.getLeaveRequestLanding = async (req, res, next) => {
-  try {
-    const leaveRequest = await LeaveRequestService.getLanding();
-    if (!leaveRequest) {
-      throw createError(404, "Leave request not found");
-    }
-    res.status(200).json({ leaveRequest });
-  } catch (err) {
-    next(err);
-  }
-};
 
 exports.getAllLeaveRequests = async (req, res, next) => {
   try {
@@ -544,14 +493,43 @@ exports.approveByFirstApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findUnique({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
     const result = await LeaveRequestService.approveByFirstApprover({
       id,
       approverId,
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createApproveLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        1,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
+
     res.json(result);
   } catch (err) {
     next(err);
@@ -566,8 +544,18 @@ exports.rejectByFirstApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findUnique({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
 
     // เรียกใช้ service ในการ reject
     const result = await LeaveRequestService.rejectByFirstApprover({
@@ -576,6 +564,23 @@ exports.rejectByFirstApprover = async (req, res, next) => {
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createRejectLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        1,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
 
     return res.status(200).json(result);
   } catch (error) {
@@ -600,8 +605,18 @@ exports.approveByVerifier = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findUnique({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
 
     // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
     const verifiers = await UserService.getApproversForLevel(2, new Date());
@@ -628,6 +643,23 @@ exports.approveByVerifier = async (req, res, next) => {
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createApproveLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        2,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
     res.json(result);
   } catch (err) {
     next(err);
@@ -642,8 +674,18 @@ exports.rejectByVerifier = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findUnique({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
 
     // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
     const verifiers = await UserService.getApproversForLevel(2, new Date());
@@ -665,6 +707,23 @@ exports.rejectByVerifier = async (req, res, next) => {
       comment,
     });
 
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createRejectLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        2,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
+
     return res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -679,14 +738,42 @@ exports.approveBySecondApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findFirst({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
     const result = await LeaveRequestService.approveBySecondApprover({
       id,
       approverId,
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createApproveLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        3,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
     res.json(result);
   } catch (err) {
     next(err);
@@ -701,8 +788,18 @@ exports.rejectBySecondApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findFirst({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
 
     // เรียกใช้ service ในการ reject
     const result = await LeaveRequestService.rejectBySecondApprover({
@@ -711,6 +808,23 @@ exports.rejectBySecondApprover = async (req, res, next) => {
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createRejectLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        3,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
 
     return res.status(200).json(result);
   } catch (error) {
@@ -726,14 +840,42 @@ exports.approveByThirdApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findFirst({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
     const result = await LeaveRequestService.approveByThirdApprover({
       id,
       approverId,
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createApproveLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        4,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
     res.json(result);
   } catch (err) {
     next(err);
@@ -748,8 +890,18 @@ exports.rejectByThirdApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findFirst({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
 
     // เรียกใช้ service ในการ reject
     const result = await LeaveRequestService.rejectByThirdApprover({
@@ -758,6 +910,23 @@ exports.rejectByThirdApprover = async (req, res, next) => {
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createRejectLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        4,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
 
     return res.status(200).json(result);
   } catch (error) {
@@ -773,14 +942,42 @@ exports.approveByFourthApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findFirst({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
     const result = await LeaveRequestService.approveByFourthApprover({
       id,
       approverId,
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createApproveLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        5,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
     res.json(result);
   } catch (err) {
     next(err);
@@ -795,8 +992,18 @@ exports.rejectByFourthApprover = async (req, res, next) => {
   try {
     if (typeof id !== "number" || isNaN(id)) {
       console.log("Debug id: ", id);
-      throw createError(400, "Invalid request ID format");
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
+
+    const detail = await prisma.leaveRequestDetail.findFirst({
+      where: { id },
+      select: { leaveRequestId: true },
+    });
+    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
 
     // เรียกใช้ service ในการ reject
     const result = await LeaveRequestService.rejectByFourthApprover({
@@ -805,6 +1012,23 @@ exports.rejectByFourthApprover = async (req, res, next) => {
       remarks,
       comment,
     });
+
+    const newRequest = await prisma.leaveRequest.findUnique({
+      where: { id: detail.leaveRequestId },
+    });
+
+    if (oldRequest && newRequest) {
+      await AuditLogService.createRejectLog(
+        req.user.id,
+        "LeaveRequest",
+        detail.leaveRequestId,
+        oldRequest,
+        newRequest,
+        5,
+        req.ip,
+        req.get("User-Agent")
+      );
+    }
 
     return res.status(200).json(result);
   } catch (error) {

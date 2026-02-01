@@ -61,43 +61,8 @@ router.patch(
   leaveRequestController.updateLeaveStatus
 );
 
-// Approve leave
-router.post(
-  "/:id/approve",
-  authenticate,
-  authorize([
-    "APPROVER_1",
-    "APPROVER_2",
-    "APPROVER_3",
-    "APPROVER_4",
-    "VERIFIER",
-  ]),
-  leaveRequestController.approveLeaveRequest
-);
-
-// Reject leave
-router.post(
-  "/:id/reject",
-  authenticate,
-  authorize([
-    "APPROVER_1",
-    "APPROVER_2",
-    "APPROVER_3",
-    "APPROVER_4",
-    "VERIFIER",
-  ]),
-  leaveRequestController.rejectLeaveRequest
-);
-
 // Delete a leave request
 router.delete("/:id", authenticate, leaveRequestController.deleteLeaveRequest);
-
-// Summary data for dashboard
-router.get(
-  "/landing",
-  authenticate,
-  leaveRequestController.getLeaveRequestLanding
-);
 
 router.get("/user/:id", leaveRequestController.getLeaveRequestsByUserId);
 

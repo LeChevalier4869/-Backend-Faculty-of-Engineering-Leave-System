@@ -2,15 +2,16 @@ const express = require('express');
 const LeaveTypeController = require('../controllers/leaveType-controller');
 const router = express.Router();
 const upload = require("../middlewares/upload");
+const { authenticate, authorize } = require("../middlewares/auth");
 
 
-router.post('/', LeaveTypeController.createLeaveType);
+router.post('/', authenticate, authorize(["ADMIN"]), LeaveTypeController.createLeaveType);
 // router.put('/:id', LeaveTypeController.updateLeaveType);
-router.put('/update/:id', upload.single('template'), LeaveTypeController.updateLeaveType);
-router.delete('/:id', LeaveTypeController.deleteLeaveType);
-router.get('/', LeaveTypeController.getAllLeaveType);
-router.get('/type/:id', LeaveTypeController.getLeaveTypeById);
-router.get('/available', LeaveTypeController.getAvailableLeaveTypes);
+router.put('/update/:id', authenticate, authorize(["ADMIN"]), upload.single('template'), LeaveTypeController.updateLeaveType);
+router.delete('/:id', authenticate, authorize(["ADMIN"]), LeaveTypeController.deleteLeaveType);
+router.get('/', authenticate, authorize(["ADMIN"]), LeaveTypeController.getAllLeaveType);
+router.get('/type/:id', authenticate, authorize(["ADMIN"]), LeaveTypeController.getLeaveTypeById);
+router.get('/available', LeaveTypeController.getAvailableLeaveTypes); // สาธารณะ - ไม่ต้อง login
 // module.exports = router;
 
 

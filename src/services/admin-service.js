@@ -5,7 +5,6 @@ const cloudUpload = require("../utils/cloudUpload");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const LeaveRequestService = require("./leaveRequest-service");
 const LeaveBalanceService = require("./leaveBalance-service");
-const AuditLogService = require("./auditLog-service");
 const UserService = require("./user-service");
 
 class AdminService {
@@ -346,18 +345,6 @@ class AdminService {
       });
 
       await tx.leaveRequestDetail.createMany({ data: detailRows });
-
-      // audit log
-      if (adminId) {
-        await tx.auditLog.create({
-          data: {
-            userId: adminId,
-            leaveRequestId: created.id,
-            action: "AdminCreateLeave",
-            details: `Admin created leave for userId=${userId}`,
-          },
-        });
-      }
 
       return created;
     }); // จบ transaction

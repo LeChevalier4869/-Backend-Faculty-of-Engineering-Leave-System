@@ -1,5 +1,6 @@
 const UserService = require("../services/user-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
+const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -205,6 +206,7 @@ exports.login = async (req, res, next) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRESIN }
     );
+
     res.status(200).json({ token });
   } catch (err) {
     next(err);
@@ -265,7 +267,7 @@ exports.updateProfile = async (req, res, next) => {
     });
 
     res.status(200).json({
-      message: "Profile picture updated",
+      message: "อัปเดตรูปโปรไฟล์",
       user: updatedUser,
     });
   } catch (err) {
@@ -332,7 +334,7 @@ exports.updateUserRole = async (req, res, next) => {
       await sendEmail(userEmail, subject, message);
     }
 
-    res.status(200).json({ message: "User role updated", roles: updatedRole });
+    res.status(200).json({ message: "อัปเดตบทบาทผู้ใช้", roles: updatedRole });
   } catch (err) {
     next(err);
   }
@@ -423,7 +425,7 @@ exports.updateUser = async (req, res, next) => {
 
     /* ---------- ส่งกลับ ---------- */
     res.status(200).json({
-      message: "User updated",
+      message: "อัปเดตผู้ใช้",
       user: updatedUser,
       token: newToken,
     });
@@ -556,6 +558,18 @@ exports.createOrganization = async (req, res, next) => {
 
     const newOrganization = await OrgAndDeptService.createOrganization(name);
 
+    if (req.user?.id) {
+      await AuditLogService.createLog(
+        req.user.id,
+        "CREATE",
+        "Organization",
+        newOrganization.id,
+        `สร้างองค์กร: ${name}`,
+        req.ip,
+        req.get('User-Agent')
+      );
+    }
+
     res
       .status(201)
       .json({ message: "สร้างองค์กรสำเร็จ", data: newOrganization });
@@ -573,6 +587,11 @@ exports.updateOrganization = async (req, res, next) => {
       throw createError(400, "กรุณากรอกชื่อองค์กร");
     }
 
+    const oldOrganization = await OrgAndDeptService.getOrganizationById(id);
+    if (!oldOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
     const updatedOrganization = await OrgAndDeptService.updateOrganization(
       id,
       name
@@ -580,6 +599,18 @@ exports.updateOrganization = async (req, res, next) => {
 
     if (!updatedOrganization) {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    if (req.user?.id) {
+      await AuditLogService.createUpdateLog(
+        req.user.id,
+        "Organization",
+        parseInt(id),
+        oldOrganization,
+        updatedOrganization,
+        req.ip,
+        req.get('User-Agent')
+      );
     }
 
     res
@@ -593,10 +624,29 @@ exports.updateOrganization = async (req, res, next) => {
 exports.deleteOrganization = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    const oldOrganization = await OrgAndDeptService.getOrganizationById(id);
+    if (!oldOrganization) {
+      throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
     const deletedOrganization = await OrgAndDeptService.deleteOrganization(id);
 
     if (!deletedOrganization) {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
+    }
+
+    if (req.user?.id) {
+      await AuditLogService.createLog(
+        req.user.id,
+        "DELETE",
+        "Organization",
+        parseInt(id),
+        `ลบองค์กร: ${oldOrganization.name} (ID: ${id})`,
+        req.ip,
+        req.get('User-Agent'),
+        oldOrganization
+      );
     }
 
     res
@@ -754,7 +804,7 @@ exports.createPersonnelType = async (req, res, next) => {
     const personnelType = await OrgAndDeptService.createPersonnelType(name);
 
     res.status(201).json({
-      message: "Personnel type created successfully",
+      message: "สร้างประเภทบุคคลากรสำเร็จ",
       data: personnelType,
     });
   } catch (err) {
@@ -781,7 +831,7 @@ exports.updatePersonnelType = async (req, res, next) => {
     }
 
     res.status(200).json({
-      message: "Personnel type updated successfully",
+      message: "อัปเดตประเภทบุคคลากรสำเร็จ",
       data: updatedPersonnelType,
     });
   } catch (err) {
@@ -802,7 +852,7 @@ exports.deletePersonnelType = async (req, res, next) => {
     }
 
     res.status(200).json({
-      message: "Personnel type deleted successfully",
+      message: "ลบประเภทบุคคลากรสำเร็จ",
       data: deletedPersonnelType,
     });
   } catch (err) {

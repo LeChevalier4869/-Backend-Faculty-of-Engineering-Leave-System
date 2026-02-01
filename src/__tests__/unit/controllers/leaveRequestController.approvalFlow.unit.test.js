@@ -15,9 +15,20 @@ jest.mock("../../../services/user-service", () => ({
   getApproversForLevel: jest.fn(),
 }));
 
+jest.mock("../../../config/prisma", () => ({
+  leaveRequestDetail: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+  },
+  leaveRequest: {
+    findUnique: jest.fn(),
+  },
+}));
+
 const LeaveRequestService = require("../../../services/leaveRequest-service");
 const UserService = require("../../../services/user-service");
 const leaveRequestController = require("../../../controllers/leaveRequest-controller");
+const prisma = require("../../../config/prisma");
 
 const makeRes = () => {
   const res = {};
@@ -60,6 +71,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
     it("approveByFirstApprover -> calls service and returns res.json", async () => {
       LeaveRequestService.approveByFirstApprover.mockResolvedValue({ ok: true });
 
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findUnique.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
+
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
@@ -89,6 +108,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
 
     it("rejectByFirstApprover -> calls service and returns res.status(200).json", async () => {
       LeaveRequestService.rejectByFirstApprover.mockResolvedValue({ ok: true });
+
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findUnique.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
 
       const req = {
         params: { id: "123" },
@@ -128,6 +155,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         { id: 10 }, // User is in verifier list
       ]);
 
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findUnique.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
+
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
@@ -163,6 +198,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
         { id: 10 }, // User is in verifier list
       ]);
 
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findUnique.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
+
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
@@ -196,6 +239,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
     it("approveBySecondApprover -> calls service and returns res.json", async () => {
       LeaveRequestService.approveBySecondApprover.mockResolvedValue({ ok: true });
 
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findFirst.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
+
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
@@ -225,6 +276,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
 
     it("rejectBySecondApprover -> calls service and returns res.status(200).json", async () => {
       LeaveRequestService.rejectBySecondApprover.mockResolvedValue({ ok: true });
+
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findFirst.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
 
       const req = {
         params: { id: "123" },
@@ -259,6 +318,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
     it("approveByThirdApprover -> calls service and returns res.json", async () => {
       LeaveRequestService.approveByThirdApprover.mockResolvedValue({ ok: true });
 
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findFirst.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
+
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
@@ -288,6 +355,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
 
     it("rejectByThirdApprover -> calls service and returns res.status(200).json", async () => {
       LeaveRequestService.rejectByThirdApprover.mockResolvedValue({ ok: true });
+
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findFirst.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
 
       const req = {
         params: { id: "123" },
@@ -322,6 +397,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
     it("approveByFourthApprover -> calls service and returns res.json", async () => {
       LeaveRequestService.approveByFourthApprover.mockResolvedValue({ ok: true });
 
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findFirst.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
+
       const req = {
         params: { id: "123" },
         body: { remarks: "r", comment: "c" },
@@ -351,6 +434,14 @@ describe("leaveRequest-controller approval/verifier flow", () => {
 
     it("rejectByFourthApprover -> calls service and returns res.status(200).json", async () => {
       LeaveRequestService.rejectByFourthApprover.mockResolvedValue({ ok: true });
+
+      // Mock prisma database calls
+      prisma.leaveRequestDetail.findFirst.mockResolvedValue({
+        leaveRequestId: 123,
+      });
+      prisma.leaveRequest.findUnique.mockResolvedValue({
+        id: 123,
+      });
 
       const req = {
         params: { id: "123" },
