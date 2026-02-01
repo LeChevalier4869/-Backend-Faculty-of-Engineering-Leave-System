@@ -207,9 +207,6 @@ exports.login = async (req, res, next) => {
       { expiresIn: process.env.JWT_EXPIRESIN }
     );
 
-    // Log successful login
-    await AuditLogService.logUserAction(user.id, 'LOGIN', `เข้าสู่ระบบด้วยอีเมล ${user.email}`);
-
     res.status(200).json({ token });
   } catch (err) {
     next(err);
@@ -270,7 +267,7 @@ exports.updateProfile = async (req, res, next) => {
     });
 
     res.status(200).json({
-      message: "Profile picture updated",
+      message: "อัปเดตรูปโปรไฟล์",
       user: updatedUser,
     });
   } catch (err) {
@@ -337,7 +334,7 @@ exports.updateUserRole = async (req, res, next) => {
       await sendEmail(userEmail, subject, message);
     }
 
-    res.status(200).json({ message: "User role updated", roles: updatedRole });
+    res.status(200).json({ message: "อัปเดตบทบาทผู้ใช้", roles: updatedRole });
   } catch (err) {
     next(err);
   }
@@ -428,7 +425,7 @@ exports.updateUser = async (req, res, next) => {
 
     /* ---------- ส่งกลับ ---------- */
     res.status(200).json({
-      message: "User updated",
+      message: "อัปเดตผู้ใช้",
       user: updatedUser,
       token: newToken,
     });
@@ -807,7 +804,7 @@ exports.createPersonnelType = async (req, res, next) => {
     const personnelType = await OrgAndDeptService.createPersonnelType(name);
 
     res.status(201).json({
-      message: "Personnel type created successfully",
+      message: "สร้างประเภทบุคคลากรสำเร็จ",
       data: personnelType,
     });
   } catch (err) {
@@ -834,7 +831,7 @@ exports.updatePersonnelType = async (req, res, next) => {
     }
 
     res.status(200).json({
-      message: "Personnel type updated successfully",
+      message: "อัปเดตประเภทบุคคลากรสำเร็จ",
       data: updatedPersonnelType,
     });
   } catch (err) {
@@ -855,7 +852,7 @@ exports.deletePersonnelType = async (req, res, next) => {
     }
 
     res.status(200).json({
-      message: "Personnel type deleted successfully",
+      message: "ลบประเภทบุคคลากรสำเร็จ",
       data: deletedPersonnelType,
     });
   } catch (err) {

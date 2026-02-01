@@ -28,37 +28,9 @@ class ProxyApprovalService {
       throw createError(400, "ไม่สามารถมอบอำนาจให้ตนเองได้");
     }
 
-    // ตรวจสอบว่ามีการมอบอำนาจให้ original approver คนเดียวกันในระดับเดียวกันแล้วหรือไม่
-    const existingProxy = await prisma.proxyApproval.findFirst({
-      where: {
-        originalApproverId: originalApproverId, // เพิ่มการตรวจสอบ original approver
-        approverLevel: approverLevel,
-        status: 'ACTIVE',
-        OR: [
-          // กรณีช่วงเวลา
-          {
-            isDaily: false,
-            startDate: { lte: new Date() },
-            endDate: { gte: new Date() }
-          },
-          // กรณีรายวัน
-          {
-            isDaily: true,
-            dailyDate: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              lt: new Date(new Date().setHours(23, 59, 59, 999))
-            }
-          }
-        ]
-      }
-    });
-
-    if (existingProxy) {
-      throw createError(400, "ผู้มอบอำนาจนี้มีการมอบอำนาจในระดับที่กำหนดอยู่แล้ว ไม่สามารถมอบอำนาจซ้ำได้");
-    }
-
-    if (approverLevel < 1 || approverLevel > 4) {
-      throw createError(400, "ระดับผู้อนุมัติต้องอยู่ระหว่าง 1-4");
+    
+    if (approverLevel < 1 || approverLevel > 5) {
+      throw createError(400, "ระดับผู้อนุมัติต้องอยู่ระหว่าง 1-5");
     }
 
     // ตรวจสอบข้อมูลสำหรับการมอบอำนาจแบบปกติ
@@ -904,6 +876,10 @@ class ProxyApprovalService {
         throw createError(400, "การมอบอำนาจช่วงเวลาต้องระบุวันเริ่มต้นและวันสิ้นสุด");
       }
 
+      // แปลง startDate และ endDate เป็น Date objects
+      updateData.startDate = new Date(updateData.startDate);
+      updateData.endDate = new Date(updateData.endDate);
+
       // ลบฟิลด์ที่ไม่จำเป็น
       if (updateData.dailyDate) {
         delete updateData.dailyDate;
@@ -992,10 +968,12 @@ class ProxyApprovalService {
       // บันทึก log การทำงาน
       await AuditLogService.createLog(
         cancelledBy,
-        "Cancel Proxy Approval",
+        "DELETE",
         "ProxyApproval",
-        id,
-        `Cancelled proxy approval: ${id}`
+        parseInt(id),
+        `ยกเลิกการมอบอำนาจ ID: ${id}`,
+        req.ip,
+        req.get("User-Agent")
       );
 
       return cancelledProxy;

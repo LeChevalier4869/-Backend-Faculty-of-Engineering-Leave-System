@@ -3,7 +3,6 @@ const createError = require("../utils/createError");
 const UserService = require("../services/user-service");
 const LeaveBalanceService = require("./leaveBalance-service");
 const RankService = require("./rank-service");
-const AuditLogService = require("./auditLog-service");
 const ProxyApprovalService = require("./proxyApproval-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const { sendNotification, sendEmail } = require("../utils/emailService");

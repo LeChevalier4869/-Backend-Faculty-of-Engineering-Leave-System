@@ -11,7 +11,6 @@ const upload = require("../middlewares/upload");
 const authController = require('../controllers/auth-controller');
 const AuthService = require('../services/auth-service');
 const prisma = require("../config/prisma");
-const AuditLogService = require("../services/auditLog-service");
 
 // ==============================
 // 🧑‍💼 Authentication & User

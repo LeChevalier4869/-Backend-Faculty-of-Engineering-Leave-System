@@ -3,6 +3,14 @@ const prisma = require("../config/prisma");
 class AuditLogService {
   // สร้าง Log เพื่อเก็บการกระทำของผู้ใช้งาน (Generic version)
   static async createLog(userId, action, entityType, entityId = null, details = null, ipAddress = null, userAgent = null, entityData = null) {
+    // ไม่บันทึก actions ที่ไม่ต้องการ
+    const excludedActions = ['LOGIN', 'LOGOUT', 'EXPORT', 'UPLOAD', 'DOWNLOAD'];
+    if (excludedActions.includes(action)) {
+      console.log(`=== AUDIT LOG SKIPPED ===`);
+      console.log(`Action ${action} is excluded from logging`);
+      return null;
+    }
+
     console.log("=== AUDIT LOG ===");
     console.log(`User: ${userId}, Action: ${action}, Entity: ${entityType}, ID: ${entityId}`);
     if (details) console.log(`Details: ${details}`);
@@ -214,29 +222,7 @@ class AuditLogService {
     }
   }
 
-  // ดึงข้อมูล entity จาก Audit Log (สำหรับ entity ที่ถูกลบไปแล้ว)
-  static async getEntityFromAuditLog(entityType, entityId) {
-    try {
-      const auditLog = await prisma.auditLog.findFirst({
-        where: {
-          entityType,
-          entityId: parseInt(entityId),
-          entityData: { not: null }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-
-      if (auditLog && auditLog.entityData) {
-        return JSON.parse(auditLog.entityData);
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error getting entity from audit log:', error);
-      return null;
-    }
-  }
-
+  
   // ดึงข้อมูล entity (จากตารางจริง หรือ Audit Log ถ้าถูกลบ)
   static async getEntityData(entityType, entityId) {
     try {
@@ -245,7 +231,18 @@ class AuditLogService {
 
       // ถ้าไม่เจอ ลองดูจาก Audit Log
       if (!entity) {
-        entity = await this.getEntityFromAuditLog(entityType, entityId);
+        const auditLog = await prisma.auditLog.findFirst({
+          where: {
+            entityType,
+            entityId: parseInt(entityId),
+            entityData: { not: null }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        if (auditLog && auditLog.entityData) {
+          entity = JSON.parse(auditLog.entityData);
+        }
       }
 
       // ถ้ายังไม่เจอ ให้ส่ง empty object
@@ -271,10 +268,7 @@ class AuditLogService {
       };
     }
   }
-  static async createLeaveRequestLog(userId, action, leaveRequestId, details, ..._rest) {
-    return await this.createLog(userId, action, 'LeaveRequest', leaveRequestId, details);
-  }
-
+  
   // สร้าง Log พร้อมการเปรียบเทียบข้อมูลสำหรับ UPDATE
   static async createUpdateLog(userId, entityType, entityId, oldData, newData, ipAddress = null, userAgent = null) {
     console.log("=== AUDIT LOG (UPDATE) ===");
@@ -436,7 +430,7 @@ class AuditLogService {
 
     return {
       changes,
-      summary: `${changeCount} ฟิลด์ถูกเปลี่ยนแปลง`,
+      summary: 'ข้อมูลถูกอัปเดต',
       changeCount
     };
   }
@@ -542,28 +536,7 @@ class AuditLogService {
     });
   }
 
-  // ดึง Log ตาม entityType และ entityId
-  static async getLogsByEntity(entityType, entityId) {
-    return await prisma.auditLog.findMany({
-      where: {
-        entityType,
-        entityId: parseInt(entityId)
-      },
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: {
-          select: {
-            id: true,
-            prefixName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    });
-  }
-
+  
   // นับจำนวน Log ตาม filters
   static async countLogs(filters = {}) {
     const {

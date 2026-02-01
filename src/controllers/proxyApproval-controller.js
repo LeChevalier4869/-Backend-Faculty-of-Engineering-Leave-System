@@ -38,7 +38,7 @@ exports.createProxyApproval = async (req, res, next) => {
       "Create Proxy Approval",
       "ProxyApproval",
       proxyApproval.id,
-      `Created proxy approval: ${proxyApproval.id}`,
+      `สร้างการมอบอำนาจ: ${proxyApproval.id}`,
       req.ip,
       req.get("User-Agent")
     );
@@ -79,7 +79,7 @@ exports.createDailyProxyApproval = async (req, res, next) => {
       "Create Daily Proxy Approval",
       "ProxyApproval",
       proxyApproval.id,
-      `Created daily proxy approval: ${proxyApproval.id}`,
+      `สร้างการมอบอำนาจรายวัน: ${proxyApproval.id}`,
       req.ip,
       req.get("User-Agent")
     );

@@ -249,7 +249,7 @@ exports.updateHoliday = async (req, res, next) => {
     );
 
     res.status(200).json({
-      message: "Updated holiday successfully",
+      message: "อัปเดตวันหยุดสำเร็จ",
       data: updatedHoliday,
     });
   } catch (err) {
@@ -279,7 +279,7 @@ exports.deleteHoliday = async (req, res, next) => {
       // ไม่ส่ง entityData - จะดึงอัตโนมัติ
     );
 
-    res.status(200).json({ message: "Deleted holiday successfully" });
+    res.status(200).json({ message: "ลบวันหยุดสำเร็จ" });
   } catch (err) {
     next(err);
   }
@@ -473,7 +473,7 @@ exports.assignHeadDepartment = async (req, res, next) => {
 
     res
       .status(200)
-      .json({ message: "Assigned head successfully", data: updatedDepartment });
+      .json({ message: "มอบหมายหัวหน้าแผนกสำเร็จ", data: updatedDepartment });
   } catch (err) {
     next(err);
   }
