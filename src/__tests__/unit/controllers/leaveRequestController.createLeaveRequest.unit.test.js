@@ -67,7 +67,7 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
       "Create Request",
       "LeaveRequest",
       123,
-      expect.stringContaining("Created leave request: 123"),
+      expect.stringContaining("สร้างคำขอลา: 123"),
       "127.0.0.1",
       undefined
     );

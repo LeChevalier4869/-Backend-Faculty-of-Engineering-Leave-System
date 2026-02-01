@@ -1,10 +1,25 @@
 jest.mock("../../../services/proxyApproval-service");
-jest.mock("../../../services/auditLog-service");
+jest.mock("../../../services/auditLog-service", () => ({
+  createLog: jest.fn(),
+  createUpdateLog: jest.fn(),
+}));
+jest.mock("../../../config/prisma", () => ({
+  proxyApproval: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    groupBy: jest.fn(),
+    count: jest.fn(),
+  },
+}));
 
 const ProxyApprovalService = require("../../../services/proxyApproval-service");
 const AuditLogService = require("../../../services/auditLog-service");
 const proxyApprovalController = require("../../../controllers/proxyApproval-controller");
 const createError = require("../../../utils/createError");
+const prisma = require("../../../config/prisma");
 
 const makeRes = () => {
   const res = {};
@@ -262,9 +277,13 @@ describe("Proxy Approval Controller", () => {
   describe("updateProxyApproval", () => {
     it("should update proxy approval", async () => {
       const mockUpdatedApproval = { id: 1, reason: "Updated reason" };
+      const mockOldProxy = { id: 1, originalApproverId: 1, proxyApproverId: 2 };
 
       ProxyApprovalService.updateProxyApproval.mockResolvedValue(mockUpdatedApproval);
-      AuditLogService.createLog.mockResolvedValue({});
+      AuditLogService.createUpdateLog.mockResolvedValue({});
+      
+      // Mock prisma call that happens in the controller
+      prisma.proxyApproval.findUnique.mockResolvedValue(mockOldProxy);
 
       const req = { params: { id: "1" }, body: { reason: "Updated reason" }, user: { id: 1 }, get: jest.fn(), ip: "127.0.0.1" };
       const res = makeRes();
@@ -272,8 +291,9 @@ describe("Proxy Approval Controller", () => {
 
       await proxyApprovalController.updateProxyApproval(req, res, next);
 
+      expect(next).not.toHaveBeenCalled();
       expect(ProxyApprovalService.updateProxyApproval).toHaveBeenCalledWith("1", { reason: "Updated reason" });
-      expect(AuditLogService.createLog).toHaveBeenCalled();
+      expect(AuditLogService.createUpdateLog).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         message: "อัปเดตการมอบอำนาจสำเร็จ",
         data: mockUpdatedApproval,
@@ -331,22 +351,13 @@ describe("Proxy Approval Controller", () => {
 
   describe("getProxyApprovalStats", () => {
     it("should get proxy approval statistics", async () => {
-      const mockStats = { total: 10, active: 3, expired: 5, cancelled: 2 };
-
-      // Mock prisma groupBy
-      const mockPrisma = {
-        proxyApproval: {
-          groupBy: jest.fn().mockResolvedValue([
-            { status: "ACTIVE", _count: { id: 3 } },
-            { status: "EXPIRED", _count: { id: 5 } },
-            { status: "CANCELLED", _count: { id: 2 } },
-          ]),
-          count: jest.fn().mockResolvedValue(10),
-        },
-      };
-
-      // Mock the prisma import
-      jest.doMock("../../../config/prisma", () => mockPrisma);
+      // Mock prisma groupBy and count responses
+      prisma.proxyApproval.groupBy.mockResolvedValue([
+        { status: "ACTIVE", _count: { id: 3 } },
+        { status: "EXPIRED", _count: { id: 5 } },
+        { status: "CANCELLED", _count: { id: 2 } },
+      ]);
+      prisma.proxyApproval.count.mockResolvedValue(10);
 
       const req = {};
       const res = makeRes();
@@ -354,9 +365,19 @@ describe("Proxy Approval Controller", () => {
 
       await proxyApprovalController.getProxyApprovalStats(req, res, next);
 
+      expect(prisma.proxyApproval.groupBy).toHaveBeenCalledWith({
+        by: ["status"],
+        _count: { id: true },
+      });
+      expect(prisma.proxyApproval.count).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         message: "ดึงข้อมูลสถิติการมอบอำนาจสำเร็จ",
-        data: mockStats,
+        data: {
+          total: 10,
+          active: 3,
+          expired: 5,
+          cancelled: 2,
+        },
       });
     });
   });

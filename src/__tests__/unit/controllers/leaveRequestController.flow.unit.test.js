@@ -183,7 +183,7 @@ describe("leaveRequest-controller flow", () => {
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
-        message: "Leave request updated",
+        message: "อัปเดตคำขอลา",
         data: { id: 5, reason: "y" },
       });
     });
@@ -202,7 +202,7 @@ describe("leaveRequest-controller flow", () => {
       expect(next).not.toHaveBeenCalled();
       expect(LeaveRequestService.deleteRequest).toHaveBeenCalledWith(5);
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({ message: "Leave request deleted" });
+      expect(res.json).toHaveBeenCalledWith({ message: "ลบคำขอลา" });
     });
 
     it("calls next with 400 when cannot delete", async () => {
