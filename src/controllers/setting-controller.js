@@ -58,6 +58,27 @@ exports.updateSetting = async (req, res) => {
   }
 };
 
+exports.updateSettingByKey = async (req, res, next) => {
+  try {
+    const { key } = req.params;
+    const { value, type, description } = req.body;
+
+    const setting = await settingService.updateSettingByKey(key, {
+      value,
+      type,
+      description
+    });
+
+    if (!setting) {
+      return res.status(404).json({ message: "Setting not found" });
+    }
+
+    res.json({ data: setting });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.deleteSetting = async (req, res) => {
   try {
     await settingService.deleteSetting(req.params.id);
