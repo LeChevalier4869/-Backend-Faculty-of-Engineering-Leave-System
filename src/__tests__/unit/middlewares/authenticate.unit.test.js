@@ -94,6 +94,13 @@ describe("middleware.authenticate", () => {
         userRoles: { include: { role: true } },
         department: { include: { organization: true } },
         personnelType: { select: { name: true } },
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
       },
     });
     expect(res.status).toHaveBeenCalledWith(401);
@@ -116,6 +123,10 @@ describe("middleware.authenticate", () => {
       ],
       department: { id: 5, organization: { id: 9 } },
       personnelType: { name: "X" },
+      positionNumbers: [{
+        positionNumber: "ENG-001",
+        effectiveFrom: new Date("2024-01-01")
+      }],
     });
 
     await authenticate(req, res, next);

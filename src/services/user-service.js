@@ -58,6 +58,13 @@ class UserService {
             leaveRequestDetails: true,
           },
         },
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
       },
     });
   }
@@ -81,6 +88,13 @@ class UserService {
           },
         },
         personnelType: true,
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
       },
     });
 
@@ -95,6 +109,13 @@ class UserService {
         department: {
           include: {
             organization: true,
+          },
+        },
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
           },
         },
       },
@@ -183,7 +204,7 @@ class UserService {
       throw err;
     }
   }
-  
+
   static async getUserForLogin() {
     const user = await prisma.user.findFirst({ where: {} });
 
@@ -206,6 +227,13 @@ class UserService {
           department: {
             include: {
               organization: true,
+            },
+          },
+          positionNumbers: {
+            where: { isCurrent: true },
+            select: {
+              positionNumber: true,
+              effectiveFrom: true,
             },
           },
         },
@@ -353,7 +381,7 @@ class UserService {
       // แปลง level เป็น role name
       const roleMap = {
         1: 'APPROVER_1',
-        2: 'VERIFIER', 
+        2: 'VERIFIER',
         3: 'APPROVER_2',
         4: 'APPROVER_3',
         5: 'APPROVER_4'
@@ -362,7 +390,7 @@ class UserService {
       if (!roleName) {
         throw createError(400, `Invalid approver level: ${level}`);
       }
-      
+
       // 1. ดึง users ที่มี role นั้น (original approvers)
       const originalApprovers = await prisma.user.findMany({
         where: {
@@ -404,16 +432,16 @@ class UserService {
 
       // รวม users ทั้งสองกลุ่ม และลบตัวซ้ำ
       const allUsers = [...originalApprovers, ...proxyUsersForRole];
-      const uniqueUsers = allUsers.filter((user, index, self) => 
+      const uniqueUsers = allUsers.filter((user, index, self) =>
         index === self.findIndex(u => u.id === user.id)
       );
-      
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       // แปลงเป็น UTC midnight ให้ตรงกับข้อมูลในฐานข้อมูล
       const utcToday = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-      
+
       const proxies = await prisma.proxyApproval.findMany({
         where: {
           approverLevel: level,
@@ -467,7 +495,7 @@ class UserService {
       // 3. รวม proxy users
       const proxyUserIds = proxies.map(p => p.proxyApproverId);
       const proxyUsers = await prisma.user.findMany({
-        where: { 
+        where: {
           id: { in: proxyUserIds }
         },
         include: {
@@ -483,10 +511,10 @@ class UserService {
       const usersWithProxyInfo = uniqueUsers.map(user => {
         const proxyInfo = proxies.find(p => p.proxyApproverId === user.id);
         const originalInfo = proxies.find(p => p.originalApproverId === user.id);
-        
+
         // Validate: ถ้า user มี role นี้อยู่แล้ว ไม่ต้องแสดงเป็น proxy
         const hasOriginalRole = user.userRoles.some(ur => ur.role.name === roleName);
-        
+
         return {
           ...user,
           isProxy: !!proxyInfo, // แสดงเป็น proxy ถ้ามี proxyInfo (ไม่สนว่ามี role อยู่แล้วหรือไม่)
@@ -829,7 +857,109 @@ class UserService {
           },
         },
       },
-      include: { userRoles: { include: { role: true } }, department: true },
+      include: {
+        userRoles: { include: { role: true } },
+        department: true,
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
+      },
+    });
+  }
+
+  // Position Number Services
+  static async updateUserPositionNumber(userId, newPositionNumber, changedByUserId) {
+    return await prisma.$transaction(async (tx) => {
+      // 1. ปิด record เก่าของ user
+      await tx.userPositionNumber.updateMany({
+        where: {
+          userId,
+          isCurrent: true,
+        },
+        data: {
+          effectiveTo: new Date(),
+          isCurrent: false,
+        },
+      });
+
+      // 2. สร้าง record ใหม่
+      const newPosition = await tx.userPositionNumber.create({
+        data: {
+          userId,
+          positionNumber: newPositionNumber,
+          effectiveFrom: new Date(),
+          isCurrent: true,
+        },
+      });
+
+      // 3. บันทึก audit log
+      await tx.auditLog.create({
+        data: {
+          userId: changedByUserId,
+          action: 'UPDATE_POSITION_NUMBER',
+          entityType: 'User',
+          entityId: userId,
+          details: `Changed position number to ${newPositionNumber}`,
+        },
+      });
+
+      return newPosition;
+    });
+  }
+
+  static async getUserPositionNumberHistory(userId) {
+    return await prisma.userPositionNumber.findMany({
+      where: { userId },
+      orderBy: { effectiveFrom: 'desc' },
+      include: {
+        user: {
+          select: {
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  static async getCurrentPositionNumber(userId) {
+    const current = await prisma.userPositionNumber.findFirst({
+      where: {
+        userId,
+        isCurrent: true,
+      },
+      select: {
+        positionNumber: true,
+        effectiveFrom: true,
+      },
+    });
+
+    return current;
+  }
+
+  static async getPositionNumberByNumber(positionNumber) {
+    return await prisma.userPositionNumber.findFirst({
+      where: {
+        positionNumber,
+        isCurrent: true,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
   }
 }

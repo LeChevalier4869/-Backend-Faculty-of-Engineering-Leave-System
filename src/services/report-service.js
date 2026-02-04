@@ -11,7 +11,19 @@ class ReportService {
     const userIds = groups.map((g) => g.userId);
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, prefixName: true, firstName: true, lastName: true },
+      select: {
+        id: true,
+        prefixName: true,
+        firstName: true,
+        lastName: true,
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
+      },
     });
 
     return groups.map((g) => {
@@ -52,12 +64,20 @@ class ReportService {
         department: {
           organizationId: Number(organizationId),
         },
+        personnelTypeId: Number(personnelTypeId),
       },
       select: {
         id: true,
         prefixName: true,
         firstName: true,
         lastName: true,
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
         email: true,
         personnelType: { select: { id: true, name: true } },
         LeaveRequest: {
@@ -122,9 +142,16 @@ class ReportService {
             organization: true,
           },
         },
+        personnelType: true,
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
       },
     });
-
     return user;
   }
 }

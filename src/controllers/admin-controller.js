@@ -997,7 +997,120 @@ exports.createUserByAdmin = async (req, res, next) => {
 
     return res
       .status(201)
-      .json({ message: "สร้างผู้ใช้งานใหม่เรียบร้อยแล้ว", data: user });
+      .json({ message: "สร้างผู้ใช้สำเร็จ", data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -------------------- Position Number Management --------------------
+exports.updateUserPositionNumber = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { positionNumber } = req.body;
+    const changedByUserId = req.user?.id;
+
+    if (!userId || !positionNumber) {
+      throw createError(400, "ต้องระบุ userId และ positionNumber");
+    }
+
+    if (isNaN(userId)) {
+      throw createError(400, "userId ต้องเป็นตัวเลข");
+    }
+
+    // ตรวจสอบว่า user มีอยู่จริง
+    const user = await UserService.getUserByIdWithRoles(parseInt(userId));
+    if (!user) {
+      throw createError(404, "ไม่พบผู้ใช้");
+    }
+
+    const result = await UserService.updateUserPositionNumber(
+      parseInt(userId),
+      positionNumber,
+      changedByUserId
+    );
+
+    res.status(200).json({
+      message: "อัปเดตเลขที่ตำแหน่งสำเร็จ",
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getUserPositionNumberHistory = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      throw createError(400, "ต้องระบุ userId");
+    }
+
+    if (isNaN(userId)) {
+      throw createError(400, "userId ต้องเป็นตัวเลข");
+    }
+
+    const history = await UserService.getUserPositionNumberHistory(parseInt(userId));
+
+    res.status(200).json({
+      message: "ดึงประวัติเลขที่ตำแหน่งสำเร็จ",
+      data: history,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getCurrentPositionNumber = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      throw createError(400, "ต้องระบุ userId");
+    }
+
+    if (isNaN(userId)) {
+      throw createError(400, "userId ต้องเป็นตัวเลข");
+    }
+
+    const current = await UserService.getCurrentPositionNumber(parseInt(userId));
+
+    if (!current) {
+      return res.status(404).json({
+        message: "ไม่พบเลขที่ตำแหน่งปัจจุบันสำหรับผู้ใช้นี้",
+      });
+    }
+
+    res.status(200).json({
+      message: "ดึงเลขที่ตำแหน่งปัจจุบันสำเร็จ",
+      data: current,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getPositionNumberByNumber = async (req, res, next) => {
+  try {
+    const { positionNumber } = req.params;
+
+    if (!positionNumber) {
+      throw createError(400, "ต้องระบุ positionNumber");
+    }
+
+    const result = await UserService.getPositionNumberByNumber(positionNumber);
+
+    if (!result) {
+      return res.status(404).json({
+        message: "ไม่พบผู้ใช้ที่ถือเลขที่ตำแหน่งนี้ในปัจจุบัน",
+      });
+    }
+
+    res.status(200).json({
+      message: "ดึงข้อมูลผู้ใช้สำเร็จ",
+      data: result,
+    });
   } catch (err) {
     next(err);
   }
