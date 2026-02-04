@@ -864,11 +864,30 @@ exports.organizationList = async (req, res, next) => {
 // --------------------
 exports.getAllUsers = async (req, res) => {
   try {
-    const { organizationId } = req.query;
+    const { organizationId, search } = req.query;
     const where = {};
+
     if (organizationId) {
       where.department = { organizationId: Number(organizationId) };
     }
+
+    // เพิ่มการค้นหา
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        { email: { contains: search } },
+        { prefixName: { contains: search } },
+        {
+          positionNumbers: {
+            some: {
+              positionNumber: { contains: search }
+            }
+          }
+        }
+      ];
+    }
+
     const users = await prisma.user.findMany({
       where,
       select: {
@@ -876,6 +895,20 @@ exports.getAllUsers = async (req, res) => {
         firstName: true,
         lastName: true,
         email: true,
+        prefixName: true,
+        department: {
+          select: {
+            name: true,
+          },
+        },
+        positionNumbers: {
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1, // เอาแค่ล่าสุด
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
       },
       orderBy: { firstName: 'asc' },
     });
@@ -883,8 +916,13 @@ exports.getAllUsers = async (req, res) => {
     // สร้าง fullName ในโค้ดฝั่ง server
     const data = users.map(u => ({
       id: u.id,
-      fullName: `${u.firstName} ${u.lastName}`,
+      fullName: `${u.prefixName || ''}${u.prefixName ? ' ' : ''}${u.firstName} ${u.lastName}`,
       email: u.email,
+      prefixName: u.prefixName,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      department: u.department,
+      positionNumbers: u.positionNumbers,
     }));
 
     return res.status(200).json({
