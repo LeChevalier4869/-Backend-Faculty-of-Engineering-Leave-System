@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const prisma = require("../config/prisma");
 const UserService = require("../services/user-service");
+const AuditLogService = require("../services/auditLog-service");
 
 // ฟังก์ชันสำหรับสร้าง userRank ใน transaction
 async function assignRankToUserInTransaction(userId, personnelTypeId, hireDate, ranks, tx) {
@@ -37,15 +38,27 @@ async function assignRankToUserInTransaction(userId, personnelTypeId, hireDate, 
 async function resetLeaveBalance() {
   console.log("🔄 กำลังรีเซ็ตข้อมูล Leave Balance");
 
-  const fiscalYearSetting = await prisma.setting.findUnique({
-    where: { key: "fiscalYear" },
-  });
+  try {
+    // Log การเริ่ม process
+    await AuditLogService.createLog(
+      null, // system process ไม่มี userId
+      'FISCAL_YEAR_RESET_START', 
+      'SYSTEM', 
+      null,
+      `เริ่มรีเซ็ต Leave Balance ปีงบประมาณใหม่`,
+      null, 
+      'SYSTEM_CRON'
+    );
 
-  const year = fiscalYearSetting
-    ? parseInt(fiscalYearSetting.value)
-    : new Date().getFullYear();
+    const fiscalYearSetting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+    });
 
-  console.log(`📅 กำลังรีเซ็ตสำหรับปีงบประมาณ: ${year}`);
+    const year = fiscalYearSetting
+      ? parseInt(fiscalYearSetting.value)
+      : new Date().getFullYear();
+
+    console.log(`📅 กำลังรีเซ็ตสำหรับปีงบประมาณ: ${year}`);
 
   // 🟡 ตรวจสอบว่ามีข้อมูลปีปัจจุบันอยู่แล้วหรือไม่
   const currentLeaveBalances = await prisma.leaveBalance.findMany({
@@ -307,6 +320,116 @@ async function resetLeaveBalance() {
   }, { timeout: 60000 }); // เพิ่ม timeout เป็น 60 วินาที
 
   console.log("🎉 รีเซ็ต Leave Balance และ Rank เรียบร้อยแล้ว");
+
+  // Log การสำเร็จ
+  await AuditLogService.createLog(
+    null,
+    'FISCAL_YEAR_RESET_SUCCESS', 
+    'SYSTEM', 
+    null,
+    `รีเซ็ต Leave Balance สำเร็จสำหรับปีงบประมาณ ${year}`,
+    null, 
+    'SYSTEM_CRON'
+  );
+
+  } catch (error) {
+    console.error("❌ เกิดข้อผิดพลาดในการรีเซ็ต Leave Balance:", error);
+    
+    // Log error
+    await AuditLogService.createLog(
+      null,
+      'FISCAL_YEAR_RESET_ERROR', 
+      'SYSTEM', 
+      null,
+      `รีเซ็ต Leave Balance ผิดพลาด: ${error.message}`,
+      null, 
+      'SYSTEM_CRON'
+    );
+    
+    throw error; // โยน error ต่อเพื่อให้ CRON รับรู้
+  }
+}
+
+async function resetDocumentNumber(fiscalYear) {
+  try {
+    // แปลงปี คศ เป็น พศ (คศ + 543)
+    const buddhistYear = fiscalYear + 543;
+    const yearSuffix = String(buddhistYear).slice(-2); // 2569 → "69"
+    const resetValue = `คว.0001/${yearSuffix}`;
+    
+    // ตรวจสอบค่าปัจจุบันก่อน
+    const currentSetting = await prisma.setting.findUnique({
+      where: { key: 'runNumber' }
+    });
+    
+    if (!currentSetting) {
+      throw new Error('ไม่พบ setting: runNumber');
+    }
+    
+    // Log ก่อนเปลี่ยนแปลง
+    await AuditLogService.createLog(
+      null,
+      'DOCUMENT_NUMBER_RESET_START', 
+      'SYSTEM', 
+      null,
+      `เริ่มรีเซ็ต Document Number: ${currentSetting.value} → ${resetValue}`,
+      null, 
+      'SYSTEM_CRON',
+      { 
+        oldValue: currentSetting.value,
+        newValue: resetValue,
+        fiscalYear: fiscalYear,
+        buddhistYear: buddhistYear
+      }
+    );
+    
+    // อัปเดตค่า
+    await prisma.setting.update({
+      where: { key: 'runNumber' },
+      data: { value: resetValue }
+    });
+    
+    console.log(`📄 [CRON] รีเซ็ต Document Number เป็น: ${resetValue} (ปี คศ:${fiscalYear} → พศ:${buddhistYear})`);
+    
+    // Log สำเร็จ
+    await AuditLogService.createLog(
+      null,
+      'DOCUMENT_NUMBER_RESET_SUCCESS', 
+      'SYSTEM', 
+      null,
+      `รีเซ็ต Document Number สำเร็จ: ${resetValue}`,
+      null, 
+      'SYSTEM_CRON',
+      { 
+        oldValue: currentSetting.value,
+        newValue: resetValue,
+        fiscalYear: fiscalYear,
+        buddhistYear: buddhistYear
+      }
+    );
+    
+    return resetValue;
+    
+  } catch (error) {
+    console.error("❌ เกิดข้อผิดพลาดในการรีเซ็ต Document Number:", error);
+    
+    // Log error
+    await AuditLogService.createLog(
+      null,
+      'DOCUMENT_NUMBER_RESET_ERROR', 
+      'SYSTEM', 
+      null,
+      `รีเซ็ต Document Number ผิดพลาด: ${error.message}`,
+      null, 
+      'SYSTEM_CRON',
+      { 
+        error: error.message,
+        fiscalYear: fiscalYear
+      }
+    );
+    
+    throw error;
+  }
 }
 
 // //             🔁 ทำงานทุกวันที่ 1 ต.ค. เวลา 00:00
@@ -327,6 +450,7 @@ async function resetLeaveBalance() {
 console.log("🕐 [CRON] ตั้งค่า cron job สำหรับการจัดการ Leave Balance:");
 console.log("   - รีเซ็ต Leave Balance: 00:00 ทุกวันที่ 1 ต.ค. (Asia/Bangkok)");
 console.log("   - อัปเดตปีงบประมาณและวันหยุด: 00:00 ทุกวันที่ 1 ต.ค. (Asia/Bangkok)");
+console.log("   - รีเซ็ต Document Number: 00:00 ทุกวันที่ 1 ต.ค. (Asia/Bangkok)");
 
 cron.schedule("0 0 1 10 *", async () => {
   // Set timezone to Bangkok (UTC+7)
@@ -339,11 +463,15 @@ cron.schedule("0 0 1 10 *", async () => {
     console.log("🕛 [CRON] เริ่มตั้งค่า Leave Balance (1 ต.ค.)");
 
     // อัปเดตปีงบประมาณใน setting
-    const fiscalYear = await prisma.setting.update({
+    const fiscalYear = today.getFullYear() + 1;
+    const fiscalYearSetting = await prisma.setting.update({
       where: { key: "fiscalYear" },
-      data: { value: String(today.getFullYear() + 1) },
+      data: { value: String(fiscalYear) },
     });
-    console.log("📅 [CRON] อัปเดตปีงบประมาณเป็น:", fiscalYear.value);
+    console.log("📅 [CRON] อัปเดตปีงบประมาณเป็น:", fiscalYearSetting.value);
+
+    // 🆕 RESET DOCUMENT NUMBER
+    await resetDocumentNumber(fiscalYear);
 
     // รีเซ็ต Leave Balance
     await resetLeaveBalance();
@@ -353,12 +481,24 @@ cron.schedule("0 0 1 10 *", async () => {
   if (today.getMonth() === 0 && today.getDate() === 1) {
     console.log("🎆 [CRON] เริ่มตั้งค่าปีใหม่ (1 ม.ค.)");
     
-    const currentYearSetting = await prisma.setting.update({
-      where: { key: "currentYear" },
-      data: { value: today.getFullYear().toString() },
-    });
-    const currentYear = parseInt(currentYearSetting.value, 10);
-    console.log("📅 [CRON] อัปเดตปีปัจจุบันเป็น:", currentYear);
+    try {
+      // Log การเริ่มต้นปีใหม่
+      await AuditLogService.createLog(
+        null,
+        'NEW_YEAR_SETUP_START', 
+        'SYSTEM', 
+        null,
+        `เริ่มตั้งค่าปีปฏิทินใหม่: ${today.getFullYear()}`,
+        null, 
+        'SYSTEM_CRON'
+      );
+      
+      const currentYearSetting = await prisma.setting.update({
+        where: { key: "currentYear" },
+        data: { value: today.getFullYear().toString() },
+      });
+      const currentYear = parseInt(currentYearSetting.value, 10);
+      console.log("📅 [CRON] อัปเดตปีปัจจุบันเป็น:", currentYear);
 
     // ดึง holiday ที่เป็น recurring
     const recurringHolidays = await prisma.holiday.findMany({
@@ -421,8 +561,45 @@ cron.schedule("0 0 1 10 *", async () => {
       }
     }
     console.log("✅ [CRON] อัปเดตวันหยุดปีใหม่สำเร็จ");
+    
+    // Log การสำเร็จปีใหม่
+    await AuditLogService.createLog(
+      null,
+      'NEW_YEAR_SETUP_SUCCESS', 
+      'SYSTEM', 
+      null,
+      `ตั้งค่าปีปฏิทินใหม่ ${currentYear} สำเร็จ: ${recurringHolidays.length} วันหยุด`,
+      null, 
+      'SYSTEM_CRON',
+      { 
+        currentYear: currentYear,
+        holidaysProcessed: recurringHolidays.length
+      }
+    );
+    
+    } catch (error) {
+      console.error("❌ เกิดข้อผิดพลาดในการตั้งค่าปีใหม่:", error);
+      
+      // Log error
+      await AuditLogService.createLog(
+        null,
+        'NEW_YEAR_SETUP_ERROR', 
+        'SYSTEM', 
+        null,
+        `ตั้งค่าปีใหม่ผิดพลาด: ${error.message}`,
+        null, 
+        'SYSTEM_CRON',
+        { 
+          error: error.message,
+          year: today.getFullYear()
+        }
+      );
+    }
   }
   console.log("🕐 [CRON] ตรวจสอบ cron job วันนี้เรียบร้อยแล้ว");
 });
 
-module.exports = resetLeaveBalance;
+module.exports = {
+  resetLeaveBalance,
+  resetDocumentNumber
+};
