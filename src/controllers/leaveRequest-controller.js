@@ -44,9 +44,14 @@ exports.createLeaveRequest = async (req, res, next) => {
       "Create Request",
       "LeaveRequest",
       leaveRequest.id,
-      `สร้างคำขอลา: ${leaveRequest.id}`,
+      `สร้างคำขอลา: ${leaveRequest.id} (ลา ${leaveRequest.thisTimeDays} วัน)`,
       req.ip,
-      req.get("User-Agent")
+      req.get("User-Agent"),
+      {
+        leaveTypeId: leaveRequest.leaveTypeId,
+        requestedDays: leaveRequest.thisTimeDays,
+        action: 'CREATE'
+      }
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request

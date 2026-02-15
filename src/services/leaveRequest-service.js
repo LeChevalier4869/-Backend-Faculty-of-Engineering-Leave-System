@@ -4,6 +4,7 @@ const UserService = require("../services/user-service");
 const LeaveBalanceService = require("./leaveBalance-service");
 const RankService = require("./rank-service");
 const ProxyApprovalService = require("./proxyApproval-service");
+const AuditLogService = require("./auditLog-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const { sendNotification, sendEmail } = require("../utils/emailService");
 
@@ -1002,19 +1003,23 @@ class LeaveRequestService {
     // ไม่ว่าจะถูก assign ไว้ให้คนไหนก็ตาม
 
     // 2. อัปเดตรายการคำขอลา (step 1)
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        remarks,
-        comment,
-        proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
-      },
-      include: {
-        leaveRequest: true,
-      },
+    const updatedDetail = await prisma.$transaction(async (tx) => {
+      const detail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+          proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      return detail;
     });
 
     // บันทึก log การทำงาน
@@ -1130,6 +1135,14 @@ class LeaveRequestService {
     // 1. ตรวจสอบว่า LeaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findUnique({
       where: { id: Number(id) },
+      include: {
+        leaveRequest: {
+          include: {
+            user: true,
+            leaveType: true
+          }
+        }
+      }
     });
 
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1142,33 +1155,105 @@ class LeaveRequestService {
       );
     }
 
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
-        reviewedAt: new Date(), // อัปเดตเวลา
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
+    // 🔥 ใช้ Transaction เพื่อความปลอดภัย
+    const result = await prisma.$transaction(async (tx) => {
+      const userId = existingDetail.leaveRequest.userId;
+      const leaveTypeId = existingDetail.leaveRequest.leaveTypeId;
+      const requestedDays = existingDetail.leaveRequest.thisTimeDays;
+      
+      console.log(`🔄 คืน balance: User ${userId}, Type ${leaveTypeId}, Days ${requestedDays}`);
+      
+      // คืน days ใน userLeaveBalance
+      const currentYear = new Date().getFullYear();
+      const balanceRecord = await tx.leaveBalance.findFirst({
+        where: {
+          AND: [
+            { userId },
+            { leaveTypeId },
+            { year: currentYear } // 🎯 ค้นปีปัจจุบัน
+          ]
+        }
+      });
+      
+      console.log(`🔍 Balance Record Found:`, balanceRecord);
+      
+      if (balanceRecord) {
+        const currentRemaining = balanceRecord.remainingDays || 0;
+        const currentPending = balanceRecord.pendingDays || 0;
+        const newRemaining = currentRemaining + requestedDays;
+        const newPending = Math.max(0, currentPending - requestedDays);
+        
+        console.log(`🔄 Balance Update:`, {
+          currentRemaining,
+          currentPending,
+          requestedDays,
+          newRemaining,
+          newPending
+        });
+        
+        await tx.leaveBalance.update({
+          where: { id: balanceRecord.id },
+          data: {
+            remainingDays: newRemaining,
+            pendingDays: newPending,
+          },
+        });
+        
+        console.log(`✅ Balance Updated Successfully`);
+      } else {
+        console.log(`❌ No Balance Record Found for User ${userId}, Type ${leaveTypeId}`);
+      }
+
+      // อัปเดตรายการคำขอลา
+      const updatedDetail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId,
+          status: "REJECTED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      await tx.LeaveRequest.update({
+        where: { id: updatedDetail.leaveRequestId },
+        data: {
+          status: "REJECTED",
+        },
+      });
+
+      return updatedDetail;
     });
 
-    await prisma.LeaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        status: "REJECTED",
-      },
-    });
-
-    // บันทึก log การทำงาน
+    // บันทึก audit log (นอก transaction)
+    await AuditLogService.createLog(
+      approverId,
+      'LEAVE_REQUEST_REJECTED',
+      'LeaveRequest',
+      result.leaveRequestId,
+      `ปฏิเสธคำขอลา ${existingDetail.leaveRequest.thisTimeDays} วัน และคืน balance`,
+      null,
+      'SYSTEM',
+      {
+        userId: existingDetail.leaveRequest.userId,
+        leaveTypeId: existingDetail.leaveRequest.leaveTypeId,
+        requestedDays: existingDetail.leaveRequest.thisTimeDays,
+        rejectedBy: approverId,
+        action: 'REJECT',
+        balanceChange: {
+          daysReturned: existingDetail.leaveRequest.thisTimeDays,
+          reason: 'REJECT_LEAVE_REQUEST'
+        }
+      }
+    );
 
     // 3. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
     const requester = await prisma.user.findUnique({
-      where: { id: updatedDetail.leaveRequest.userId },
+      where: { id: result.leaveRequest.userId },
       select: {
         email: true,
         prefixName: true,
@@ -1187,7 +1272,7 @@ class LeaveRequestService {
 
     return {
       message: "รายการคำขอลาถูกปฏิเสธเรียบร้อย",
-      rejectedDetail: updatedDetail,
+      rejectedDetail: result,
     };
   }
 
@@ -1470,7 +1555,7 @@ class LeaveRequestService {
 
     return {
       message: "รายการคำขอลาถูกปฏิเสธเรียบร้อย",
-      rejectedDetail: updatedDetail,
+      rejectedDetail: result,
     };
   }
 
@@ -1520,19 +1605,23 @@ class LeaveRequestService {
     // เพราะถ้า user มีสิทธิ์ approve ในระดับนี้ (อยู่ใน approverIds แล้ว) ก็ควรอนุญาตให้ approve ได้
 
     // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        remarks,
-        comment,
-        proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
-      },
-      include: {
-        leaveRequest: true,
-      },
+    const updatedDetail = await prisma.$transaction(async (tx) => {
+      const detail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+          proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      return detail;
     });
 
     // บันทึก log การทำงาน
@@ -1607,7 +1696,16 @@ class LeaveRequestService {
         id: Number(id),
         stepOrder: 4,
       },
+      include: {
+        leaveRequest: {
+          include: {
+            user: true,
+            leaveType: true
+          }
+        }
+      }
     });
+    
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
@@ -1618,26 +1716,78 @@ class LeaveRequestService {
       );
     }
 
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
-        reviewedAt: new Date(), // อัปเดตเวลา
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
-    });
+    // 🔥 ใช้ Transaction เพื่อความปลอดภัย
+    const result = await prisma.$transaction(async (tx) => {
+      const userId = existingDetail.leaveRequest.userId;
+      const leaveTypeId = existingDetail.leaveRequest.leaveTypeId;
+      const requestedDays = existingDetail.leaveRequest.thisTimeDays;
+      
+      console.log(`🔄 คืน balance (Second Approver): User ${userId}, Type ${leaveTypeId}, Days ${requestedDays}`);
+      
+      // คืน days ใน userLeaveBalance
+      const currentYear = new Date().getFullYear();
+      const balanceRecord = await tx.leaveBalance.findFirst({
+        where: {
+          AND: [
+            { userId },
+            { leaveTypeId },
+            { year: currentYear } // 🎯 ค้นปีปัจจุบัน
+          ]
+        }
+      });
+      
+      console.log(`🔍 Balance Record Found:`, balanceRecord);
+      
+      if (balanceRecord) {
+        const currentRemaining = balanceRecord.remainingDays || 0;
+        const currentPending = balanceRecord.pendingDays || 0;
+        const newRemaining = currentRemaining + requestedDays;
+        const newPending = Math.max(0, currentPending - requestedDays);
+        
+        console.log(`🔄 Balance Update:`, {
+          currentRemaining,
+          currentPending,
+          requestedDays,
+          newRemaining,
+          newPending
+        });
+        
+        await tx.leaveBalance.update({
+          where: { id: balanceRecord.id },
+          data: {
+            remainingDays: newRemaining,
+            pendingDays: newPending,
+          },
+        });
+        
+        console.log(`✅ Balance Updated Successfully`);
+      } else {
+        console.log(`❌ No Balance Record Found for User ${userId}, Type ${leaveTypeId}`);
+      }
 
-    await prisma.LeaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        status: "REJECTED",
-      },
+      // อัปเดตรายการคำขอลา
+      const rejectedDetail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId,
+          status: "REJECTED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      await tx.LeaveRequest.update({
+        where: { id: rejectedDetail.leaveRequestId },
+        data: {
+          status: "REJECTED",
+        },
+      });
+
+      return rejectedDetail;
     });
 
     // บันทึก log การทำงาน
@@ -1663,7 +1813,7 @@ class LeaveRequestService {
 
     return {
       message: "รายการคำขอลาถูกปฏิเสธเรียบร้อย",
-      rejectedDetail: updatedDetail,
+      rejectedDetail: result,
     };
   }
 
@@ -1690,18 +1840,22 @@ class LeaveRequestService {
     }
 
     // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
+    const updatedDetail = await prisma.$transaction(async (tx) => {
+      const detail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId,
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      return detail;
     });
 
     // บันทึก log การทำงาน
@@ -1776,7 +1930,16 @@ class LeaveRequestService {
         id: Number(id),
         stepOrder: 5,
       },
+      include: {
+        leaveRequest: {
+          include: {
+            user: true,
+            leaveType: true
+          }
+        }
+      }
     });
+    
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
@@ -1787,26 +1950,78 @@ class LeaveRequestService {
       );
     }
 
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
-        reviewedAt: new Date(), // อัปเดตเวลา
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
-    });
+    // 🔥 ใช้ Transaction เพื่อความปลอดภัย
+    const result = await prisma.$transaction(async (tx) => {
+      const userId = existingDetail.leaveRequest.userId;
+      const leaveTypeId = existingDetail.leaveRequest.leaveTypeId;
+      const requestedDays = existingDetail.leaveRequest.thisTimeDays;
+      
+      console.log(`🔄 คืน balance (Third Approver): User ${userId}, Type ${leaveTypeId}, Days ${requestedDays}`);
+      
+      // คืน days ใน userLeaveBalance
+      const currentYear = new Date().getFullYear();
+      const balanceRecord = await tx.leaveBalance.findFirst({
+        where: {
+          AND: [
+            { userId },
+            { leaveTypeId },
+            { year: currentYear } // 🎯 ค้นปีปัจจุบัน
+          ]
+        }
+      });
+      
+      console.log(`🔍 Balance Record Found:`, balanceRecord);
+      
+      if (balanceRecord) {
+        const currentRemaining = balanceRecord.remainingDays || 0;
+        const currentPending = balanceRecord.pendingDays || 0;
+        const newRemaining = currentRemaining + requestedDays;
+        const newPending = Math.max(0, currentPending - requestedDays);
+        
+        console.log(`🔄 Balance Update:`, {
+          currentRemaining,
+          currentPending,
+          requestedDays,
+          newRemaining,
+          newPending
+        });
+        
+        await tx.leaveBalance.update({
+          where: { id: balanceRecord.id },
+          data: {
+            remainingDays: newRemaining,
+            pendingDays: newPending,
+          },
+        });
+        
+        console.log(`✅ Balance Updated Successfully`);
+      } else {
+        console.log(`❌ No Balance Record Found for User ${userId}, Type ${leaveTypeId}`);
+      }
 
-    await prisma.LeaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        status: "REJECTED",
-      },
+      // อัปเดตรายการคำขอลา
+      const rejectedDetail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId,
+          status: "REJECTED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      await tx.LeaveRequest.update({
+        where: { id: rejectedDetail.leaveRequestId },
+        data: {
+          status: "REJECTED",
+        },
+      });
+
+      return rejectedDetail;
     });
 
     // บันทึก log การทำงาน
@@ -1832,7 +2047,7 @@ class LeaveRequestService {
 
     return {
       message: "รายการคำขอลาถูกปฏิเสธเรียบร้อย",
-      rejectedDetail: updatedDetail,
+      rejectedDetail: result,
     };
   }
 
@@ -1859,18 +2074,22 @@ class LeaveRequestService {
     }
 
     // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "APPROVED",
-        reviewedAt: new Date(),
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
+    const updatedDetail = await prisma.$transaction(async (tx) => {
+      const detail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId,
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      return detail;
     });
 
     // บันทึก log การทำงาน
@@ -1930,7 +2149,16 @@ class LeaveRequestService {
         id: Number(id),
         stepOrder: 6,
       },
+      include: {
+        leaveRequest: {
+          include: {
+            user: true,
+            leaveType: true
+          }
+        }
+      }
     });
+    
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
@@ -1941,26 +2169,78 @@ class LeaveRequestService {
       );
     }
 
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId,
-        status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
-        reviewedAt: new Date(), // อัปเดตเวลา
-        remarks,
-        comment,
-      },
-      include: {
-        leaveRequest: true,
-      },
-    });
+    // 🔥 ใช้ Transaction เพื่อความปลอดภัย
+    const result = await prisma.$transaction(async (tx) => {
+      const userId = existingDetail.leaveRequest.userId;
+      const leaveTypeId = existingDetail.leaveRequest.leaveTypeId;
+      const requestedDays = existingDetail.leaveRequest.thisTimeDays;
+      
+      console.log(`🔄 คืน balance (Fourth Approver): User ${userId}, Type ${leaveTypeId}, Days ${requestedDays}`);
+      
+      // คืน days ใน userLeaveBalance
+      const currentYear = new Date().getFullYear();
+      const balanceRecord = await tx.leaveBalance.findFirst({
+        where: {
+          AND: [
+            { userId },
+            { leaveTypeId },
+            { year: currentYear } // 🎯 ค้นปีปัจจุบัน
+          ]
+        }
+      });
+      
+      console.log(`🔍 Balance Record Found:`, balanceRecord);
+      
+      if (balanceRecord) {
+        const currentRemaining = balanceRecord.remainingDays || 0;
+        const currentPending = balanceRecord.pendingDays || 0;
+        const newRemaining = currentRemaining + requestedDays;
+        const newPending = Math.max(0, currentPending - requestedDays);
+        
+        console.log(`🔄 Balance Update:`, {
+          currentRemaining,
+          currentPending,
+          requestedDays,
+          newRemaining,
+          newPending
+        });
+        
+        await tx.leaveBalance.update({
+          where: { id: balanceRecord.id },
+          data: {
+            remainingDays: newRemaining,
+            pendingDays: newPending,
+          },
+        });
+        
+        console.log(`✅ Balance Updated Successfully`);
+      } else {
+        console.log(`❌ No Balance Record Found for User ${userId}, Type ${leaveTypeId}`);
+      }
 
-    await prisma.LeaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        status: "REJECTED",
-      },
+      // อัปเดตรายการคำขอลา
+      const rejectedDetail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId,
+          status: "REJECTED",
+          reviewedAt: new Date(),
+          remarks,
+          comment,
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      await tx.LeaveRequest.update({
+        where: { id: rejectedDetail.leaveRequestId },
+        data: {
+          status: "REJECTED",
+        },
+      });
+
+      return rejectedDetail;
     });
 
     // บันทึก log การทำงาน
@@ -1986,7 +2266,7 @@ class LeaveRequestService {
 
     return {
       message: "รายการคำขอลาถูกปฏิเสธเรียบร้อย",
-      rejectedDetail: updatedDetail,
+      rejectedDetail: result,
     };
   }
 
