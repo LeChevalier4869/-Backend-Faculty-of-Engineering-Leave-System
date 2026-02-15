@@ -10,6 +10,7 @@ const RankService = require("../services/rank-service");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const UserService = require("../services/user-service");
+const AuditLogService = require("../services/auditLog-service");
 const cloudUpload = require("../utils/cloudUpload");
 const prisma = require("../config/prisma");
 const settingService = require("../services/setting-service");
@@ -116,6 +117,16 @@ exports.createRequestByAdmin = async (req, res, next) => {
       approvalDetailsParsed
     );
 
+    await AuditLogService.createLog(
+      adminId,
+      "CREATE",
+      "LeaveRequest",
+      leaveRequest.id,
+      `Admin สร้างคำขอลาแทนผู้ใช้ userId=${userId}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     // แนบไฟล์
     const file = req.files;
     if (Array.isArray(file) && file.length > 0) {
@@ -178,6 +189,18 @@ exports.addHoliday = async (req, res, next) => {
       holidayType,
     });
 
+    // บันทึก Audit Log การสร้างวันหยุด
+    await AuditLogService.createLog(
+      req.user.id,
+      "CREATE",
+      "Holiday",
+      holiday.id,
+      `สร้างวันหยุด: ${description} (${date})`,
+      req.ip,
+      req.get('User-Agent')
+      // ไม่ส่ง entityData - จะดึงอัตโนมัติ
+    );
+
     res.status(201).json({ message: "Added holiday completed", data: holiday });
   } catch (err) {
     next(err);
@@ -191,6 +214,9 @@ exports.updateHoliday = async (req, res, next) => {
     if (isNaN(id)) {
       throw createError(400, "Invalid holiday ID");
     }
+
+    const oldHoliday = await prisma.holiday.findUnique({ where: { id } });
+    if (!oldHoliday) throw createError(404, "ไม่พบวันหยุดที่จะอัปเดต");
 
     const { date, description, isRecurring, holidayType } = req.body;
     const updateData = {};
@@ -211,8 +237,19 @@ exports.updateHoliday = async (req, res, next) => {
 
     const updatedHoliday = await AdminService.updateHolidayById(id, updateData);
 
+    // บันทึก Audit Log การอัปเดตวันหยุด (พร้อม diff)
+    await AuditLogService.createUpdateLog(
+      req.user.id,
+      "Holiday",
+      id,
+      oldHoliday,
+      updatedHoliday,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(200).json({
-      message: "Updated holiday successfully",
+      message: "อัปเดตวันหยุดสำเร็จ",
       data: updatedHoliday,
     });
   } catch (err) {
@@ -230,7 +267,19 @@ exports.deleteHoliday = async (req, res, next) => {
 
     await AdminService.deleteHoliday(id); // เรียก service
 
-    res.status(200).json({ message: "Deleted holiday successfully" });
+    // บันทึก Audit Log การลบวันหยุด
+    await AuditLogService.createLog(
+      req.user.id,
+      "DELETE",
+      "Holiday",
+      id,
+      `ลบวันหยุด (ID: ${id})`,
+      req.ip,
+      req.get('User-Agent')
+      // ไม่ส่ง entityData - จะดึงอัตโนมัติ
+    );
+
+    res.status(200).json({ message: "ลบวันหยุดสำเร็จ" });
   } catch (err) {
     next(err);
   }
@@ -424,7 +473,7 @@ exports.assignHeadDepartment = async (req, res, next) => {
 
     res
       .status(200)
-      .json({ message: "Assigned head successfully", data: updatedDepartment });
+      .json({ message: "มอบหมายหัวหน้าแผนกสำเร็จ", data: updatedDepartment });
   } catch (err) {
     next(err);
   }
@@ -573,6 +622,18 @@ exports.createPersonnelType = async (req, res, next) => {
     const { name } = req.body;
     const personnelType = await OrgAndDeptService.createPersonnelType(name);
     if (!personnelType) throw createError(400, "สร้างประเภทบุคคลากรไม่สำเร็จ");
+
+    // บันทึก Audit Log การสร้างประเภทบุคคลากร
+    await AuditLogService.createLog(
+      req.user.id,
+      "CREATE",
+      "PersonnelType",
+      personnelType.id,
+      `สร้างประเภทบุคคลากร: ${name}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(201).json({
       message: "สร้างประเภทบุคคลากรเรียบร้อยแล้ว",
       data: personnelType,
@@ -588,11 +649,28 @@ exports.updatePersonnelType = async (req, res, next) => {
     const { name } = req.body;
     if (!id) throw createError(404, "ไม่พบข้อมูล id");
     if (!name) throw createError(400, "กรุณาระบุ name");
+
+    // ดึงข้อมูลเดิมก่อนอัปเดตเพื่อบันทึกใน audit log
+    const oldPersonnelType = await OrgAndDeptService.getPersonnelTypeById(parseInt(id));
+    const oldName = oldPersonnelType?.name;
+
     const personnelType = await OrgAndDeptService.updatePersonnelType(
       parseInt(id),
       name
     );
     if (!personnelType) throw createError(400, "อัปเดตประเภทบุคคลากรไม่สำเร็จ");
+
+    // บันทึก Audit Log การอัปเดตประเภทบุคคลากร (พร้อม diff)
+    await AuditLogService.createUpdateLog(
+      req.user.id,
+      "PersonnelType",
+      parseInt(id),
+      oldPersonnelType,
+      personnelType,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(200).json({
       message: "อัปเดตประเภทบุคคลากรเรียบร้อยแล้ว",
       data: personnelType,
@@ -606,7 +684,24 @@ exports.deletePersonnelType = async (req, res, next) => {
   try {
     const { id } = req.params;
     if (!id) throw createError(404, "ไม่พบข้อมูล id");
+
+    // ดึงข้อมูลก่อนลบเพื่อบันทึกใน audit log
+    const personnelTypeToDelete = await OrgAndDeptService.getPersonnelTypeById(parseInt(id));
+    const typeName = personnelTypeToDelete?.name;
+
     await OrgAndDeptService.deletePersonnelType(parseInt(id));
+
+    // บันทึก Audit Log การลบประเภทบุคคลากร
+    await AuditLogService.createLog(
+      req.user.id,
+      "DELETE",
+      "PersonnelType",
+      parseInt(id),
+      `ลบประเภทบุคคลากร: ${typeName}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(200).json({ message: "ลบประเภทบุคคลากรเรียบร้อยแล้ว" });
   } catch (err) {
     next(err);
@@ -656,6 +751,18 @@ exports.departmentCreate = async (req, res, next) => {
     };
 
     const newDept = await AdminService.createDepartment(data);
+
+    // บันทึก Audit Log การสร้างแผนก
+    await AuditLogService.createLog(
+      req.user.id,
+      "CREATE",
+      "Department",
+      newDept.id,
+      `สร้างแผนก: ${name}`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(201).json({ message: "สร้างแผนกเรียบร้อย", data: newDept });
   } catch (err) {
     next(err);
@@ -667,6 +774,9 @@ exports.departmentUpdate = async (req, res, next) => {
   try {
     const id = +req.params.id;
     if (isNaN(id)) throw createError(400, "Invalid department ID");
+
+    const oldDept = await prisma.department.findUnique({ where: { id } });
+    if (!oldDept) throw createError(404, "ไม่พบแผนกที่จะอัปเดต");
 
     const { name, organizationId, headId, appointDate } = req.body;
     if (!name && !organizationId && headId == null && !appointDate) {
@@ -682,6 +792,17 @@ exports.departmentUpdate = async (req, res, next) => {
     const updated = await AdminService.updateDepartment({ id, ...updateData });
     if (!updated) throw createError(404, "ไม่พบแผนกที่จะอัปเดต");
 
+    // บันทึก Audit Log การอัปเดตแผนก (พร้อม diff)
+    await AuditLogService.createUpdateLog(
+      req.user.id,
+      "Department",
+      id,
+      oldDept,
+      updated,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(200).json({ message: "อัปเดตแผนกเรียบร้อย", data: updated });
   } catch (err) {
     next(err);
@@ -695,6 +816,18 @@ exports.departmentDelete = async (req, res, next) => {
     if (isNaN(id)) throw createError(400, "Invalid department ID");
 
     await AdminService.deleteDepartment(id);
+
+    // บันทึก Audit Log การลบแผนก
+    await AuditLogService.createLog(
+      req.user.id,
+      "DELETE",
+      "Department",
+      id,
+      `ลบแผนก (ID: ${id})`,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res.status(200).json({ message: "ลบแผนกเรียบร้อยแล้ว" });
   } catch (err) {
     next(err);
@@ -731,11 +864,30 @@ exports.organizationList = async (req, res, next) => {
 // --------------------
 exports.getAllUsers = async (req, res) => {
   try {
-    const { organizationId } = req.query;
+    const { organizationId, search } = req.query;
     const where = {};
+
     if (organizationId) {
       where.department = { organizationId: Number(organizationId) };
     }
+
+    // เพิ่มการค้นหา
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        { email: { contains: search } },
+        { prefixName: { contains: search } },
+        {
+          positionNumbers: {
+            some: {
+              positionNumber: { contains: search }
+            }
+          }
+        }
+      ];
+    }
+
     const users = await prisma.user.findMany({
       where,
       select: {
@@ -743,6 +895,20 @@ exports.getAllUsers = async (req, res) => {
         firstName: true,
         lastName: true,
         email: true,
+        prefixName: true,
+        department: {
+          select: {
+            name: true,
+          },
+        },
+        positionNumbers: {
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1, // เอาแค่ล่าสุด
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
       },
       orderBy: { firstName: 'asc' },
     });
@@ -750,8 +916,13 @@ exports.getAllUsers = async (req, res) => {
     // สร้าง fullName ในโค้ดฝั่ง server
     const data = users.map(u => ({
       id: u.id,
-      fullName: `${u.firstName} ${u.lastName}`,
+      fullName: `${u.prefixName || ''}${u.prefixName ? ' ' : ''}${u.firstName} ${u.lastName}`,
       email: u.email,
+      prefixName: u.prefixName,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      department: u.department,
+      positionNumbers: u.positionNumbers,
     }));
 
     return res.status(200).json({
@@ -847,12 +1018,137 @@ exports.createUserByAdmin = async (req, res, next) => {
     const roles = await UserService.getRolesByNames(["USER"]);
     await UserService.assignRolesToUser(
       user.id,
-      roles.map((r) => r.id)
+      roles.map((role) => role.id)
+    );
+
+    // บันทึก Audit Log การสร้างผู้ใช้
+    await AuditLogService.createLog(
+      req.user.id,
+      "CREATE",
+      "User",
+      user.id,
+      `สร้างผู้ใช้: ${prefixName} ${firstName} ${lastName} (${email})`,
+      req.ip,
+      req.get('User-Agent')
+      // ไม่ส่ง entityData - จะดึงอัตโนมัติ
     );
 
     return res
       .status(201)
-      .json({ message: "สร้างผู้ใช้งานใหม่เรียบร้อยแล้ว", data: user });
+      .json({ message: "สร้างผู้ใช้สำเร็จ", data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -------------------- Position Number Management --------------------
+exports.updateUserPositionNumber = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { positionNumber } = req.body;
+    const changedByUserId = req.user?.id;
+
+    if (!userId || !positionNumber) {
+      throw createError(400, "ต้องระบุ userId และ positionNumber");
+    }
+
+    if (isNaN(userId)) {
+      throw createError(400, "userId ต้องเป็นตัวเลข");
+    }
+
+    // ตรวจสอบว่า user มีอยู่จริง
+    const user = await UserService.getUserByIdWithRoles(parseInt(userId));
+    if (!user) {
+      throw createError(404, "ไม่พบผู้ใช้");
+    }
+
+    const result = await UserService.updateUserPositionNumber(
+      parseInt(userId),
+      positionNumber,
+      changedByUserId
+    );
+
+    res.status(200).json({
+      message: "อัปเดตเลขที่ตำแหน่งสำเร็จ",
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getUserPositionNumberHistory = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      throw createError(400, "ต้องระบุ userId");
+    }
+
+    if (isNaN(userId)) {
+      throw createError(400, "userId ต้องเป็นตัวเลข");
+    }
+
+    const history = await UserService.getUserPositionNumberHistory(parseInt(userId));
+
+    res.status(200).json({
+      message: "ดึงประวัติเลขที่ตำแหน่งสำเร็จ",
+      data: history,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getCurrentPositionNumber = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      throw createError(400, "ต้องระบุ userId");
+    }
+
+    if (isNaN(userId)) {
+      throw createError(400, "userId ต้องเป็นตัวเลข");
+    }
+
+    const current = await UserService.getCurrentPositionNumber(parseInt(userId));
+
+    if (!current) {
+      return res.status(404).json({
+        message: "ไม่พบเลขที่ตำแหน่งปัจจุบันสำหรับผู้ใช้นี้",
+      });
+    }
+
+    res.status(200).json({
+      message: "ดึงเลขที่ตำแหน่งปัจจุบันสำเร็จ",
+      data: current,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getPositionNumberByNumber = async (req, res, next) => {
+  try {
+    const { positionNumber } = req.params;
+
+    if (!positionNumber) {
+      throw createError(400, "ต้องระบุ positionNumber");
+    }
+
+    const result = await UserService.getPositionNumberByNumber(positionNumber);
+
+    if (!result) {
+      return res.status(404).json({
+        message: "ไม่พบผู้ใช้ที่ถือเลขที่ตำแหน่งนี้ในปัจจุบัน",
+      });
+    }
+
+    res.status(200).json({
+      message: "ดึงข้อมูลผู้ใช้สำเร็จ",
+      data: result,
+    });
   } catch (err) {
     next(err);
   }
@@ -862,6 +1158,9 @@ exports.updateUserById = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) throw createError(400, "ID ต้องเป็นตัวเลข");
+
+    const oldUser = await prisma.user.findUnique({ where: { id } });
+    if (!oldUser) throw createError(404, "ไม่พบผู้ใช้งาน");
 
     const {
       prefixName,
@@ -892,6 +1191,17 @@ exports.updateUserById = async (req, res, next) => {
     };
 
     const updatedUser = await AdminService.updateUserById(id, updateData);
+
+    await AuditLogService.createUpdateLog(
+      req.user.id,
+      "User",
+      id,
+      oldUser,
+      updatedUser,
+      req.ip,
+      req.get('User-Agent')
+    );
+
     res
       .status(200)
       .json({ message: "อัปเดตผู้ใช้งานเรียบร้อย", data: updatedUser });
@@ -905,7 +1215,25 @@ exports.deleteUser = async (req, res, next) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) throw createError(400, "Invalid user ID");
 
+    // Get user info before deletion for audit log
+    const userToDelete = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, firstName: true, lastName: true, email: true }
+    });
+
     await AdminService.deleteUserById(id);
+
+    await AuditLogService.createLog(
+      req.user.id,
+      "DELETE",
+      "User",
+      id,
+      `ลบผู้ใช้: ${userToDelete?.firstName} ${userToDelete?.lastName} (${userToDelete?.email})`,
+      req.ip,
+      req.get('User-Agent'),
+      userToDelete
+    );
+
     res.status(200).json({ message: "ลบผู้ใช้เรียบร้อยแล้ว" });
   } catch (err) {
     next(err);
@@ -969,10 +1297,10 @@ exports.deleteSetting = async (req, res) => {
 exports.resetLeaveBalance = async (req, res, next) => {
   try {
     console.log("🔄 Admin กำลังรันการรีเซ็ต Leave Balance ด้วยตนเอง");
-    
+
     await resetLeaveBalance();
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       message: "รีเซ็ต Leave Balance สำเร็จ",
       details: "ข้อมูลปีก่อนถูกเก็บรักษาไว้เป็นประวัติ",
       timestamp: new Date().toISOString()
@@ -986,7 +1314,7 @@ exports.resetLeaveBalance = async (req, res, next) => {
 exports.getAvailableYears = async (req, res, next) => {
   try {
     const years = await LeaveBalanceService.getAvailableYears();
-    
+
     res.status(200).json({
       message: "ดึงข้อมูลปีที่มีในระบบสำเร็จ",
       data: years,
@@ -1000,7 +1328,7 @@ exports.getAvailableYears = async (req, res, next) => {
 exports.deleteLeaveBalanceByYear = async (req, res, next) => {
   try {
     const { year } = req.params;
-    
+
     const result = await LeaveBalanceService.deleteLeaveBalanceByYear(year);
 
     res.status(200).json({
@@ -1019,7 +1347,7 @@ exports.getFiscalYearInfo = async (req, res, next) => {
     const fiscalYearSetting = await prisma.setting.findUnique({
       where: { key: "fiscalYear" },
     });
-    
+
     const currentYearSetting = await prisma.setting.findUnique({
       where: { key: "currentYear" },
     });
@@ -1039,14 +1367,14 @@ exports.getFiscalYearInfo = async (req, res, next) => {
 exports.updateFiscalYear = async (req, res, next) => {
   try {
     const { fiscalYear, currentYear } = req.body;
-    
+
     if (fiscalYear) {
       await prisma.setting.update({
         where: { key: "fiscalYear" },
         data: { value: String(fiscalYear) },
       });
     }
-    
+
     if (currentYear) {
       await prisma.setting.update({
         where: { key: "currentYear" },

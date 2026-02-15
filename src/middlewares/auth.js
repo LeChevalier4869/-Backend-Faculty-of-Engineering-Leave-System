@@ -31,7 +31,14 @@ const authenticate = async (req, res, next) => {
       include: {
         userRoles: { include: { role: true } },
         department: { include: { organization: true } },
-        personnelType: { select: { name: true } }
+        personnelType: { select: { name: true } },
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
       },
     });
 
@@ -42,12 +49,10 @@ const authenticate = async (req, res, next) => {
       .map((ur) => ur.role?.name)
       .filter(Boolean);
 
-    // ✅ ฝัง role ลง req.user ให้ authorize ใช้ได้ทันที
+    // ฝัง role ลง req.user ให้ authorize ใช้ได้ทันที
     // เก็บทั้งรูปแบบ 'role' (array) และ 'roles' (เผื่อโค้ดส่วนอื่นอ้าง)
     const { userRoles, ...plainUser } = user; // ตัด relation ออกให้เบาขึ้น
     req.user = { ...plainUser, role: roleNames, roles: roleNames };
-
-    
 
     //debug req.user
     // console.log("Authenticated User: ", req.user);
@@ -66,31 +71,38 @@ const authenticate = async (req, res, next) => {
 const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
       const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-      
+
       // ถ้ามี token ให้ทำงานปกติ
       const user = await prisma.user.findUnique({
         where: { id: payload.userId },
         include: {
           userRoles: { include: { role: true } },
           department: { include: { organization: true } },
-          personnelType: { select: { name: true } }
+          personnelType: { select: { name: true } },
+          positionNumbers: {
+            where: { isCurrent: true },
+            select: {
+              positionNumber: true,
+              effectiveFrom: true,
+            },
+          },
         },
       });
-      
+
       if (user) {
         const roleNames = (user.userRoles || [])
           .map((ur) => ur.role?.name)
           .filter(Boolean);
-        
+
         const { userRoles, ...plainUser } = user;
         req.user = { ...plainUser, role: roleNames, roles: roleNames };
       }
     }
-    
+
     next();
   } catch (err) {
     // ถ้า token ไม่ถูกต้อง ให้ทำงานต่อไปได้ (optional auth)

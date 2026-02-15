@@ -67,9 +67,14 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
       "Create Request",
       "LeaveRequest",
       123,
-      expect.stringContaining("Created leave request: 123"),
+      expect.stringContaining("สร้างคำขอลา: 123 (ลา 2 วัน)"),
       "127.0.0.1",
-      undefined
+      undefined,
+      expect.objectContaining({
+        leaveTypeId: undefined,
+        requestedDays: 2,
+        action: 'CREATE'
+      })
     );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ message: "คำขอลาได้ถูกสร้าง", requestId: 123 });

@@ -39,6 +39,7 @@ model User {
   personnelType           PersonnelType        @relation(fields: [personnelTypeId], references: [id])
   userRanks               UserRank[]
   userRoles               UserRole[]
+  positionNumbers         UserPositionNumber[]
 
   @@index([departmentId], map: "user_departmentId_fkey")
   @@index([personnelTypeId], map: "user_personnelTypeId_fkey")
@@ -97,18 +98,18 @@ model Organization {
 }
 
 model AuditLog {
-  id             Int           @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   userId         Int
   leaveRequestId Int?
   action         String
   details        String?
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime @default(now())
   entityId       Int?
   entityType     String?
   ipAddress      String?
   userAgent      String?
-  leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
-  user           User          @relation(fields: [userId], references: [id])
+  entityData     String? @db.LongText    // เก็บข้อมูล entity ก่อนลบ (JSON) - เปลี่ยนเป็น LongText
+  user           User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([entityType, entityId])
@@ -213,9 +214,9 @@ model LeaveType {
   id                Int            @id @default(autoincrement())
   name              String
   isAvailable       Boolean        @default(true)
-  resetOnFiscalYear Boolean        @default(true)
-  isNonDeductible   Boolean        @default(false)
   template          String?
+  isNonDeductible   Boolean        @default(false)
+  resetOnFiscalYear Boolean        @default(true)
   leaveBalances     LeaveBalance[]
   leaveRequests     LeaveRequest[]
   Rank              Rank[]
@@ -241,7 +242,6 @@ model LeaveRequest {
   documentIssuedDate  DateTime?
   contact             String?
   verifierId          Int?
-  auditLogs           AuditLog[]
   files               File[]
   leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
   user                User                 @relation(fields: [userId], references: [id])
@@ -257,10 +257,10 @@ model LeaveRequest {
 model File {
   id             Int           @id @default(autoincrement())
   leaveRequestId Int?
-  name           String
   type           FileType
   filePath       String
   uploadedAt     DateTime      @default(now())
+  name           String
   leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id])
 
   @@index([leaveRequestId], map: "file_leaveRequestId_fkey")
@@ -302,7 +302,7 @@ model Setting {
   id          Int      @id @default(autoincrement())
   key         String   @unique
   type        String
-  value       String
+  value       String   @db.Text
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -359,6 +359,26 @@ model ProxyApproval {
   @@index([status])
   @@index([dailyDate])
   @@map("proxy_approval")
+}
+
+model UserPositionNumber {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  positionNumber String
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  isCurrent      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([positionNumber])
+  @@index([userId, effectiveFrom])
+  @@unique([userId, isCurrent])
+  @@unique([positionNumber, isCurrent])
+  @@map("user_position_number")
 }
 
 enum LeaveRequestStatus {

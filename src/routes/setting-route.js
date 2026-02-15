@@ -8,5 +8,6 @@ router.get('/get/:id', settingController.getSettingById);
 router.put('/update/:id', settingController.updateSetting);
 router.delete('/delete/:id', settingController.deleteSetting);
 router.get("/by/:key", settingController.getSettingByKey);
+router.put("/by/:key", settingController.updateSettingByKey);
 
 module.exports = router;

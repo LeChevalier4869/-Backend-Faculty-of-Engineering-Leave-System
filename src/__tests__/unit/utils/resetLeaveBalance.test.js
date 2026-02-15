@@ -117,9 +117,9 @@ describe('resetLeaveBalance', () => {
   });
 
   // Require the module after mocks are set up
-  let resetLeaveBalance;
+  let resetFunctions;
   beforeEach(() => {
-    resetLeaveBalance = require('../../../utils/resetLeaveBalance');
+    resetFunctions = require('../../../utils/resetLeaveBalance');
   });
 
   test('should skip non-reset leave types', async () => {
@@ -136,7 +136,7 @@ describe('resetLeaveBalance', () => {
       }
     ]);
     
-    await resetLeaveBalance();
+    await resetFunctions.resetLeaveBalance();
     
     expect(mockConsole.log).toHaveBeenCalledWith(
       '⏭️ ข้าม LeaveType 7 (ไม่รีเซ็ตปีใหม่)'
@@ -147,7 +147,7 @@ describe('resetLeaveBalance', () => {
     // Mock กรณีไม่มี balance ปีปัจจุบัน
     mockPrisma.leaveBalance.findMany.mockResolvedValue([]);
     
-    await resetLeaveBalance();
+    await resetFunctions.resetLeaveBalance();
     
     expect(mockPrisma.leaveBalance.findMany).toHaveBeenCalledWith({
       where: { year: 2025 }
@@ -174,7 +174,7 @@ describe('resetLeaveBalance', () => {
       }
     ]);
     
-    await resetLeaveBalance();
+    await resetFunctions.resetLeaveBalance();
     
     expect(mockPrisma.leaveBalance.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -206,7 +206,7 @@ describe('resetLeaveBalance', () => {
       }
     ]);
     
-    await resetLeaveBalance();
+    await resetFunctions.resetLeaveBalance();
     
     expect(mockPrisma.leaveBalance.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -235,7 +235,7 @@ describe('resetLeaveBalance', () => {
       }
     ]);
     
-    await resetLeaveBalance();
+    await resetFunctions.resetLeaveBalance();
     
     expect(mockPrisma.leaveBalance.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -283,7 +283,7 @@ describe('resetLeaveBalance', () => {
       usedDays: 3
     });
     
-    await resetLeaveBalance();
+    await resetFunctions.resetLeaveBalance();
     
     expect(mockConsole.log).toHaveBeenCalledWith(
       expect.stringContaining('คำนวณ carry over สำหรับ userId 1: สิทธิ์ 5/10, ใช้ไป 3, carry over 5')
