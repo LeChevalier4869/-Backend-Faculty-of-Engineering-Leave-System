@@ -39,7 +39,7 @@ class LeaveRequestService {
   // ตรวจสอบและอัปเดต stepOrder ถ้าจำเป็น
   static async validateAndUpdateStepOrder(existingDetail, approverLevel) {
     const expectedStepOrder = this.approverLevelToStepOrder(approverLevel);
-    
+
     if (!expectedStepOrder) {
       throw createError(400, "ระดับการอนุมัติไม่ถูกต้อง");
     }
@@ -125,7 +125,16 @@ class LeaveRequestService {
     // ดึง user พร้อม department
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { department: true },
+      include: {
+        department: true,
+        positionNumbers: {
+          where: { isCurrent: true },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
+      },
     });
 
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
@@ -135,7 +144,7 @@ class LeaveRequestService {
     if (!approver1s || approver1s.length === 0) throw createError(500, "ไม่พบหัวหน้าสาขาที่สามารถอนุมัติได้ในวันนี้");
 
     // หาหัวหน้าสาขาของ department นี้ (ถ้ามี)
-    let departmentHead = approver1s.find(approver => 
+    let departmentHead = approver1s.find(approver =>
       approver.isOriginal && user.department?.headId === approver.id
     );
 
@@ -157,7 +166,7 @@ class LeaveRequestService {
     } catch (error) {
       throw createError(500, "สร้าง approval step ไม่สำเร็จ");
     }
-    
+
     // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
     this.notifyApprover({
       approverId: departmentHead.id,
@@ -517,7 +526,9 @@ class LeaveRequestService {
   static async checkEligibility(userId, leaveTypeId, requestedDays) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { personnelType: true },
+      include: {
+        personnelType: true,
+      },
     });
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
 
@@ -548,7 +559,7 @@ class LeaveRequestService {
       // ตรวจสอบว่าเป็นประเภทการลาที่ไม่ต้องหักวันหรือไม่ (receiveDays = 0 && isBalance = 1)
       // หรือเป็นประเภทพิเศษที่กำหนดไว้ (leaveTypeId: 5, 6, 10, 11, 13)
       const specialLeaveTypes = [5, 6, 10, 11, 13];
-      
+
       // ตรวจสอบจาก Rank ว่าเป็นประเภทที่ไม่ต้องหักวันหรือไม่
       const userRank = await prisma.userRank.findFirst({
         where: {
@@ -563,7 +574,7 @@ class LeaveRequestService {
       });
 
       const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
-      
+
       if (isNonDeductible || specialLeaveTypes.includes(leaveTypeIdInt)) {
         // สำหรับประเภทการลาที่ไม่ต้องหักวัน ให้ข้ามการตรวจสอบยอดคงเหลือ
         return { success: true, message: "ประเภทการลานี้ไม่ต้องตรวจสอบยอดคงเหลือ" };
@@ -701,7 +712,7 @@ class LeaveRequestService {
     // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
     const approvers = await UserService.getApproversForLevel(1, new Date());
     const approverIds = approvers.map(v => v.id);
-    
+
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -737,13 +748,13 @@ class LeaveRequestService {
 
   static async getPendingRequestsByVerifier() {
     console.log('🔍 Debug - getPendingRequestsByVerifier');
-    
+
     // ดึง verifiers ที่ใช้งานได้ในวันนี้ (รวม proxy)
     const verifiers = await UserService.getApproversForLevel(2, new Date());
     const verifierIds = verifiers.map(v => v.id);
-    
+
     console.log('👥 Verifiers found:', verifiers.map(v => ({ id: v.id, firstName: v.firstName, lastName: v.lastName, isProxy: v.isProxy })));
-    
+
     const requests = await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -775,10 +786,10 @@ class LeaveRequestService {
       },
       orderBy: { createdAt: "desc" },
     });
-    
+
     console.log('📋 Leave requests for verifier:', requests.length);
     console.log('📋 Sample request:', requests[0] || 'No requests');
-    
+
     return requests;
   }
 
@@ -786,7 +797,7 @@ class LeaveRequestService {
     // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
     const approvers = await UserService.getApproversForLevel(3, new Date());
     const approverIds = approvers.map(v => v.id);
-    
+
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -839,7 +850,7 @@ class LeaveRequestService {
     // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
     const approvers = await UserService.getApproversForLevel(4, new Date());
     const approverIds = approvers.map(v => v.id);
-    
+
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -892,7 +903,7 @@ class LeaveRequestService {
     // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
     const approvers = await UserService.getApproversForLevel(5, new Date());
     const approverIds = approvers.map(v => v.id);
-    
+
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
@@ -972,7 +983,7 @@ class LeaveRequestService {
     // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
     const approvers = await UserService.getApproversForLevel(approverLevel, new Date());
     const approverIds = approvers.map(a => a.id);
-    
+
     if (!approverIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
@@ -982,7 +993,7 @@ class LeaveRequestService {
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
-    
+
     if (permission.isProxy) {
       proxyApprovalId = permission.proxyApproval.id;
     }
@@ -1044,7 +1055,7 @@ class LeaveRequestService {
         to: verifierUser.email,
         userName: `${verifierUser.prefixName} ${verifierUser.firstName} ${verifierUser.lastName}`,
       };
-      
+
       // ถ้าเป็นการอนุมัติแทน ให้เพิ่มข้อมูลผู้อนุมัติแทน
       if (permission.isProxy && permission.proxyApproval) {
         // ดึงข้อมูล proxy approver (ผู้อนุมัติจริง)
@@ -1056,13 +1067,13 @@ class LeaveRequestService {
             lastName: true,
           },
         });
-        
+
         if (proxyApproverUser && permission.proxyApproval.originalApprover) {
           notificationData.proxyApprover = `${proxyApproverUser.prefixName} ${proxyApproverUser.firstName} ${proxyApproverUser.lastName}`;
           notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
         }
       }
-      
+
       await sendNotification("APPROVER1_APPROVED", notificationData);
     }
 
@@ -1082,7 +1093,7 @@ class LeaveRequestService {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       };
-      
+
       // ถ้าเป็นการอนุมัติแทน ให้เพิ่มข้อมูลผู้อนุมัติแทน
       if (permission.isProxy && permission.proxyApproval) {
         // ดึงข้อมูล proxy approver (ผู้อนุมัติจริง)
@@ -1094,18 +1105,18 @@ class LeaveRequestService {
             lastName: true,
           },
         });
-        
+
         if (proxyApproverUser && permission.proxyApproval.originalApprover) {
           notificationData.proxyApprover = `${proxyApproverUser.prefixName} ${proxyApproverUser.firstName} ${proxyApproverUser.lastName}`;
           notificationData.originalApprover = `${permission.proxyApproval.originalApprover.prefixName} ${permission.proxyApproval.originalApprover.firstName} ${permission.proxyApproval.originalApprover.lastName}`;
         }
       }
-      
+
       await sendNotification("STEP_APPROVER1", notificationData);
     }
 
     return {
-      message: permission.isProxy 
+      message: permission.isProxy
         ? "อนุมัติเรียบร้อย (โดยผู้อนุมัติแทน) และส่งต่อให้ผู้ตรวจสอบ"
         : "อนุมัติเรียบร้อย และส่งต่อให้ผู้ตรวจสอบ",
       approvedDetail: updatedDetail,
@@ -1181,7 +1192,7 @@ class LeaveRequestService {
   }
 
   // ──────────────────────────────────────────
-  // 🟢   Verifier: Verifier of Faculty 
+  // 🟢   Verifier: Verifier of Faculty
   // ──────────────────────────────────────────
 
   static async approveByVerifier({
@@ -1213,14 +1224,14 @@ class LeaveRequestService {
     // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
     const verifiers = await UserService.getApproversForLevel(approverLevel, new Date());
     const verifierIds = verifiers.map(v => v.id);
-    
+
     if (!verifierIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
 
     // ดึงข้อมูล proxy approval สำหรับบันทึก (ถ้าเป็น proxy)
     const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
-    
+
     console.log('🔍 Debug - Permission check:', {
       approverId,
       approverLevel,
@@ -1231,7 +1242,7 @@ class LeaveRequestService {
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
-    
+
     if (permission.isProxy) {
       proxyApprovalId = permission.proxyApproval.id;
     }
@@ -1394,7 +1405,7 @@ class LeaveRequestService {
     // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
     const approvers = await UserService.getApproversForLevel(approverLevel, new Date());
     const approverIds = approvers.map(a => a.id);
-    
+
     if (!approverIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
@@ -1404,7 +1415,7 @@ class LeaveRequestService {
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
-    
+
     if (permission.isProxy) {
       proxyApprovalId = permission.proxyApproval.id;
     }
@@ -1491,7 +1502,7 @@ class LeaveRequestService {
     // ตรวจสอบสิทธิ์การอนุมัติ (รวมถึงการอนุมัติแทน) - ใช้วิธีเดียวกับ controller
     const approvers = await UserService.getApproversForLevel(approverLevel, new Date());
     const approverIds = approvers.map(a => a.id);
-    
+
     if (!approverIds.includes(approverId)) {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
@@ -1501,7 +1512,7 @@ class LeaveRequestService {
 
     // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
     let proxyApprovalId = null;
-    
+
     if (permission.isProxy) {
       proxyApprovalId = permission.proxyApproval.id;
     }

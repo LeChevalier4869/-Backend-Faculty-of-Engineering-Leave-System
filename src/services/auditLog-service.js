@@ -91,8 +91,15 @@ class AuditLogService {
               employmentType: true,
               hireDate: true,
               department: { select: { id: true, name: true } },
-              personnelType: { select: { id: true, name: true } }
-            }
+              personnelType: { select: { id: true, name: true } },
+              positionNumbers: {
+                where: { isCurrent: true },
+                select: {
+                  positionNumber: true,
+                  effectiveFrom: true,
+                },
+              },
+            },
           });
           break;
 
@@ -222,7 +229,7 @@ class AuditLogService {
     }
   }
 
-  
+
   // ดึงข้อมูล entity (จากตารางจริง หรือ Audit Log ถ้าถูกลบ)
   static async getEntityData(entityType, entityId) {
     try {
@@ -268,7 +275,7 @@ class AuditLogService {
       };
     }
   }
-  
+
   // สร้าง Log พร้อมการเปรียบเทียบข้อมูลสำหรับ UPDATE
   static async createUpdateLog(userId, entityType, entityId, oldData, newData, ipAddress = null, userAgent = null) {
     console.log("=== AUDIT LOG (UPDATE) ===");
@@ -280,9 +287,9 @@ class AuditLogService {
 
       // สร้าง diff ระหว่างข้อมูลเก่าและใหม่
       const diff = this.calculateDiff(normalizedOldData, normalizedNewData);
-      
+
       const details = `อัปเดต${this.getEntityTypeLabel(entityType)}: ${diff.summary}`;
-      
+
       // เก็บข้อมูลเก่าและใหม่ไว้ใน entityData
       const entityData = {
         oldData: normalizedOldData,
@@ -292,13 +299,13 @@ class AuditLogService {
       };
 
       return await this.createLog(
-        userId, 
-        'UPDATE', 
-        entityType, 
-        entityId, 
-        details, 
-        ipAddress, 
-        userAgent, 
+        userId,
+        'UPDATE',
+        entityType,
+        entityId,
+        details,
+        ipAddress,
+        userAgent,
         entityData
       );
     } catch (error) {
@@ -316,10 +323,10 @@ class AuditLogService {
       const normalizedOldData = this.normalizeEntityData(oldData, entityId);
       const normalizedNewData = this.normalizeEntityData(newData, entityId);
       const diff = this.calculateDiff(normalizedOldData, normalizedNewData);
-      
+
       const levelLabel = this.getApproverLevelLabel(approverLevel);
       const details = `อนุมัติคำขอลา (${levelLabel})`;
-      
+
       const entityData = {
         oldData: normalizedOldData,
         newData: normalizedNewData,
@@ -329,13 +336,13 @@ class AuditLogService {
       };
 
       return await this.createLog(
-        userId, 
-        'APPROVE', 
-        entityType, 
-        entityId, 
-        details, 
-        ipAddress, 
-        userAgent, 
+        userId,
+        'APPROVE',
+        entityType,
+        entityId,
+        details,
+        ipAddress,
+        userAgent,
         entityData
       );
     } catch (error) {
@@ -353,10 +360,10 @@ class AuditLogService {
       const normalizedOldData = this.normalizeEntityData(oldData, entityId);
       const normalizedNewData = this.normalizeEntityData(newData, entityId);
       const diff = this.calculateDiff(normalizedOldData, normalizedNewData);
-      
+
       const levelLabel = this.getApproverLevelLabel(approverLevel);
       const details = `ปฏิเสธคำขอลา (${levelLabel})`;
-      
+
       const entityData = {
         oldData: normalizedOldData,
         newData: normalizedNewData,
@@ -366,13 +373,13 @@ class AuditLogService {
       };
 
       return await this.createLog(
-        userId, 
-        'REJECT', 
-        entityType, 
-        entityId, 
-        details, 
-        ipAddress, 
-        userAgent, 
+        userId,
+        'REJECT',
+        entityType,
+        entityId,
+        details,
+        ipAddress,
+        userAgent,
         entityData
       );
     } catch (error) {
@@ -408,7 +415,7 @@ class AuditLogService {
           field: key,
           oldValue,
           newValue,
-          type: oldValue === undefined ? 'added' : 
+          type: oldValue === undefined ? 'added' :
                 newValue === undefined ? 'removed' : 'changed'
         });
         changeCount++;
@@ -536,7 +543,7 @@ class AuditLogService {
     });
   }
 
-  
+
   // นับจำนวน Log ตาม filters
   static async countLogs(filters = {}) {
     const {

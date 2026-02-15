@@ -3,7 +3,10 @@ const prisma = require("../config/prisma.js");
 async function checkLeaveEligibility(userId, leaveTypeId, requestedDays) {
   const user = await prisma.User.findUnique({
     where: { id: userId },
-    include: { personnelType: true, leaveBalances: true },
+    include: {
+      personnelType: true,
+      leaveBalances: true,
+    },
   });
 
   if (!user) throw new Error("ไม่พบข้อมูลผู้ใช้งาน");

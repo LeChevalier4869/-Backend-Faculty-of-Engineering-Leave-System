@@ -39,6 +39,7 @@ model User {
   personnelType           PersonnelType        @relation(fields: [personnelTypeId], references: [id])
   userRanks               UserRank[]
   userRoles               UserRole[]
+  positionNumbers         UserPositionNumber[]
 
   @@index([departmentId], map: "user_departmentId_fkey")
   @@index([personnelTypeId], map: "user_personnelTypeId_fkey")
@@ -358,6 +359,26 @@ model ProxyApproval {
   @@index([status])
   @@index([dailyDate])
   @@map("proxy_approval")
+}
+
+model UserPositionNumber {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  positionNumber String
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  isCurrent      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([positionNumber])
+  @@index([userId, effectiveFrom])
+  @@unique([userId, isCurrent])
+  @@unique([positionNumber, isCurrent])
+  @@map("user_position_number")
 }
 
 enum LeaveRequestStatus {
