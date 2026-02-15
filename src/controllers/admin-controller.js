@@ -14,7 +14,7 @@ const AuditLogService = require("../services/auditLog-service");
 const cloudUpload = require("../utils/cloudUpload");
 const prisma = require("../config/prisma");
 const settingService = require("../services/setting-service");
-const resetLeaveBalance = require("../utils/resetLeaveBalance");
+const { resetLeaveBalance } = require("../utils/resetLeaveBalance");
 
 exports.adminList = async (req, res, next) => {
   try {
