@@ -140,6 +140,20 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 // Lookup
 app.use("/api/lookups", lookupRoute);
 
+// Health check for UptimeRobot (HEAD + GET)
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+app.head("/health", (req, res) => {
+  res.status(200).end();
+});
+app.get("/", (req, res) => {
+  res.status(200).send("Server is running");
+});
+app.head("/", (req, res) => {
+  res.status(200).end();
+});
+
 // Error handling (must be last)
 app.use(errorHandler);
 app.use("*", notFoundHandler);
