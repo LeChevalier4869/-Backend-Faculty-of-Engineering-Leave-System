@@ -1,39 +1,6 @@
 const cron = require("node-cron");
 const prisma = require("../config/prisma");
-const UserService = require("../services/user-service");
 const AuditLogService = require("../services/auditLog-service");
-
-// ฟังก์ชันสำหรับสร้าง userRank ใน transaction
-async function assignRankToUserInTransaction(userId, personnelTypeId, hireDate, ranks, tx) {
-  if (!hireDate) return;
-
-  const currentDate = new Date();
-  const hireMonths =
-    (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
-    (currentDate.getMonth() - hireDate.getMonth());
-
-  // กรอง ranks ตาม personnelTypeId
-  const allRanks = ranks.filter(rank => 
-    rank.personnelTypeId === parseInt(personnelTypeId)
-  );
-
-  for (const rank of allRanks) {
-    const { id: rankId, minHireMonths, maxHireMonths, leaveTypeId } = rank;
-    
-    // ตรวจสอบเงื่อนไข
-    const minPass = minHireMonths === null || hireMonths >= minHireMonths;
-    const maxPass = maxHireMonths === null || hireMonths <= maxHireMonths;
-    
-    if (minPass && maxPass && leaveTypeId !== null) {
-      await tx.userRank.create({
-        data: {
-          userId,
-          rankId,
-        }
-      });
-    }
-  }
-}
 
 async function resetLeaveBalance() {
   console.log("🔄 กำลังรีเซ็ตข้อมูล Leave Balance");
