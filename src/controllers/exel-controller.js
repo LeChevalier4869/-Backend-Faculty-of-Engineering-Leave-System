@@ -13,7 +13,42 @@ exports.uploadUserExcel = async (req, res) => {
     const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const users = xlsx.utils.sheet_to_json(sheet, { defval: null });
+    const rawUsers = xlsx.utils.sheet_to_json(sheet, { defval: null });
+
+    // กรองข้อมูลที่มีค่าว่างหรือช่องว่างเกินไป
+    const users = rawUsers.filter(user => {
+      // ตรวจสอบว่ามีอย่างน้อย 1 field ที่จำเป็นที่ไม่ว่าง
+      const hasRequiredData = !!(user["คำนำหน้า"] || user["prefixName"]) ||
+                            !!(user["ชื่อ"] || user["firstName"]) ||
+                            !!(user["นามสกุล"] || user["lastName"]) ||
+                            !!(user["อีเมล"] || user["email"]);
+      
+      // ถ้าไม่มีข้อมูลที่จำเป็นเลย ให้ข้าม
+      if (!hasRequiredData) return false;
+      
+      // สร้าง object ใหม่โดยลบค่าว่างและช่องว่าง
+      const cleanedUser = {};
+      Object.keys(user).forEach(key => {
+        const value = user[key];
+        // ตรวจสอบว่าไม่ใช่ null, undefined, หรือช่องว่างเท่านั้น
+        if (value !== null && value !== undefined && value !== "" && value !== " ") {
+          cleanedUser[key] = value;
+        }
+      });
+      
+      // ถ้าหลังกรองแล้วไม่เหลือข้อมูลเลย ให้ข้าม
+      return Object.keys(cleanedUser).length > 0;
+    }).map(user => {
+      // สร้าง object ใหม่ที่กรองค่าว่างแล้ว
+      const cleanedUser = {};
+      Object.keys(user).forEach(key => {
+        const value = user[key];
+        if (value !== null && value !== undefined && value !== "" && value !== " ") {
+          cleanedUser[key] = value;
+        }
+      });
+      return cleanedUser;
+    });
 
     const headerRows = xlsx.utils.sheet_to_json(sheet, {
       header: 1,
@@ -384,37 +419,34 @@ exports.uploadUserExcel = async (req, res) => {
         hireDate,
         employmentType,
         departmentName,
-        personnelTypeName,
         role,
       } = user;
 
+      // Handle both English and Thai headers for personnel type
+      const personnelTypeName = user.personnelTypeName || user["ประเภทบุคคล"];
+
       const normalizedEmail = (email || user["อีเมล"])?.trim().toLowerCase();
+      
+      // Override sex based on prefixName if sex is not provided
+      let computedSex = sex || user["เพศ"];
+      if (!computedSex || computedSex.trim() === '') {
+        const finalPrefixName = prefixName || user["คำนำหน้า"];
+        if (finalPrefixName === "นาย" || finalPrefixName === "Mr." || finalPrefixName === "Mr") {
+          computedSex = "ชาย";
+        } else if (finalPrefixName === "นาง" || finalPrefixName === "นางสาว" || finalPrefixName === "Mrs." || finalPrefixName === "Miss" || finalPrefixName === "Ms." || finalPrefixName === "Ms") {
+          computedSex = "หญิง";
+        }
+      }
 
       const hasRequiredUserFields = !!(prefixName || user["คำนำหน้า"]) &&
         !!(firstName || user["ชื่อ"]) &&
         !!(lastName || user["นามสกุล"]) &&
-        !!(sex || user["เพศ"]) &&
         !!(normalizedEmail || user["อีเมล"]) &&
         !!(position || user["ตำแหน่งงาน"]) &&
         !!(phone || user["เบอร์ติดต่อ"]) &&
         !!(hireDate || user["วันที่บรรจุ"]) &&
-        !!(departmentName || user["สายงาน"]) &&
-        !!(personnelTypeName || user["สาขา"]);
-
-      // Debug logging to identify missing fields
-      console.log(`[DEBUG] Row ${index + 2} field validation:`, {
-        prefixName: prefixName || user["คำนำหน้า"],
-        firstName: firstName || user["ชื่อ"],
-        lastName: lastName || user["นามสกุล"],
-        sex: sex || user["เพศ"],
-        email: normalizedEmail || user["อีเมล"],
-        position: position || user["ตำแหน่งงาน"],
-        phone: phone || user["เบอร์ติดต่อ"],
-        hireDate: hireDate || user["วันที่บรรจุ"],
-        departmentName: departmentName || user["สายงาน"],
-        personnelTypeName: personnelTypeName || user["สาขา"],
-        hasRequiredUserFields
-      });
+        !!(departmentName || user["สาขา"]) &&
+        !!(personnelTypeName || user["ประเภทบุคคล"])
 
       if (!hasRequiredUserFields) {
         throw {
@@ -424,7 +456,7 @@ exports.uploadUserExcel = async (req, res) => {
         };
       }
 
-      const mappedEmploymentType = mapEmploymentType(employmentType || user["ประเภทบุคคล"]);
+      const mappedEmploymentType = mapEmploymentType(employmentType || user["สายงาน"]);
 
       if (!/@(rmuti\.ac\.th|gmail\.com)$/.test(normalizedEmail)) {
         throw {
@@ -474,9 +506,9 @@ exports.uploadUserExcel = async (req, res) => {
           prefixName: prefixName || user["คำนำหน้า"],
           firstName: firstName || user["ชื่อ"],
           lastName: lastName || user["นามสกุล"],
-          sex: sex || user["เพศ"],
+          sex: computedSex,
           email: normalizedEmail,
-          phone: phone || user["เบอร์ติดต่อ"],
+          phone: String(phone || user["เบอร์ติดต่อ"] || ""),
           position: position || user["ตำแหน่งงาน"],
           hireDate: parsedDate,
           employmentType: mappedEmploymentType,
@@ -494,16 +526,14 @@ exports.uploadUserExcel = async (req, res) => {
           roleList.push(roleField);
         }
       }
-      // Remove duplicate 'user' if 'USER' already exists
-      roleList = [...new Set(roleList)].filter(r => !(r === "USER" && roleList.includes("user")));
-      roleList = [...new Set(roleList)];
+      
+      // Remove duplicates and normalize case
+      roleList = [...new Set(roleList.map(r => r.toUpperCase()))];
 
       const roles = await tx.role.findMany({
-        where: { name: { in: roleList.map(r => r.toUpperCase()) } },
+        where: { name: { in: roleList } },
       });
       if (!roles || roles.length !== roleList.length) {
-        console.log("Debug roles: ", roleList);
-        console.log("Found roles: ", roles.map(r => r.name));
         throw createError(400, "Invalid roles provided");
       }
 
@@ -516,23 +546,35 @@ exports.uploadUserExcel = async (req, res) => {
         (currentDate.getFullYear() - parsedDate.getFullYear()) * 12 +
         (currentDate.getMonth() - parsedDate.getMonth());
 
+
       const allRanks = await tx.rank.findMany({
         where: { personnelTypeId: parseInt(personnelType.id) },
       });
-
+      
+      if (allRanks.length === 0) {
+        return created;
+      }
+      
+      let userRanksCreated = 0;
+      
       for (const rank of allRanks) {
-        const { id: rankId, minHireMonths, maxHireMonths, leaveTypeId } = rank;
+        const { id: rankId, name: rankName, minHireMonths, maxHireMonths, leaveTypeId } = rank;
         const minPass = minHireMonths === null || hireMonths >= minHireMonths;
         const maxPass = maxHireMonths === null || hireMonths <= maxHireMonths;
-        if (minPass && maxPass && leaveTypeId !== null) {
+        const hasLeaveType = leaveTypeId !== null;
+        
+        
+        if (minPass && maxPass && hasLeaveType) {
           await tx.userRank.create({
             data: {
               userId: created.id,
               rankId,
             },
           });
+          userRanksCreated++;
         }
       }
+      
 
       const fiscalYearSetting = await tx.setting.findUnique({
         where: { key: "fiscalYear" },
@@ -540,6 +582,7 @@ exports.uploadUserExcel = async (req, res) => {
       const yearValue = fiscalYearSetting
         ? parseInt(fiscalYearSetting.value, 10)
         : new Date().getFullYear();
+      
 
       const userRanks = await tx.userRank.findMany({
         where: { userId: created.id },
@@ -549,37 +592,71 @@ exports.uploadUserExcel = async (req, res) => {
       });
 
       const cfg = getBalanceFieldConfig();
-      const shouldValidateBalanceFields = balanceMode;
 
-      if (!shouldValidateBalanceFields) {
-        for (const ur of userRanks) {
-          const { leaveTypeId, maxDays, receiveDays, isBalance } = ur.rank;
-          if (!leaveTypeId || maxDays === null) continue;
-          const balanceData = {
-            userId: created.id,
-            leaveTypeId,
-            maxDays: receiveDays === 0 && (isBalance === 1 || isBalance === true) ? 0 : maxDays,
-            usedDays: receiveDays === 0 && (isBalance === 1 || isBalance === true) ? 0 : 0,
-            pendingDays: receiveDays === 0 && (isBalance === 1 || isBalance === true) ? 0 : 0,
-            remainingDays: receiveDays === 0 && (isBalance === 1 || isBalance === true) ? 0 : receiveDays,
-            year: yearValue,
-          };
-          await tx.leaveBalance.create({ data: balanceData });
-        }
+      const createdBalances = [];
+      const skippedBalances = [];
+      
+      if (userRanks.length === 0) {
         return created;
       }
-
+      
       for (const ur of userRanks) {
-        const { leaveTypeId, maxDays, isBalance } = ur.rank;
+        const { leaveTypeId, maxDays, receiveDays, isBalance } = ur.rank;
         if (!leaveTypeId || maxDays === null) continue;
         const isNonDeductible = ur.rank.leaveType?.isNonDeductible === true;
-        if (
-          isNonDeductible ||
-          maxDays === 0 ||
-          isBalance === 1 ||
-          isBalance === true
-        ) {
-          console.log(`[DEBUG] Skip non-deductible/balance type: ${ur.rank.leaveType?.name}`);
+        
+        // Filter balance by sex - gender-specific leaves
+        const leaveTypeName = ur.rank.leaveType?.name || "";
+        const userSex = computedSex;
+        
+        // Female-only leaves (only women can take these)
+        const isMaternityLeave = (leaveTypeName.toLowerCase().includes("คลอด") && 
+                                 !leaveTypeName.toLowerCase().includes("ช่วยเหลือภริยา") &&
+                                 !leaveTypeName.toLowerCase().includes("ภริยา")) || 
+                               leaveTypeName.toLowerCase().includes("maternity");
+        const isFemaleOrdination = leaveTypeName.toLowerCase().includes("ถือศีล") ||
+                                  (leaveTypeName.toLowerCase().includes("ปฏิบัติธรรม") &&
+                                   !leaveTypeName.toLowerCase().includes("บวช"));
+        
+        // Skip female-only leaves for male users
+        if (userSex === "ชาย" && (isMaternityLeave || isFemaleOrdination)) {
+          continue;
+        }
+        
+        let remainingDays = maxDays; // Default: use maxDays as balance
+        
+        // Get rawRemaining value for potential override
+        let rawRemaining = null;
+        if (balanceMode) {
+          const field = cfg.find((f) =>
+            f.keywords.some((kw) =>
+              String(leaveTypeName).toLowerCase().includes(kw)
+            )
+          );
+
+          if (field) {
+            rawRemaining = findValueByAliases(user, field.aliases);
+            
+            // Override only if balance field has valid value
+            if (rawRemaining !== null && rawRemaining !== undefined && rawRemaining !== "" && isIntValue(rawRemaining)) {
+              const overrideDays = toInt(rawRemaining);
+              if (overrideDays >= 0 && overrideDays <= maxDays) {
+                remainingDays = overrideDays;
+              }
+            }
+          }
+        }
+
+        let shouldSkip = false;
+        
+        // Skip only if leave type is non-deductible
+        if (isNonDeductible) {
+          skippedBalances.push(leaveTypeName);
+          shouldSkip = true;
+        } else {
+        }
+        
+        if (shouldSkip) {
           await tx.leaveBalance.create({
             data: {
               userId: created.id,
@@ -594,49 +671,6 @@ exports.uploadUserExcel = async (req, res) => {
           continue;
         }
 
-        const leaveTypeName = ur.rank.leaveType?.name || "";
-        console.log(`[DEBUG] Processing leave type: ${leaveTypeName}`);
-        const field = cfg.find((f) =>
-          f.keywords.some((kw) =>
-            String(leaveTypeName).toLowerCase().includes(kw)
-          )
-        );
-        console.log(`[DEBUG] Mapped field: ${field?.key}, aliases: ${field?.aliases}`);
-
-        if (!field) {
-          throw {
-            email: normalizedEmail,
-            reason: "ไม่สามารถ map balance field กับประเภทการลาได้",
-            rowData: user,
-          };
-        }
-
-        const rawRemaining = findValueByAliases(user, field.aliases);
-        console.log(`[DEBUG] Raw remaining value for ${leaveTypeName}:`, rawRemaining);
-        if (rawRemaining === null || rawRemaining === undefined || rawRemaining === "") {
-          throw {
-            email: normalizedEmail,
-            reason: "กรอก balance ไม่ครบทุก field",
-            rowData: user,
-          };
-        }
-        if (!isIntValue(rawRemaining)) {
-          throw {
-            email: normalizedEmail,
-            reason: "balance ต้องเป็นตัวเลขจำนวนเต็มเท่านั้น",
-            rowData: user,
-          };
-        }
-
-        const remainingDays = toInt(rawRemaining);
-        if (remainingDays < 0 || remainingDays > maxDays) {
-          throw {
-            email: normalizedEmail,
-            reason: "balance เกินสิทธิ์หรือมีค่าน้อยกว่า 0",
-            rowData: user,
-          };
-        }
-
         await tx.leaveBalance.create({
           data: {
             userId: created.id,
@@ -648,37 +682,51 @@ exports.uploadUserExcel = async (req, res) => {
             year: yearValue,
           },
         });
+        createdBalances.push({ name: leaveTypeName, maxDays, remainingDays });
       }
+      
+      console.log(`[MONITORING] Balance creation completed for user: ${created.email}`);
+      console.log(`[MONITORING] Created balances:`, createdBalances);
+      console.log(`[MONITORING] Skipped balances:`, skippedBalances);
+
+      // Store balance info for monitoring
+      created.createdBalances = createdBalances;
+      created.skippedBalances = skippedBalances;
 
       return created;
     };
 
     if (balanceMode) {
-      try {
-        const createdUsersTx = await prisma.$transaction(async (tx) => {
-          const createdInTx = [];
-          for (let index = 0; index < users.length; index++) {
-            const created = await processRowInTransaction(tx, users[index], index);
-            createdInTx.push(created);
-          }
-          return createdInTx;
-        });
-
-        res.json({
-          message: "Users processed",
-          createdCount: createdUsersTx.length,
-          failedCount: 0,
-          createdUsers: createdUsersTx,
-          failedUsers: [],
-        });
-        return;
-      } catch (err) {
-        console.error("Error processing excel with balanceMode:", err);
-        return res.status(400).json({
-          error: "Import failed",
-          detail: err,
-        });
+      for (let index = 0; index < users.length; index++) {
+        const user = users[index];
+        try {
+          const created = await prisma.$transaction(async (tx) =>
+            processRowInTransaction(tx, user, index)
+          );
+          console.log(`✅ Created user: ${created.id} ${created.email}`);
+          console.log(`Transaction committed successfully for user: ${created.email}`);
+          createdUsers.push(created);
+        } catch (err) {
+          console.error(`Error processing row ${index + 2}:`, err);
+          console.error(`Transaction failed for user, rolling back...`);
+          failedUsers.push(err);
+          continue;
+        }
       }
+
+      console.log(`[MONITORING] Excel import completed - Balance creation mode`);
+      console.log(`[MONITORING] Total created balances:`, createdUsers.reduce((acc, user) => acc + (user.createdBalances?.length || 0), 0));
+      console.log(`[MONITORING] Total skipped balances:`, createdUsers.reduce((acc, user) => acc + (user.skippedBalances?.length || 0), 0));
+      
+      res.json({
+        message: "Users processed",
+        createdCount: createdUsers.length,
+        failedCount: failedUsers.length,
+        createdUsers,
+        failedUsers,
+        balanceCreated: true,
+      });
+      return;
     }
 
     for (let index = 0; index < users.length; index++) {
@@ -688,13 +736,18 @@ exports.uploadUserExcel = async (req, res) => {
           processRowInTransaction(tx, user, index)
         );
         console.log(`✅ Created user: ${created.id} ${created.email}`);
+        console.log(`Transaction committed successfully for user: ${created.email}`);
         createdUsers.push(created);
       } catch (err) {
         console.error(`Error processing row ${index + 2}:`, err);
+        console.error(`Transaction failed for user, rolling back...`);
         failedUsers.push(err);
         continue;
       }
     }
+
+    console.log(`[MONITORING] Excel import completed - User creation mode`);
+    console.log(`[MONITORING] Total users created: ${createdUsers.length}`);
 
     res.json({
       message: "Users processed",
@@ -702,6 +755,7 @@ exports.uploadUserExcel = async (req, res) => {
       failedCount: failedUsers.length,
       createdUsers,
       failedUsers, // rowData จะช่วย debug Excel ได้ง่ายขึ้น
+      balanceCreated: true,
     });
   } catch (error) {
     console.error(error);
