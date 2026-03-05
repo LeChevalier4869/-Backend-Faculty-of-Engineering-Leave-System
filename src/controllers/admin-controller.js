@@ -371,27 +371,61 @@ exports.roleList = async (req, res, next) => {
 
 exports.createRole = async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name, description } = req.body;
 
-    // console.log('Debug name: ', name);
     if (!name) throw createError(400, "กรุณาใส่ชื่อ");
 
-    const role = await AdminService.createRole(name);
+    const role = await AdminService.createRole(name, description);
+
+    // บันทึก Audit Log การสร้าง Role
+    await AuditLogService.createLog(
+      req.user.id,
+      "CREATE",
+      "Role",
+      role.id,
+      `สร้าง Role: ${name}${description ? ` (คำอธิบาย: ${description})` : ''}`,
+      req.ip,
+      req.get('User-Agent')
+    );
 
     res.status(201).json({ message: "เพิ่ม role เรียบร้อย", data: role });
   } catch (err) {
     next(err);
   }
 };
+// Role ที่ระบบใช้งาน — ห้ามเปลี่ยนชื่อหรือลบ
+const SYSTEM_ROLES = [
+  "USER", "ADMIN", "SUPER_ADMIN",
+  "VERIFIER", "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4"
+];
+
 exports.updateRole = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, description } = req.body;
 
     if (!id || !name) throw createError(400, "ไม่สามารถอัพเดตได้");
     if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
 
-    const role = await AdminService.updateRole(parseInt(id), name);
+    const oldRole = await AdminService.getRoleById(parseInt(id));
+
+    // ป้องกัน system role: ห้ามเปลี่ยนชื่อ (แก้ description ได้)
+    if (SYSTEM_ROLES.includes(oldRole.name) && name !== oldRole.name) {
+      throw createError(400, `ไม่สามารถเปลี่ยนชื่อ Role "${oldRole.name}" ได้ เนื่องจากเป็น System Role ที่ระบบใช้งานอยู่`);
+    }
+
+    const role = await AdminService.updateRole(parseInt(id), name, description);
+
+    // บันทึก Audit Log การอัพเดต Role (พร้อม diff)
+    await AuditLogService.createUpdateLog(
+      req.user.id,
+      "Role",
+      parseInt(id),
+      oldRole,
+      role,
+      req.ip,
+      req.get('User-Agent')
+    );
 
     res.status(200).json({ message: "อัพเดตเรียบร้อย", data: role });
   } catch (err) {
@@ -406,7 +440,24 @@ exports.deleteRole = async (req, res, next) => {
     if (!id) throw createError(400, "ไม่พบไอดี");
     if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
 
+    // ป้องกัน system role: ห้ามลบ
+    const existingRole = await AdminService.getRoleById(parseInt(id));
+    if (existingRole && SYSTEM_ROLES.includes(existingRole.name)) {
+      throw createError(400, `ไม่สามารถลบ Role "${existingRole.name}" ได้ เนื่องจากเป็น System Role ที่ระบบใช้งานอยู่`);
+    }
+
     const role = await AdminService.deleteRole(parseInt(id));
+
+    // บันทึก Audit Log การลบ Role
+    await AuditLogService.createLog(
+      req.user.id,
+      "DELETE",
+      "Role",
+      parseInt(id),
+      `ลบ Role: ${role.name} (ID: ${id})`,
+      req.ip,
+      req.get('User-Agent')
+    );
 
     res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
   } catch (err) {
@@ -634,9 +685,15 @@ exports.createPersonnelType = async (req, res, next) => {
       req.get('User-Agent')
     );
 
+    // ตรวจสอบว่ามี Rank config หรือยัง
+    const rankCount = await OrgAndDeptService.countRanksByPersonnelTypeId(personnelType.id);
+
     res.status(201).json({
       message: "สร้างประเภทบุคคลากรเรียบร้อยแล้ว",
       data: personnelType,
+      warning: rankCount === 0
+        ? "ประเภทบุคลากรนี้ยังไม่มีการกำหนดเงื่อนไขวันลา (Rank) กรุณาตั้งค่าเงื่อนไขวันลาสำหรับแต่ละประเภทการลา เพื่อให้ระบบทำงานได้ถูกต้อง"
+        : null,
     });
   } catch (err) {
     next(err);
@@ -684,19 +741,37 @@ exports.deletePersonnelType = async (req, res, next) => {
   try {
     const { id } = req.params;
     if (!id) throw createError(404, "ไม่พบข้อมูล id");
+    const numID = parseInt(id);
 
-    // ดึงข้อมูลก่อนลบเพื่อบันทึกใน audit log
-    const personnelTypeToDelete = await OrgAndDeptService.getPersonnelTypeById(parseInt(id));
-    const typeName = personnelTypeToDelete?.name;
+    const personnelTypeToDelete = await OrgAndDeptService.getPersonnelTypeById(numID);
+    if (!personnelTypeToDelete) throw createError(404, "ไม่พบประเภทบุคคลากรที่ต้องการลบ");
+    const typeName = personnelTypeToDelete.name;
 
-    await OrgAndDeptService.deletePersonnelType(parseInt(id));
+    // ตรวจสอบ relations ก่อนลบ
+    const { userCount, rankCount } = await OrgAndDeptService.countPersonnelTypeRelations(numID);
+
+    if (userCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบประเภทบุคลากร "${typeName}" ได้ เนื่องจากมีผู้ใช้งาน ${userCount} คนที่อ้างอิงอยู่ ` +
+        `กรุณาย้ายผู้ใช้งานไปประเภทอื่นก่อนลบ`
+      );
+    }
+
+    if (rankCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบประเภทบุคลากร "${typeName}" ได้ เนื่องจากมีเงื่อนไขวันลา (Rank) ${rankCount} รายการที่อ้างอิงอยู่ ` +
+        `กรุณาลบเงื่อนไขวันลาที่เกี่ยวข้องก่อนลบ`
+      );
+    }
+
+    await OrgAndDeptService.deletePersonnelType(numID);
 
     // บันทึก Audit Log การลบประเภทบุคคลากร
     await AuditLogService.createLog(
       req.user.id,
       "DELETE",
       "PersonnelType",
-      parseInt(id),
+      numID,
       `ลบประเภทบุคคลากร: ${typeName}`,
       req.ip,
       req.get('User-Agent')
@@ -814,6 +889,16 @@ exports.departmentDelete = async (req, res, next) => {
   try {
     const id = +req.params.id;
     if (isNaN(id)) throw createError(400, "Invalid department ID");
+
+    // ตรวจสอบ relations ก่อนลบ
+    const userCount = await OrgAndDeptService.countUsersByDepartmentId(id);
+    if (userCount > 0) {
+      const dept = await OrgAndDeptService.getDepartmentById(id);
+      throw createError(400,
+        `ไม่สามารถลบแผนก "${dept?.name || id}" ได้ เนื่องจากมีผู้ใช้งาน ${userCount} คนที่สังกัดอยู่ ` +
+        `กรุณาย้ายผู้ใช้งานไปแผนกอื่นก่อนลบ`
+      );
+    }
 
     await AdminService.deleteDepartment(id);
 
@@ -1159,8 +1244,18 @@ exports.updateUserById = async (req, res, next) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) throw createError(400, "ID ต้องเป็นตัวเลข");
 
-    const oldUser = await prisma.user.findUnique({ where: { id } });
+    const oldUser = await prisma.user.findUnique({
+      where: { id },
+      include: { userRoles: { include: { role: true } } },
+    });
     if (!oldUser) throw createError(404, "ไม่พบผู้ใช้งาน");
+
+    const targetRoles = (oldUser.userRoles || []).map((ur) => ur.role?.name).filter(Boolean);
+    const requesterIsSuperAdmin = (req.user.roles || []).includes("SUPER_ADMIN");
+
+    if (targetRoles.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ไม่สามารถแก้ไขข้อมูลผู้ใช้ที่มีสิทธิ์ SUPER_ADMIN ได้ ต้องใช้สิทธิ์ SUPER_ADMIN เท่านั้น");
+    }
 
     const {
       prefixName,

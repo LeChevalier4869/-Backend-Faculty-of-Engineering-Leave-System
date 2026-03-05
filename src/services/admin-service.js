@@ -491,14 +491,15 @@ class AdminService {
   static async roleList() {
     return await prisma.role.findMany();
   }
-  static async createRole(name) {
-    return await prisma.role.create({ data: { name } });
+  static async createRole(name, description) {
+    return await prisma.role.create({ data: { name, description } });
   }
-  static async updateRole(id, name) {
+  static async updateRole(id, name, description) {
     return await prisma.role.update({
       where: { id },
       data: {
         name,
+        description,
       },
     });
   }

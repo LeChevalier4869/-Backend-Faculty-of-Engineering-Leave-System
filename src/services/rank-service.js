@@ -25,8 +25,8 @@ class RankService {
   // ดึง Rank ทั้งหมด (admin)
   static async getAllRanks() {
     return await prisma.rank.findMany({
-      include: { personnelType: true }, 
-      orderBy: { minHireMonths: "asc" },
+      include: { personnelType: true, leaveType: true },
+      orderBy: [{ leaveTypeId: "asc" }, { personnelTypeId: "asc" }, { minHireMonths: "asc" }],
     });
   }
 
@@ -34,7 +34,7 @@ class RankService {
   static async getRankById(id) {
     return await prisma.rank.findUnique({
       where: { id },
-      include: { personnelType: true }, // เปลี่ยน personnelType เป็น PersonnelType
+      include: { personnelType: true, leaveType: true },
     });
   }
 
