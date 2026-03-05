@@ -389,7 +389,7 @@ describe("AuditLogService", () => {
         entityId: 123,
         entityType: "User",
         isDeleted: true,
-        error: "Unexpected token 'i', \"invalid json\" is not valid JSON",
+        error: "Unexpected token i in JSON at position 0",
         message: "Error retrieving entity data",
       });
     });

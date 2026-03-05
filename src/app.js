@@ -28,6 +28,7 @@ const lookupRoute = require("./routes/lookup-routes");
 const adminUserRoute = require("./routes/admin-user-route");
 const proxyApprovalRoute = require("./routes/proxyApproval-route");
 const auditLogRoute = require("./routes/auditLog-route");
+const rankRoute = require("./routes/rank-route");
 //const reportRouter         = require('./routes/report-router');
 
 // Initialize app
@@ -123,6 +124,7 @@ app.use("/setting", settingRoute);
 app.use("/admin/users", authenticate, authorize(["ADMIN"]), adminUserRoute);
 app.use("/admin/audit-logs", authenticate, authorize(["ADMIN"]), auditLogRoute);
 app.use("/admin", authenticate, adminRoute);
+app.use("/ranks", rankRoute);
 
 // Proxy approval routes
 app.use("/proxy-approval", authenticate, proxyApprovalRoute);
@@ -161,7 +163,7 @@ app.use("*", notFoundHandler);
 // เรียก reset leave balance เมื่อขึ้นปีงบประมาณใหม่
 if (process.env.NODE_ENV !== "test") {
   require("./utils/resetLeaveBalance");
-  
+
   // เรียก cron job สำหรับการจัดการการมอบอำนาจรายวัน
   require("./utils/proxyApprovalCron");
 }

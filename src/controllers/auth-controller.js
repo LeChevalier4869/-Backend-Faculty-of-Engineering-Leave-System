@@ -289,11 +289,23 @@ exports.updateUserRole = async (req, res, next) => {
 
     const rolesArray = Array.isArray(roleNames) ? roleNames : [roleNames];
     const userRole = rolesArray.map((role) => role.toUpperCase());
-    const roles = await UserService.getRolesByNames(userRole);
 
-    //    console.log('roles array = ' + rolesArray);
-    //    console.log('user role = ' + userRole);
-    //   console.log('roles = ' + roles);
+    const requesterIsSuperAdmin = (req.user.roles || []).includes("SUPER_ADMIN");
+
+    // เฉพาะ SUPER_ADMIN เท่านั้นที่เพิ่ม/ลบ role SUPER_ADMIN ได้
+    if (userRole.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการเพิ่มหรือลบบทบาท SUPER_ADMIN");
+    }
+
+    // ป้องกัน ADMIN แก้ role ของ user ที่เป็น SUPER_ADMIN
+    const targetUser = await UserService.getUserByIdWithRoles(userId);
+    const targetRoleNames = (targetUser?.userRoles || []).map((ur) => ur.role?.name).filter(Boolean);
+
+    if (targetRoleNames.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ไม่สามารถแก้ไขบทบาทของผู้ใช้ที่มีสิทธิ์ SUPER_ADMIN ได้");
+    }
+
+    const roles = await UserService.getRolesByNames(userRole);
 
     if (!roles || roles.length !== userRole.length) {
       throw createError(400, "Invalid roles provided");
@@ -630,6 +642,24 @@ exports.deleteOrganization = async (req, res, next) => {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
     }
 
+    // ตรวจสอบ relations ก่อนลบ
+    const { departmentCount: deptCount, approverPositionCount: approverPosCount } =
+      await OrgAndDeptService.countOrganizationRelations(parseInt(id));
+
+    if (deptCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบองค์กร "${oldOrganization.name}" ได้ เนื่องจากมีแผนก/สาขา ${deptCount} แห่งที่อ้างอิงอยู่ ` +
+        `กรุณาย้ายหรือลบแผนกที่เกี่ยวข้องก่อน`
+      );
+    }
+
+    if (approverPosCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบองค์กร "${oldOrganization.name}" ได้ เนื่องจากมีตำแหน่งผู้อนุมัติ ${approverPosCount} ตำแหน่งที่อ้างอิงอยู่ ` +
+        `กรุณาลบตำแหน่งผู้อนุมัติที่เกี่ยวข้องก่อน`
+      );
+    }
+
     const deletedOrganization = await OrgAndDeptService.deleteOrganization(id);
 
     if (!deletedOrganization) {
@@ -741,11 +771,24 @@ exports.updateDepartment = async (req, res, next) => {
 exports.deleteDepartment = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const deletedDepartment = await OrgAndDeptService.deleteDepartment(id);
+    const numID = parseInt(id);
 
-    if (!deletedDepartment) {
+    const existing = await OrgAndDeptService.getDepartmentById(numID);
+    if (!existing) {
       throw createError(404, "ไม่พบแผนกที่ต้องการลบ");
     }
+
+    // ตรวจสอบ relations ก่อนลบ
+    const userCount = await OrgAndDeptService.countUsersByDepartmentId(numID);
+
+    if (userCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบแผนก "${existing.name}" ได้ เนื่องจากมีผู้ใช้งาน ${userCount} คนที่สังกัดอยู่ ` +
+        `กรุณาย้ายผู้ใช้งานไปแผนกอื่นก่อนลบ`
+      );
+    }
+
+    const deletedDepartment = await OrgAndDeptService.deleteDepartment(id);
 
     res.status(200).json({ message: "ลบแผนกสำเร็จ", data: deletedDepartment });
   } catch (err) {
@@ -823,7 +866,7 @@ exports.updatePersonnelType = async (req, res, next) => {
 
     const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(
       parseInt(id),
-      name 
+      name
     );
 
     if (!updatedPersonnelType) {
@@ -959,7 +1002,7 @@ exports.getApproversForLevel = async (req, res) => {
   try {
     const { level } = req.params;
     const { date } = req.query;
-    
+
     const approvers = await UserService.getApproversForLevel(parseInt(level), date || new Date());
     res.status(200).json({ success: true, data: approvers });
   } catch (err) {
