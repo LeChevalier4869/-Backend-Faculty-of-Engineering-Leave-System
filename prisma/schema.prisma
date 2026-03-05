@@ -131,9 +131,10 @@ model Notification {
 }
 
 model Role {
-  id        Int        @id @default(autoincrement())
-  name      String
-  userRoles UserRole[]
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  userRoles   UserRole[]
 
   @@map("role")
 }

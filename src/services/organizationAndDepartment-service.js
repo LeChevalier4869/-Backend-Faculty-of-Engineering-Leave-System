@@ -124,6 +124,36 @@ class OrgAndDeptService {
       where: { id },
     });
   }
+
+  // ---------- Relation counts ----------
+
+  // นับ relations ของ Organization ก่อนลบ
+  static async countOrganizationRelations(organizationId) {
+    const [departmentCount, approverPositionCount] = await Promise.all([
+      prisma.department.count({ where: { organizationId } }),
+      prisma.approverPosition.count({ where: { organizationId } }),
+    ]);
+    return { departmentCount, approverPositionCount };
+  }
+
+  // นับ User ที่สังกัด Department
+  static async countUsersByDepartmentId(departmentId) {
+    return await prisma.user.count({ where: { departmentId } });
+  }
+
+  // นับ relations ของ PersonnelType ก่อนลบ
+  static async countPersonnelTypeRelations(personnelTypeId) {
+    const [userCount, rankCount] = await Promise.all([
+      prisma.user.count({ where: { personnelTypeId } }),
+      prisma.rank.count({ where: { personnelTypeId } }),
+    ]);
+    return { userCount, rankCount };
+  }
+
+  // นับ Rank config ของ PersonnelType
+  static async countRanksByPersonnelTypeId(personnelTypeId) {
+    return await prisma.rank.count({ where: { personnelTypeId } });
+  }
 }
 
 module.exports = OrgAndDeptService;

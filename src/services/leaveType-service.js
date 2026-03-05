@@ -82,6 +82,21 @@ class LeaveTypeService {
     });
   }
 
+  // นับจำนวน Rank ที่อ้างอิง leaveTypeId
+  static async countRanksByLeaveTypeId(leaveTypeId) {
+    return await prisma.rank.count({ where: { leaveTypeId } });
+  }
+
+  // นับ relations ทั้งหมดก่อนลบ (LeaveRequest, LeaveBalance, Rank)
+  static async countRelations(leaveTypeId) {
+    const [requestCount, balanceCount, rankCount] = await Promise.all([
+      prisma.leaveRequest.count({ where: { leaveTypeId } }),
+      prisma.leaveBalance.count({ where: { leaveTypeId } }),
+      prisma.rank.count({ where: { leaveTypeId } }),
+    ]);
+    return { requestCount, balanceCount, rankCount };
+  }
+
   // ดึงประเภทการลาที่ลาในระบบได้
   static async getAvailableLeaveTypes() {
     try {

@@ -73,18 +73,9 @@ exports.deleteSetting = async (id) => {
 };
 
 exports.updateSettingByKey = async (key, data) => {
-  const existing = await prisma.setting.findUnique({
+  return await prisma.setting.upsert({
     where: { key },
-  });
-
-  if (!existing) {
-    const error = new Error("Key ไม่ถูกต้อง");
-    error.status = 404;
-    throw error;
-  }
-
-  return await prisma.setting.update({
-    where: { key },
-    data,
+    update: data,
+    create: { key, ...data },
   });
 };

@@ -3,7 +3,7 @@ const express       = require('express');
 const { authenticate, authorize } = require('../middlewares/auth');
 const authController = require('../controllers/auth-controller');
 const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
-const upload         = require("../middlewares/upload");  
+const upload         = require("../middlewares/upload");
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ router.get("/role", authenticate, authController.checkUserRole);
 router.post(
   "/update-role/:id",
   authenticate,
-  authorize(["ADMIN"]),
+  authorize(["SUPER_ADMIN"]),
   authController.updateUserRole
 );
 
