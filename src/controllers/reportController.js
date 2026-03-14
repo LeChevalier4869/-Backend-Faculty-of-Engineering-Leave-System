@@ -492,13 +492,8 @@ exports.exportRoundReport = async (req, res) => {
         list.forEach((u, idx) => {
           const row = [];
           row.push({ text: String(idx + 1), alignment: "center" }); //ลำดับ
-          row.push({ text: "test", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
+          row.push({ text: "เลขที่ตำแหน่ง", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
           row.push({ text: u.name, alignment: "left" }); //ชื่อ
-          row.push({
-            text: u.lateTimes != null ? String(u.lateTimes) : "-",
-            alignment: "center",
-          }); //
-
           TYPE_ORDER.forEach((name) => {
             row.push({
               text: td(u.leaveSummary, name, "times"),
@@ -509,11 +504,13 @@ exports.exportRoundReport = async (req, res) => {
               alignment: "center",
             });
           });
-
-          console.log("uuuuuuuuuuuuuuuuu", u);
-          row.push({ text: u.note || "", alignment: "center" });
-          row.push({ text: u.note || "", alignment: "center" });
-          row.push({ text: u.note || "", alignment: "center" });
+          row.push({
+            text: u.lateTimes != null ? String(u.lateTimes) : "-",
+            alignment: "center",
+          });
+          row.push({ text: "ขาดราชการ" || "", alignment: "center" });
+          row.push({ text: "อื่นๆ" || "", alignment: "center" });
+          row.push({ text: "หมายเหตุ" || "", alignment: "center" });
           body.push(row);
         });
 
@@ -946,13 +943,9 @@ exports.exportRoundReport = async (req, res) => {
 // ---------------------------------------ประจำปี---------------------------------------
 exports.exportFiscalYearReport = async (req, res) => {
   try {
-    const { countReport, organizationId, startDate, endDate, format } =
-      req.body;
+    const { organizationId, startDate, endDate, format } = req.body;
     if (!organizationId) {
       return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!countReport) {
-      return res.status(400).json({ error: "กรุณาระบุ countReport" });
     }
     if (!startDate || !endDate) {
       return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
@@ -1095,11 +1088,6 @@ exports.exportFiscalYearReport = async (req, res) => {
           row.push({ text: String(idx + 1), alignment: "center" }); //ลำดับ
           row.push({ text: "test", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
           row.push({ text: u.name, alignment: "left" }); //ชื่อ
-          row.push({
-            text: u.lateTimes != null ? String(u.lateTimes) : "-",
-            alignment: "center",
-          }); //
-
           TYPE_ORDER.forEach((name) => {
             row.push({
               text: td(u.leaveSummary, name, "times"),
@@ -1110,9 +1098,11 @@ exports.exportFiscalYearReport = async (req, res) => {
               alignment: "center",
             });
           });
-
-          console.log("uuuuuuuuuuuuuuuuu", u);
-          row.push({ text: u.note || "", alignment: "center" });
+          row.push({
+            text: u.lateTimes != null ? String(u.lateTimes) : "-",
+            alignment: "center",
+          });
+          row.push({ text: "-" || "", alignment: "center" });
           row.push({ text: u.note || "", alignment: "center" });
           row.push({ text: u.note || "", alignment: "center" });
           body.push(row);
@@ -1467,7 +1457,7 @@ exports.exportFiscalYearReport = async (req, res) => {
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: `ครั้งที่ ${countReport} ตั้งแต่วันที่ ${formatThaiDateFull(
+                    text: `ครั้งที่ ตั้งแต่วันที่ ${formatThaiDateFull(
                       startDate
                     )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
                     font: "TH Sarabun New",
@@ -1547,13 +1537,10 @@ exports.exportFiscalYearReport = async (req, res) => {
 // ---------------------------------------ประจำเดือน---------------------------------------
 exports.exportMonthReport = async (req, res) => {
   try {
-    const { countReport, organizationId, startDate, endDate, format } =
+    const { organizationId, startDate, endDate, format } =
       req.body;
     if (!organizationId) {
       return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!countReport) {
-      return res.status(400).json({ error: "กรุณาระบุ countReport" });
     }
     if (!startDate || !endDate) {
       return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
