@@ -85,8 +85,8 @@ exports.downloadReport = async (req, res) => {
     const roles = Array.isArray(req.user?.role)
       ? req.user.role
       : Array.isArray(req.user?.roles)
-      ? req.user.roles
-      : [];
+        ? req.user.roles
+        : [];
 
     const userId = requestedUserId || requesterId;
     if (!userId || Number.isNaN(userId)) {
@@ -124,7 +124,7 @@ exports.downloadReport = async (req, res) => {
     const balances = await LeaveBalanceService.getLeaveSummaryByUser(userId);
     const leaves = await LeaveRequestService.getRecentLeaveBefore(
       userId,
-      cutoff
+      cutoff,
     );
     // console.log("debug balances: ", balances);
     // console.log("debug leaves: ", leaves);
@@ -138,7 +138,7 @@ exports.downloadReport = async (req, res) => {
         : new Date().getFullYear());
 
     const sickBalance = balances.find(
-      (b) => b.leaveTypeId === 1 && Number(b.year) === currentYear
+      (b) => b.leaveTypeId === 1 && Number(b.year) === currentYear,
     );
     const sickLeaved = sickBalance ? sickBalance.usedDays : 0;
 
@@ -147,7 +147,7 @@ exports.downloadReport = async (req, res) => {
     const sickLeaveTotal = sickLeaves ? sickLeaves.totalDays : "-";
 
     const personalBalance = balances.find(
-      (b) => b.leaveTypeId === 3 && Number(b.year) === currentYear
+      (b) => b.leaveTypeId === 3 && Number(b.year) === currentYear,
     );
     const personalLeaved = personalBalance ? personalBalance.usedDays : 0;
 
@@ -165,10 +165,10 @@ exports.downloadReport = async (req, res) => {
     // vacation
     const vacationBalances = balances.filter((b) => b.leaveTypeId === 4);
     const vacationBalanceCurYear = vacationBalances.find(
-      (b) => Number(b.year) === currentYear
+      (b) => Number(b.year) === currentYear,
     );
     const vacationBalancePrevYear = vacationBalances.find(
-      (b) => Number(b.year) === currentYear - 1
+      (b) => Number(b.year) === currentYear - 1,
     );
 
     const cur = vacationBalanceCurYear
@@ -286,7 +286,7 @@ exports.downloadReport = async (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="${downloadFileName.replace(/"/g, "")}"`
+      `inline; filename="${downloadFileName.replace(/"/g, "")}"`,
     );
 
     const fileStream = fs.createReadStream(outputPath);
@@ -324,7 +324,7 @@ exports.reportData = async (req, res) => {
     const reportData = await ReportService.getReportData(
       organizationId,
       startDate,
-      endDate
+      endDate,
     );
 
     res.json({
@@ -363,7 +363,7 @@ exports.exportRoundReport = async (req, res) => {
     const reportData = await ReportService.getReportData(
       organizationId,
       startDate,
-      endDate
+      endDate,
     );
 
     if (!reportData || Object.keys(reportData).length === 0) {
@@ -372,7 +372,7 @@ exports.exportRoundReport = async (req, res) => {
 
     // กรองช่องว่างออกก่อน
     const filteredTypeOrder = TYPE_ORDER.filter(
-      (name) => name && name.trim() !== ""
+      (name) => name && name.trim() !== "",
     ).map((name) => name.replace(/\s+/g, ""));
 
     const td = (sum, name, f) => {
@@ -391,7 +391,7 @@ exports.exportRoundReport = async (req, res) => {
           italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
           bolditalics: path.join(
             __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf"
+            "../fonts/THSarabunNew-BoldItalic.ttf",
           ),
         },
       };
@@ -433,14 +433,14 @@ exports.exportRoundReport = async (req, res) => {
             ];
           }),
           {
-            text: "มาสาย ครั้ง",
+            text: "มาสาย(ครั้ง)",
             rowSpan: 2,
             style: "th",
             alignment: "center",
             margin: [0, 15, 0, 15],
           },
           {
-            text: "ขาดราชการ วัน",
+            text: "ขาดราชการ(วัน)",
             rowSpan: 2,
             style: "th",
             alignment: "center",
@@ -492,7 +492,7 @@ exports.exportRoundReport = async (req, res) => {
         list.forEach((u, idx) => {
           const row = [];
           row.push({ text: String(idx + 1), alignment: "center" }); //ลำดับ
-          row.push({ text: "เลขที่ตำแหน่ง", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
+          row.push({ text: "", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
           row.push({ text: u.name, alignment: "left" }); //ชื่อ
           TYPE_ORDER.forEach((name) => {
             row.push({
@@ -508,9 +508,9 @@ exports.exportRoundReport = async (req, res) => {
             text: u.lateTimes != null ? String(u.lateTimes) : "-",
             alignment: "center",
           });
-          row.push({ text: "ขาดราชการ" || "", alignment: "center" });
-          row.push({ text: "อื่นๆ" || "", alignment: "center" });
-          row.push({ text: "หมายเหตุ" || "", alignment: "center" });
+          row.push({ text: "" || "", alignment: "center" });
+          row.push({ text: "" || "", alignment: "center" });
+          row.push({ text: "" || "", alignment: "center" });
           body.push(row);
         });
 
@@ -571,9 +571,9 @@ exports.exportRoundReport = async (req, res) => {
               { text: `สังกัด คณะวิศวกรรมศาสตร์`, alignment: "center" },
               {
                 text: `ประจำรอบการประเมิน ครั้งที่ ${arabicToThaiNumber(
-                  countReport
+                  countReport,
                 )} ระหว่างวันที่ ${arabicToThaiNumber(
-                  formatThaiDateFull(startDate)
+                  formatThaiDateFull(startDate),
                 )} - ${arabicToThaiNumber(formatThaiDateFull(endDate))}`,
                 alignment: "center",
               },
@@ -603,7 +603,7 @@ exports.exportRoundReport = async (req, res) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
         `Content-Disposition`,
-        `attachment; filename=org-report-${organizationId}.pdf`
+        `attachment; filename=org-report-${organizationId}.pdf`,
       );
       pdfDoc.pipe(res);
       pdfDoc.end();
@@ -669,6 +669,7 @@ exports.exportRoundReport = async (req, res) => {
               tableHeader: true,
               children: [
                 makeCell("ที่", { verticalMerge: "restart" }),
+                makeCell("เลขที่ตำแหน่ง", { verticalMerge: "restart" }),
                 makeCell("ชื่อ - สกุล", { verticalMerge: "restart" }),
                 makeCell("สาย/ครั้ง", {
                   verticalMerge: "restart",
@@ -681,7 +682,7 @@ exports.exportRoundReport = async (req, res) => {
                 }),
                 makeCell("หมายเหตุ", { verticalMerge: "restart" }),
               ],
-            })
+            }),
           );
 
           // ✅ Row 2 — ประเภทลา
@@ -694,20 +695,16 @@ exports.exportRoundReport = async (req, res) => {
                 makeCell("", { verticalMerge: "continue" }),
                 ...filteredTypeOrder.map((type) => {
                   const w = typeWidths[type] || 1134;
-                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type
-                  );
                   return makeCell(type, {
                     columnSpan: 2,
-                    width: w * 2, // รวม 2 ช่อง
-                    fillColor: isGray ? "D9D9D9" : null,
+                    width: w * 2,
                     alignment: "center",
                     bold: false,
                   });
                 }),
                 makeCell("", { verticalMerge: "continue" }),
               ],
-            })
+            }),
           );
 
           // ✅ Row 3 — ครั้ง / วัน
@@ -718,25 +715,18 @@ exports.exportRoundReport = async (req, res) => {
                 makeCell("", { verticalMerge: "continue" }),
                 makeCell("", { verticalMerge: "continue" }),
                 makeCell("", { verticalMerge: "continue" }),
+                makeCell("", { verticalMerge: "continue" }),
+                makeCell("", { verticalMerge: "continue" }),
                 ...filteredTypeOrder.flatMap((type) => {
                   const w = typeWidths[type] || 1134;
-                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type
-                  );
                   return [
-                    makeCell("ครั้ง", {
-                      width: w,
-                      fillColor: isGray ? "D9D9D9" : null,
-                    }),
-                    makeCell("วัน", {
-                      width: w,
-                      fillColor: isGray ? "D9D9D9" : null,
-                    }),
+                    makeCell("ครั้ง", { width: w }),
+                    makeCell("วัน", { width: w }),
                   ];
                 }),
                 makeCell("", { verticalMerge: "continue" }),
               ],
-            })
+            }),
           );
 
           return rows;
@@ -762,23 +752,14 @@ exports.exportRoundReport = async (req, res) => {
                   makeCell(u.name, { alignment: "left" }),
                   makeCell(u.lateTimes != null ? u.lateTimes : "-"),
                   ...filteredTypeOrder.flatMap((name) => {
-                    const isGray = [
-                      "ขาดราชการ",
-                      "ลากิจ",
-                      "ลาคลอดบุตร",
-                    ].includes(name);
                     return [
-                      makeCell(td(u.leaveSummary, name, "times"), {
-                        fillColor: isGray ? "D9D9D9" : null,
-                      }),
-                      makeCell(td(u.leaveSummary, name, "days"), {
-                        fillColor: isGray ? "D9D9D9" : null,
-                      }),
+                      makeCell(td(u.leaveSummary, name, "times")),
+                      makeCell(td(u.leaveSummary, name, "days")),
                     ];
                   }),
                   makeCell(u.note || "-"),
                 ],
-              })
+              }),
             );
           });
 
@@ -864,7 +845,7 @@ exports.exportRoundReport = async (req, res) => {
                 children: [
                   new TextRun({
                     text: `ครั้งที่ ${countReport} ตั้งแต่วันที่ ${formatThaiDateFull(
-                      startDate
+                      startDate,
                     )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
                     font: "TH Sarabun New",
                     size: 28,
@@ -910,11 +891,10 @@ exports.exportRoundReport = async (req, res) => {
                 left: 543,
                 right: 1440,
               },
-              size: {
-                orientation: "portrait", // หรือ "landscape"
-                width: 11906, // หน้ากว้างสำหรับ A4 portrait = 11906 twip
-                height: 16838, // หน้ายาว A4 = 16838 twip
-              },
+
+              orientation: "landscape",
+              width: 16838,
+              height: 11906,
             },
           },
         })),
@@ -924,11 +904,11 @@ exports.exportRoundReport = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=org-report-${organizationId}.docx`
+        `attachment; filename=org-report-${organizationId}.docx`,
       );
       res.send(buffer);
     } else {
@@ -957,7 +937,7 @@ exports.exportFiscalYearReport = async (req, res) => {
     const reportData = await ReportService.getReportData(
       organizationId,
       startDate,
-      endDate
+      endDate,
     );
 
     if (!reportData || Object.keys(reportData).length === 0) {
@@ -966,7 +946,7 @@ exports.exportFiscalYearReport = async (req, res) => {
 
     // กรองช่องว่างออกก่อน
     const filteredTypeOrder = TYPE_ORDER.filter(
-      (name) => name && name.trim() !== ""
+      (name) => name && name.trim() !== "",
     ).map((name) => name.replace(/\s+/g, ""));
 
     const td = (sum, name, f) => {
@@ -985,7 +965,7 @@ exports.exportFiscalYearReport = async (req, res) => {
           italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
           bolditalics: path.join(
             __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf"
+            "../fonts/THSarabunNew-BoldItalic.ttf",
           ),
         },
       };
@@ -1165,9 +1145,9 @@ exports.exportFiscalYearReport = async (req, res) => {
               { text: `สังกัด คณะวิศวกรรมศาสตร์`, alignment: "center" },
               {
                 text: `ประจำปีงบประมาณ พ.ศ. ${arabicToThaiNumber(
-                  2568
+                  2568,
                 )} ระหว่างวันที่ ${arabicToThaiNumber(
-                  formatThaiDateFull(startDate)
+                  formatThaiDateFull(startDate),
                 )} - ${arabicToThaiNumber(formatThaiDateFull(endDate))}`,
                 alignment: "center",
               },
@@ -1197,7 +1177,7 @@ exports.exportFiscalYearReport = async (req, res) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
         `Content-Disposition`,
-        `attachment; filename=org-report-${organizationId}.pdf`
+        `attachment; filename=org-report-${organizationId}.pdf`,
       );
       pdfDoc.pipe(res);
       pdfDoc.end();
@@ -1275,7 +1255,7 @@ exports.exportFiscalYearReport = async (req, res) => {
                 }),
                 makeCell("หมายเหตุ", { verticalMerge: "restart" }),
               ],
-            })
+            }),
           );
 
           // ✅ Row 2 — ประเภทลา
@@ -1289,7 +1269,7 @@ exports.exportFiscalYearReport = async (req, res) => {
                 ...filteredTypeOrder.map((type) => {
                   const w = typeWidths[type] || 1134;
                   const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type
+                    type,
                   );
                   return makeCell(type, {
                     columnSpan: 2,
@@ -1301,7 +1281,7 @@ exports.exportFiscalYearReport = async (req, res) => {
                 }),
                 makeCell("", { verticalMerge: "continue" }),
               ],
-            })
+            }),
           );
 
           // ✅ Row 3 — ครั้ง / วัน
@@ -1315,7 +1295,7 @@ exports.exportFiscalYearReport = async (req, res) => {
                 ...filteredTypeOrder.flatMap((type) => {
                   const w = typeWidths[type] || 1134;
                   const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type
+                    type,
                   );
                   return [
                     makeCell("ครั้ง", {
@@ -1330,7 +1310,7 @@ exports.exportFiscalYearReport = async (req, res) => {
                 }),
                 makeCell("", { verticalMerge: "continue" }),
               ],
-            })
+            }),
           );
 
           return rows;
@@ -1372,7 +1352,7 @@ exports.exportFiscalYearReport = async (req, res) => {
                   }),
                   makeCell(u.note || "-"),
                 ],
-              })
+              }),
             );
           });
 
@@ -1458,7 +1438,7 @@ exports.exportFiscalYearReport = async (req, res) => {
                 children: [
                   new TextRun({
                     text: `ครั้งที่ ตั้งแต่วันที่ ${formatThaiDateFull(
-                      startDate
+                      startDate,
                     )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
                     font: "TH Sarabun New",
                     size: 28,
@@ -1518,11 +1498,11 @@ exports.exportFiscalYearReport = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=org-report-${organizationId}.docx`
+        `attachment; filename=org-report-${organizationId}.docx`,
       );
       res.send(buffer);
     } else {
@@ -1537,8 +1517,7 @@ exports.exportFiscalYearReport = async (req, res) => {
 // ---------------------------------------ประจำเดือน---------------------------------------
 exports.exportMonthReport = async (req, res) => {
   try {
-    const { organizationId, startDate, endDate, format } =
-      req.body;
+    const { organizationId, startDate, endDate, format } = req.body;
     if (!organizationId) {
       return res.status(400).json({ error: "กรุณาระบุ organizationId" });
     }
@@ -1552,7 +1531,7 @@ exports.exportMonthReport = async (req, res) => {
     const reportData = await ReportService.getReportData(
       organizationId,
       startDate,
-      endDate
+      endDate,
     );
 
     if (!reportData || Object.keys(reportData).length === 0) {
@@ -1561,7 +1540,7 @@ exports.exportMonthReport = async (req, res) => {
 
     // กรองช่องว่างออกก่อน
     const filteredTypeOrder = TYPE_ORDER.filter(
-      (name) => name && name.trim() !== ""
+      (name) => name && name.trim() !== "",
     ).map((name) => name.replace(/\s+/g, ""));
 
     const td = (sum, name, f) => {
@@ -1580,7 +1559,7 @@ exports.exportMonthReport = async (req, res) => {
           italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
           bolditalics: path.join(
             __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf"
+            "../fonts/THSarabunNew-BoldItalic.ttf",
           ),
         },
       };
@@ -1733,7 +1712,7 @@ exports.exportMonthReport = async (req, res) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
         `Content-Disposition`,
-        `attachment; filename=org-report-${organizationId}.pdf`
+        `attachment; filename=org-report-${organizationId}.pdf`,
       );
       pdfDoc.pipe(res);
       pdfDoc.end();
@@ -1811,7 +1790,7 @@ exports.exportMonthReport = async (req, res) => {
                 }),
                 makeCell("หมายเหตุ", { verticalMerge: "restart" }),
               ],
-            })
+            }),
           );
 
           // ✅ Row 2 — ประเภทลา
@@ -1825,7 +1804,7 @@ exports.exportMonthReport = async (req, res) => {
                 ...filteredTypeOrder.map((type) => {
                   const w = typeWidths[type] || 1134;
                   const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type
+                    type,
                   );
                   return makeCell(type, {
                     columnSpan: 2,
@@ -1837,7 +1816,7 @@ exports.exportMonthReport = async (req, res) => {
                 }),
                 makeCell("", { verticalMerge: "continue" }),
               ],
-            })
+            }),
           );
 
           // ✅ Row 3 — ครั้ง / วัน
@@ -1851,7 +1830,7 @@ exports.exportMonthReport = async (req, res) => {
                 ...filteredTypeOrder.flatMap((type) => {
                   const w = typeWidths[type] || 1134;
                   const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type
+                    type,
                   );
                   return [
                     makeCell("ครั้ง", {
@@ -1866,7 +1845,7 @@ exports.exportMonthReport = async (req, res) => {
                 }),
                 makeCell("", { verticalMerge: "continue" }),
               ],
-            })
+            }),
           );
 
           return rows;
@@ -1908,7 +1887,7 @@ exports.exportMonthReport = async (req, res) => {
                   }),
                   makeCell(u.note || "-"),
                 ],
-              })
+              }),
             );
           });
 
@@ -1994,7 +1973,7 @@ exports.exportMonthReport = async (req, res) => {
                 children: [
                   new TextRun({
                     text: `ครั้งที่ ${countReport} ตั้งแต่วันที่ ${formatThaiDateFull(
-                      startDate
+                      startDate,
                     )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
                     font: "TH Sarabun New",
                     size: 28,
@@ -2054,11 +2033,11 @@ exports.exportMonthReport = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename=org-report-${organizationId}.docx`
+        `attachment; filename=org-report-${organizationId}.docx`,
       );
       res.send(buffer);
     } else {
