@@ -7,9 +7,12 @@ const { authenticate , authorize } = require('../middlewares/auth');
 //report
 router.post('/download-report', authenticate, reportController.downloadReport);
 router.post("/report/data", reportController.reportData);
-router.post("/export-round-report", reportController.exportRoundReport);
-router.post("/export-year-report", reportController.exportFiscalYearReport);
-router.post("/export-month-report", reportController.exportMonthReport);
+router.post("/report/data-month", reportController.getReportDataForMonth);
+
+//export to pdf
+router.post("/export-round-report", reportController.exportRoundReportPDF);
+router.post("/export-year-report", reportController.exportFiscalYearReportPDF);
+router.post("/export-month-report", reportController.exportMonthReportPDF);
 
 //contact admin
 router.get("/contact", apiController.getContactInfo);
