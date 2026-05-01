@@ -94,13 +94,33 @@ describe("leaveRequest-controller flow", () => {
 
     it("returns detail with head/verifier/steps", async () => {
       LeaveRequestService.getRequestsById.mockResolvedValue([
-        { id: 5, verifierId: 99, userId: 10, foo: "bar" },
+        { 
+          id: 5, 
+          verifierId: 99, 
+          userId: 10, 
+          foo: "bar",
+          user: {
+            id: 10,
+            department: { id: 1 }
+          }
+        },
       ]);
       LeaveRequestService.getApprovalSteps.mockResolvedValue([{ stepOrder: 1 }]);
       UserService.getHeadOfDepartment.mockResolvedValue(777);
       UserService.getUserByIdWithRoles
-        .mockResolvedValueOnce({ id: 777, name: "head" })
-        .mockResolvedValueOnce({ id: 99, name: "verifier" });
+        .mockResolvedValueOnce({ 
+          id: 777, 
+          name: "head",
+          userRoles: [{ role: { name: "APPROVER_1" } }],
+          departmentId: 1
+        }) // ครั้งที่ 1: ตรวจสอบ headUser สำหรับ validation
+        .mockResolvedValueOnce({ 
+          id: 777, 
+          name: "head",
+          userRoles: [{ role: { name: "APPROVER_1" } }],
+          departmentId: 1
+        }) // ครั้งที่ 2: headOfDepartment ใน response
+        .mockResolvedValueOnce({ id: 99, name: "verifier" }); // ครั้งที่ 3: verifier
 
       const req = {
         params: { id: "5" },
@@ -119,7 +139,12 @@ describe("leaveRequest-controller flow", () => {
       const payload = res.json.mock.calls[0][0];
       expect(payload.message).toBe("Leave requests retrieved");
       expect(payload.data.id).toBe(5);
-      expect(payload.data.headOfDepartment).toEqual({ id: 777, name: "head" });
+      expect(payload.data.headOfDepartment).toEqual({ 
+        id: 777, 
+        name: "head",
+        userRoles: [{ role: { name: "APPROVER_1" } }],
+        departmentId: 1
+      });
       expect(payload.data.verifier).toEqual({ id: 99, name: "verifier" });
       expect(payload.data.approvalSteps).toEqual([{ stepOrder: 1 }]);
     });
