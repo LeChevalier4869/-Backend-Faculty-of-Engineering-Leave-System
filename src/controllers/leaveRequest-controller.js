@@ -178,10 +178,23 @@ exports.getLeaveRequest = async (req, res, next) => {
       throw createError(400, "ผู้ใช้ไม่มีแผนกที่กำหนด");
     }
 
-    // ค้นหาหัวหน้าสาขาของคำขอลานี้
-    const headDepartment = await UserService.getHeadOfDepartment(
-      user.department.id
+    // ค้นหาหัวหน้าสาขาของคำขอลานี้ (ใช้ department ของคนที่ยื่นลา)
+    const leaveRequestUser = leaveRequests[0].user;
+    const headDepartmentId = await UserService.getHeadOfDepartment(
+      leaveRequestUser.department.id
     );
+    
+    // ตรวจสอบว่า headDepartmentId มี APPROVER_1 role และอยู่ department เดียวกันจริง
+    let headDepartment = null;
+    if (headDepartmentId) {
+      const headUser = await UserService.getUserByIdWithRoles(headDepartmentId);
+      const hasApprover1Role = headUser?.userRoles?.some(ur => ur.role?.name === "APPROVER_1");
+      const isInSameDepartment = headUser?.departmentId === leaveRequestUser.department.id;
+      
+      if (hasApprover1Role && isInSameDepartment) {
+        headDepartment = headDepartmentId;
+      }
+    }
     // console.log('Debug headDepartment: ', headDepartment);
     const approvalSteps = await LeaveRequestService.getApprovalSteps(requestId);
 
@@ -366,7 +379,7 @@ exports.getLeaveRequestsForFirstApprover = async (req, res) => {
     }
 
     const leaveRequests =
-      await LeaveRequestService.getPendingRequestsByFirstApprover();
+      await LeaveRequestService.getPendingRequestsByFirstApprover(req.user.id);
     res.status(200).json(leaveRequests);
   } catch (error) {
     console.error("Error fetching leave requests for first approver:", error);

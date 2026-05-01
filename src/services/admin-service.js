@@ -445,13 +445,115 @@ class AdminService {
     });
   }
   static async createDepartment(data) {
-    return await prisma.department.create({ data });
+    const { headId, ...deptData } = data;
+    
+    return await prisma.$transaction(async (tx) => {
+      // Create department
+      const newDept = await tx.department.create({ data: deptData });
+      
+      // If headId is provided, add APPROVER_1 role
+      if (headId) {
+        const approver1Role = await tx.role.findFirst({
+          where: { name: "APPROVER_1" }
+        });
+        
+        if (approver1Role) {
+          // Check if user already has this role
+          const existingRole = await tx.userRole.findFirst({
+            where: {
+              userId: headId,
+              roleId: approver1Role.id
+            }
+          });
+          
+          if (!existingRole) {
+            await tx.userRole.create({
+              data: {
+                userId: headId,
+                roleId: approver1Role.id
+              }
+            });
+          }
+        }
+        
+        // Update department with headId
+        await tx.department.update({
+          where: { id: newDept.id },
+          data: { headId }
+        });
+        
+        newDept.headId = headId;
+      }
+      
+      return newDept;
+    });
   }
   static async updateDepartment(data) {
     const { id, name, organizationId, appointDate, headId } = data;
-    return await prisma.department.update({
-      where: { id },
-      data: { name, organizationId, appointDate, headId },
+    
+    return await prisma.$transaction(async (tx) => {
+      // Get current department data to check if headId is changing
+      const currentDept = await tx.department.findUnique({
+        where: { id },
+        select: { headId: true }
+      });
+      
+      if (!currentDept) {
+        throw createError(404, "Department not found");
+      }
+      
+      // Update department
+      const updated = await tx.department.update({
+        where: { id },
+        data: { name, organizationId, appointDate, headId },
+      });
+      
+      // If headId is changing, sync APPROVER_1 role
+      if (currentDept.headId !== headId) {
+        // Remove APPROVER_1 role from previous head
+        if (currentDept.headId) {
+          const approver1Role = await tx.role.findFirst({
+            where: { name: "APPROVER_1" }
+          });
+          
+          if (approver1Role) {
+            await tx.userRole.deleteMany({
+              where: {
+                userId: currentDept.headId,
+                roleId: approver1Role.id
+              }
+            });
+          }
+        }
+        
+        // Add APPROVER_1 role to new head
+        if (headId) {
+          const approver1Role = await tx.role.findFirst({
+            where: { name: "APPROVER_1" }
+          });
+          
+          if (approver1Role) {
+            // Check if user already has this role
+            const existingRole = await tx.userRole.findFirst({
+              where: {
+                userId: headId,
+                roleId: approver1Role.id
+              }
+            });
+            
+            if (!existingRole) {
+              await tx.userRole.create({
+                data: {
+                  userId: headId,
+                  roleId: approver1Role.id
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      return updated;
     });
   }
 

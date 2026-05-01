@@ -818,6 +818,17 @@ exports.departmentCreate = async (req, res, next) => {
     const org = await AdminService.getOrganizationById(+organizationId);
     if (!org) throw createError(404, "ไม่พบหน่วยงาน");
 
+    // Validate: one head per department
+    if (headId) {
+      const existingDeptWithHead = await prisma.department.findFirst({
+        where: { headId: +headId }
+      });
+      
+      if (existingDeptWithHead) {
+        throw createError(400, `ผู้ใช้นี้เป็นหัวหน้าแผนก "${existingDeptWithHead.name}" อยู่แล้ว แผนกละหัวหน้าได้เพียงคนเดียว`);
+      }
+    }
+
     const data = {
       name,
       organizationId: +organizationId,
@@ -863,6 +874,20 @@ exports.departmentUpdate = async (req, res, next) => {
     if (organizationId) updateData.organizationId = +organizationId;
     if (headId !== undefined) updateData.headId = headId ? +headId : null;
     if (appointDate) updateData.appointDate = new Date(appointDate);
+
+    // Validate: one head per department
+    if (headId) {
+      const existingDeptWithHead = await prisma.department.findFirst({
+        where: {
+          headId: +headId,
+          id: { not: id }
+        }
+      });
+      
+      if (existingDeptWithHead) {
+        throw createError(400, `ผู้ใช้นี้เป็นหัวหน้าแผนก "${existingDeptWithHead.name}" อยู่แล้ว แผนกละหัวหน้าได้เพียงคนเดียว`);
+      }
+    }
 
     const updated = await AdminService.updateDepartment({ id, ...updateData });
     if (!updated) throw createError(404, "ไม่พบแผนกที่จะอัปเดต");
