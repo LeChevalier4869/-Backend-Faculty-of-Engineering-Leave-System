@@ -738,23 +738,32 @@ class AdminService {
     });
     if (!existing) throw createError(404, "ไม่พบผู้ใช้งาน");
 
+    // Build update data object with only provided fields
+    const dataToUpdate = {};
+    
+    // Only include fields that are explicitly provided in updateData
+    if (updateData.prefixName !== undefined) dataToUpdate.prefixName = updateData.prefixName;
+    if (updateData.firstName !== undefined) dataToUpdate.firstName = updateData.firstName;
+    if (updateData.lastName !== undefined) dataToUpdate.lastName = updateData.lastName;
+    if (updateData.email !== undefined) dataToUpdate.email = updateData.email;
+    if (updateData.phone !== undefined) dataToUpdate.phone = updateData.phone;
+    if (updateData.sex !== undefined) dataToUpdate.sex = updateData.sex;
+    if (updateData.position !== undefined) dataToUpdate.position = updateData.position;
+    if (updateData.hireDate !== undefined) dataToUpdate.hireDate = new Date(updateData.hireDate);
+    if (updateData.employmentType !== undefined) dataToUpdate.employmentType = updateData.employmentType;
+    if (updateData.profilePicturePath !== undefined) dataToUpdate.profilePicturePath = updateData.profilePicturePath;
+
+    // Add relations if provided
+    if (updateData.personnelTypeId !== undefined) {
+      dataToUpdate.personnelType = { connect: { id: Number(updateData.personnelTypeId) } };
+    }
+    if (updateData.departmentId !== undefined) {
+      dataToUpdate.department = { connect: { id: Number(updateData.departmentId) } };
+    }
+
     const updated = await prisma.user.update({
       where: { id: Number(userId) },
-      data: {
-        prefixName: updateData.prefixName,
-        firstName: updateData.firstName,
-        lastName: updateData.lastName,
-        email: updateData.email,
-        phone: updateData.phone,
-        sex: updateData.sex,
-        position: updateData.position,
-        hireDate: new Date(updateData.hireDate),
-        employmentType: updateData.employmentType,
-
-        // relations
-        personnelType: { connect: { id: Number(updateData.personnelTypeId) } },
-        department: { connect: { id: Number(updateData.departmentId) } },
-      },
+      data: dataToUpdate,
     });
 
     return updated;

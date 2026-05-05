@@ -25,7 +25,7 @@ async function generateTokens(userId) {
   return { accessToken, refreshToken };
 }
 
-async function loginWithOAuth(provider, providerAccountId, email) {
+async function loginWithOAuth(provider, providerAccountId, email, profilePictureUrl = null) {
   let account = await prisma.account.findUnique({
     where: {
       provider_providerAccountId: { provider, providerAccountId },
@@ -48,6 +48,26 @@ async function loginWithOAuth(provider, providerAccountId, email) {
         include: { user: true },
       });
     }
+    
+    // Save Google profile picture in Account table for default display
+    if (profilePictureUrl) {
+      await prisma.account.update({
+        where: { 
+          provider_providerAccountId: { provider, providerAccountId }
+        },
+        data: { profilePictureUrl: profilePictureUrl }
+      });
+      
+      // Also set as main profile picture if user doesn't have one
+      if (!userExist.profilePicturePath) {
+        await prisma.user.update({
+          where: { id: userExist.id },
+          data: { profilePicturePath: profilePictureUrl }
+        });
+        userExist.profilePicturePath = profilePictureUrl;
+      }
+    }
+    
     account = { user: userExist };
   } else {
     throw new Error("ไม่พบข้อมูลบัญชีของคุณในระบบ โปรดติดต่อเจ้าหน้าที่");
