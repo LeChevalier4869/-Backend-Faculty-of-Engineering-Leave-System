@@ -79,7 +79,6 @@ const allowedOrigins = [
 // เพิ่ม localhost เฉพาะใน development
 if (process.env.NODE_ENV === 'development') {
   allowedOrigins.push("http://localhost:5173");
-  allowedOrigins.push("http://localhost:5174");
 }
 
 app.use(
@@ -103,6 +102,7 @@ app.use(
 // Public & utility routes ------------------------------------------------------------
 app.use("/api", apiRoute);
 app.use("/public", express.static("public"));
+app.use("/uploads", express.static("uploads"));
 
 // Authentication & user management
 app.use("/auth", authRoute);

@@ -42,9 +42,10 @@ passport.deserializeUser(async (id, done) => {
         try {
           const googleId = profile.id;
           const email = profile.emails[0].value;
+          const profilePicture = profile.photos && profile.photos[0] ? profile.photos[0].value : null;
           
           const { user, accessToken: jwtAccess, refreshToken: jwtRefresh } =
-            await AuthService.loginWithOAuth("google", googleId, email);
+            await AuthService.loginWithOAuth("google", googleId, email, profilePicture);
 
           return done(null, { ...user, jwtAccess, jwtRefresh });
         } catch (err) {

@@ -312,11 +312,12 @@ model Setting {
 }
 
 model Account {
-  id                Int    @id @default(autoincrement())
+  id                Int      @id @default(autoincrement())
   userId            Int
   provider          String
   providerAccountId String
-  user              User   @relation(fields: [userId], references: [id])
+  profilePictureUrl String?
+  user              User     @relation(fields: [userId], references: [id])
 
   @@unique([provider, providerAccountId])
   @@index([userId], map: "account_userId_fkey")
