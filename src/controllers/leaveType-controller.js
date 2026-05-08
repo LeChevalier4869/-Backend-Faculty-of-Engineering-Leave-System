@@ -22,9 +22,18 @@ exports.createLeaveType = async (req, res, next) => {
       req.get('User-Agent')
     );
 
+    // ตรวจสอบว่ามี Rank config หรือยัง
+    const rankCount = await LeaveTypeService.countRanksByLeaveTypeId(leaveType.id);
+
     res
       .status(201)
-      .json({ message: "สร้างประเภทการลาเรียบร้อยแล้ว", data: leaveType });
+      .json({
+        message: "สร้างประเภทการลาเรียบร้อยแล้ว",
+        data: leaveType,
+        warning: rankCount === 0
+          ? "ประเภทการลานี้ยังไม่มีการกำหนดเงื่อนไขวันลา (Rank) กรุณาตั้งค่าเงื่อนไขวันลาสำหรับแต่ละประเภทบุคลากร เพื่อให้ระบบทำงานได้ถูกต้อง"
+          : null,
+      });
   } catch (err) {
     next(err);
   }
@@ -110,8 +119,28 @@ exports.deleteLeaveType = async (req, res, next) => {
       throw createError(400, "รหัสประเภทการลาไม่ถูกต้อง");
     }
 
+    const existing = await LeaveTypeService.getLeaveTypeById(numID);
+    if (!existing) throw createError(404, "ไม่พบประเภทการลาที่ต้องการลบ");
+
+    // ตรวจสอบ relations ก่อนลบ
+    const { requestCount, balanceCount, rankCount } = await LeaveTypeService.countRelations(numID);
+
+    if (requestCount > 0 || balanceCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบประเภทการลา "${existing.name}" ได้ เนื่องจากมีข้อมูลอ้างอิงอยู่ในระบบ ` +
+        `(คำขอลา: ${requestCount} รายการ, ยอดวันลา: ${balanceCount} รายการ) ` +
+        `กรุณาปิดการใช้งาน (isAvailable = false) แทนการลบ`
+      );
+    }
+
+    if (rankCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบประเภทการลา "${existing.name}" ได้ เนื่องจากมีการกำหนดเงื่อนไขวันลา (Rank) ${rankCount} รายการ ` +
+        `กรุณาลบเงื่อนไขวันลาที่เกี่ยวข้องก่อน หรือปิดการใช้งานแทน`
+      );
+    }
+
     const deleted = await LeaveTypeService.deleteLeaveType(numID);
-    if (!deleted) throw createError(404, "ไม่พบประเภทการลาที่ต้องการลบ");
 
     // บันทึก Audit Log การลบประเภทการลา
     await AuditLogService.createLog(
@@ -119,7 +148,7 @@ exports.deleteLeaveType = async (req, res, next) => {
       "DELETE",
       "LeaveType",
       numID,
-      `ลบประเภทการลา (ID: ${numID})`,
+      `ลบประเภทการลา: ${existing.name} (ID: ${numID})`,
       req.ip,
       req.get('User-Agent')
     );

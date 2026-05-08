@@ -445,13 +445,115 @@ class AdminService {
     });
   }
   static async createDepartment(data) {
-    return await prisma.department.create({ data });
+    const { headId, ...deptData } = data;
+    
+    return await prisma.$transaction(async (tx) => {
+      // Create department
+      const newDept = await tx.department.create({ data: deptData });
+      
+      // If headId is provided, add APPROVER_1 role
+      if (headId) {
+        const approver1Role = await tx.role.findFirst({
+          where: { name: "APPROVER_1" }
+        });
+        
+        if (approver1Role) {
+          // Check if user already has this role
+          const existingRole = await tx.userRole.findFirst({
+            where: {
+              userId: headId,
+              roleId: approver1Role.id
+            }
+          });
+          
+          if (!existingRole) {
+            await tx.userRole.create({
+              data: {
+                userId: headId,
+                roleId: approver1Role.id
+              }
+            });
+          }
+        }
+        
+        // Update department with headId
+        await tx.department.update({
+          where: { id: newDept.id },
+          data: { headId }
+        });
+        
+        newDept.headId = headId;
+      }
+      
+      return newDept;
+    });
   }
   static async updateDepartment(data) {
     const { id, name, organizationId, appointDate, headId } = data;
-    return await prisma.department.update({
-      where: { id },
-      data: { name, organizationId, appointDate, headId },
+    
+    return await prisma.$transaction(async (tx) => {
+      // Get current department data to check if headId is changing
+      const currentDept = await tx.department.findUnique({
+        where: { id },
+        select: { headId: true }
+      });
+      
+      if (!currentDept) {
+        throw createError(404, "Department not found");
+      }
+      
+      // Update department
+      const updated = await tx.department.update({
+        where: { id },
+        data: { name, organizationId, appointDate, headId },
+      });
+      
+      // If headId is changing, sync APPROVER_1 role
+      if (currentDept.headId !== headId) {
+        // Remove APPROVER_1 role from previous head
+        if (currentDept.headId) {
+          const approver1Role = await tx.role.findFirst({
+            where: { name: "APPROVER_1" }
+          });
+          
+          if (approver1Role) {
+            await tx.userRole.deleteMany({
+              where: {
+                userId: currentDept.headId,
+                roleId: approver1Role.id
+              }
+            });
+          }
+        }
+        
+        // Add APPROVER_1 role to new head
+        if (headId) {
+          const approver1Role = await tx.role.findFirst({
+            where: { name: "APPROVER_1" }
+          });
+          
+          if (approver1Role) {
+            // Check if user already has this role
+            const existingRole = await tx.userRole.findFirst({
+              where: {
+                userId: headId,
+                roleId: approver1Role.id
+              }
+            });
+            
+            if (!existingRole) {
+              await tx.userRole.create({
+                data: {
+                  userId: headId,
+                  roleId: approver1Role.id
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      return updated;
     });
   }
 
@@ -491,14 +593,15 @@ class AdminService {
   static async roleList() {
     return await prisma.role.findMany();
   }
-  static async createRole(name) {
-    return await prisma.role.create({ data: { name } });
+  static async createRole(name, description) {
+    return await prisma.role.create({ data: { name, description } });
   }
-  static async updateRole(id, name) {
+  static async updateRole(id, name, description) {
     return await prisma.role.update({
       where: { id },
       data: {
         name,
+        description,
       },
     });
   }
@@ -635,23 +738,32 @@ class AdminService {
     });
     if (!existing) throw createError(404, "ไม่พบผู้ใช้งาน");
 
+    // Build update data object with only provided fields
+    const dataToUpdate = {};
+    
+    // Only include fields that are explicitly provided in updateData
+    if (updateData.prefixName !== undefined) dataToUpdate.prefixName = updateData.prefixName;
+    if (updateData.firstName !== undefined) dataToUpdate.firstName = updateData.firstName;
+    if (updateData.lastName !== undefined) dataToUpdate.lastName = updateData.lastName;
+    if (updateData.email !== undefined) dataToUpdate.email = updateData.email;
+    if (updateData.phone !== undefined) dataToUpdate.phone = updateData.phone;
+    if (updateData.sex !== undefined) dataToUpdate.sex = updateData.sex;
+    if (updateData.position !== undefined) dataToUpdate.position = updateData.position;
+    if (updateData.hireDate !== undefined) dataToUpdate.hireDate = new Date(updateData.hireDate);
+    if (updateData.employmentType !== undefined) dataToUpdate.employmentType = updateData.employmentType;
+    if (updateData.profilePicturePath !== undefined) dataToUpdate.profilePicturePath = updateData.profilePicturePath;
+
+    // Add relations if provided
+    if (updateData.personnelTypeId !== undefined) {
+      dataToUpdate.personnelType = { connect: { id: Number(updateData.personnelTypeId) } };
+    }
+    if (updateData.departmentId !== undefined) {
+      dataToUpdate.department = { connect: { id: Number(updateData.departmentId) } };
+    }
+
     const updated = await prisma.user.update({
       where: { id: Number(userId) },
-      data: {
-        prefixName: updateData.prefixName,
-        firstName: updateData.firstName,
-        lastName: updateData.lastName,
-        email: updateData.email,
-        phone: updateData.phone,
-        sex: updateData.sex,
-        position: updateData.position,
-        hireDate: new Date(updateData.hireDate),
-        employmentType: updateData.employmentType,
-
-        // relations
-        personnelType: { connect: { id: Number(updateData.personnelTypeId) } },
-        department: { connect: { id: Number(updateData.departmentId) } },
-      },
+      data: dataToUpdate,
     });
 
     return updated;

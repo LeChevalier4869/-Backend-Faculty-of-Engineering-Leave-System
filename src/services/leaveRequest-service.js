@@ -84,8 +84,14 @@ class LeaveRequestService {
 
     // คำนวณจำนวนวันลา
     const requestedDays = await calculateWorkingDays(start, end);
-    if (typeof requestedDays !== "number" || isNaN(requestedDays) || requestedDays <= 0) {
-      throw createError(400, "จำนวนวันลาต้องมากกว่า 0");
+    
+    if (typeof requestedDays !== "number" || isNaN(requestedDays)) {
+      throw createError(400, "รูปแบบจำนวนวันลาไม่ถูกต้อง");
+    }
+    
+    // ตรวจสอบว่าต้องมีวันทำงานอย่างน้อย 1 วัน
+    if (requestedDays <= 0) {
+      throw createError(400, "คุณไม่สามารถลาในวันหยุดได้ กรุณาเลือกวันที่มีวันทำงานอย่างน้อย 1 วัน");
     }
 
     // ตรวจสอบสิทธิ์และดึง verifier พร้อมกัน (refactor)
@@ -149,7 +155,12 @@ class LeaveRequestService {
       approver.isOriginal && user.department?.headId === approver.id
     );
 
-    // ถ้าไม่มีหัวหน้าสาขาของ department ให้ใช้คนแรก
+    // ถ้าไม่พบหัวหน้าสาขาของ department ให้ใช้ headId จาก department โดยตรง
+    if (!departmentHead && user.department?.headId) {
+      departmentHead = approver1s.find(approver => approver.id === user.department.headId);
+    }
+
+    // ถ้ายังไม่พบให้ใช้คนแรก
     if (!departmentHead) {
       departmentHead = approver1s[0];
     }
@@ -709,7 +720,13 @@ class LeaveRequestService {
     });
   }
 
-  static async getPendingRequestsByFirstApprover() {
+  static async getPendingRequestsByFirstApprover(approverUserId) {
+    // ดึงข้อมูลแผนกของหัวหน้าสาขาที่กำลัง login
+    const approverUser = await UserService.getUserByIdWithRoles(approverUserId);
+    if (!approverUser || !approverUser.departmentId) {
+      throw createError(400, "ไม่พบข้อมูลแผนกของหัวหน้าสาขา");
+    }
+
     // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
     const approvers = await UserService.getApproversForLevel(1, new Date());
     const approverIds = approvers.map(v => v.id);
@@ -717,6 +734,10 @@ class LeaveRequestService {
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
+        // กรองเฉพาะคำร้องจากแผนกเดียวกับหัวหน้าสาขา
+        user: {
+          departmentId: approverUser.departmentId
+        },
         leaveRequestDetails: {
           some: {
             stepOrder: 1,
@@ -734,6 +755,7 @@ class LeaveRequestService {
             lastName: true,
             department: {
               select: {
+                id: true,
                 name: true,
               },
             },

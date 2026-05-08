@@ -1,4 +1,5 @@
 const UserService = require("../services/user-service");
+const AdminService = require("../services/admin-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
@@ -12,6 +13,10 @@ const { isCorporateEmail } = require("../utils/checkEmailDomain");
 const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
 const prisma = require("../config/prisma");
 const fs = require("fs");
+const path = require("path");
+
+// Memory-based rate limiting for profile picture uploads
+const profileUploadRateLimit = new Map(); // userId -> { count: number, lastUpload: Date }
 
 // controller/auth-controller.js
 exports.register = async (req, res, next) => {
@@ -251,24 +256,189 @@ exports.getVerifier = async (req, res, next) => {
   }
 };
 
-//error
 exports.updateProfile = async (req, res, next) => {
   try {
-    const userEmail = req.user.email;
+    const userId = req.user.id;
     const { profilePicturePath } = req.body;
 
-    let updateProfilePicturePath = null;
+    // Memory-based rate limiting: Check if user has uploaded more than 3 times today
     if (req.file) {
-      updateProfilePicturePath = await cloudUpload(req.file.path);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Start of today
+
+      const userRateLimit = profileUploadRateLimit.get(userId);
+      
+      if (userRateLimit) {
+        const lastUploadDate = new Date(userRateLimit.lastUpload);
+        lastUploadDate.setHours(0, 0, 0, 0);
+
+        if (lastUploadDate.getTime() === today.getTime()) {
+          // Same day, check count
+          if (userRateLimit.count >= 3) {
+            return res.status(429).json({
+              error: "คุณสามารถอัปโหลดรูปโปรไฟล์ได้สูงสุด 3 ครั้งต่อวัน กรุณาลองใหม่ในวันพรุ่ง"
+            });
+          }
+
+          // Increment count for same day
+          userRateLimit.count += 1;
+          userRateLimit.lastUpload = new Date();
+        } else {
+          // New day, reset count
+          userRateLimit.count = 1;
+          userRateLimit.lastUpload = new Date();
+        }
+      } else {
+        // First upload ever
+        profileUploadRateLimit.set(userId, {
+          count: 1,
+          lastUpload: new Date()
+        });
+      }
     }
 
-    const updatedUser = await UserService.updateUser(userEmail, {
+    let updateProfilePicturePath = null;
+    
+    if (req.file) {
+      // For local development, use file path
+      if (process.env.NODE_ENV !== 'production') {
+        updateProfilePicturePath = `/uploads/profile/${req.file.filename}`;
+      } else {
+        // For production, upload to Cloudinary
+        updateProfilePicturePath = await cloudUpload(req.file.path);
+        // Clean up local file after upload
+        fs.unlink(req.file.path, () => {});
+      }
+    }
+
+    const updatedUser = await AdminService.updateUserById(userId, {
       profilePicturePath: updateProfilePicturePath || profilePicturePath,
     });
 
     res.status(200).json({
       message: "อัปเดตรูปโปรไฟล์",
       user: updatedUser,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getProfileImage = async (req, res, next) => {
+  try {
+    const { filename } = req.params;
+    
+    // Validate filename to prevent directory traversal
+    if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: "Invalid filename" });
+    }
+    
+    const imagePath = path.join(__dirname, '../../uploads/profile', filename);
+    
+    // Check if file exists
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+    
+    // Read file and convert to base64
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64Image = imageBuffer.toString('base64');
+    const mimeType = 'image/jpeg'; // You can determine this from file extension if needed
+    
+    // Return as data URL
+    const dataUrl = `data:${mimeType};base64,${base64Image}`;
+    
+    res.json({ imageUrl: dataUrl });
+  } catch (err) {
+    console.error("Get profile image error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+};
+
+exports.deleteProfilePicture = async (req, res, next) => {
+  try {
+    console.log("=== DELETE PROFILE PICTURE DEBUG ===");
+    console.log("User ID:", req.user?.id);
+    
+    const userId = req.user.id;
+    
+    // Get current user to check if they have a profile picture
+    console.log("Fetching current user...");
+    const currentUser = await AdminService.getUserById(userId);
+    console.log("Current user:", currentUser);
+    
+    if (!currentUser) {
+      console.log("User not found");
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    console.log("Current profile picture path:", currentUser.profilePicturePath);
+    
+    // Delete the profile picture file (local or Cloudinary)
+    if (currentUser.profilePicturePath) {
+      if (currentUser.profilePicturePath.startsWith('/uploads/profile/')) {
+        // Local file deletion
+        console.log("Deleting local profile picture...");
+        const filename = currentUser.profilePicturePath.split('/').pop();
+        console.log("Filename:", filename);
+        const imagePath = path.join(__dirname, '../../uploads/profile', filename);
+        console.log("Image path:", imagePath);
+        
+        if (fs.existsSync(imagePath)) {
+          console.log("File exists, deleting...");
+          fs.unlinkSync(imagePath);
+          console.log("File deleted successfully");
+        } else {
+          console.log("File does not exist");
+        }
+      } else if (currentUser.profilePicturePath.startsWith('http')) {
+        // Cloudinary URL - for now just log, could implement Cloudinary API deletion if needed
+        console.log("Cloudinary profile picture detected:", currentUser.profilePicturePath);
+        console.log("Note: Cloudinary images are not automatically deleted from cloud storage");
+      } else {
+        console.log("Unknown profile picture format:", currentUser.profilePicturePath);
+      }
+    } else {
+      console.log("No profile picture to delete");
+    }
+    
+    // Update user to remove profile picture path
+    console.log("Updating user profile picture path to null...");
+    const updatedUser = await AdminService.updateUserById(userId, {
+      profilePicturePath: null
+    });
+    console.log("Updated user:", updatedUser);
+    
+    console.log("=== END DEBUG ===");
+    
+    res.status(200).json({
+      message: "ลบรูปโปรไฟล์เรียบร้อยแล้ว",
+      user: updatedUser
+    });
+  } catch (err) {
+    console.error("Delete profile picture error:", err);
+    console.error("Error stack:", err.stack);
+    next(err);
+  }
+};
+
+exports.getGoogleProfilePicture = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get Google account for this user
+    const googleAccount = await prisma.account.findFirst({
+      where: { 
+        userId: userId,
+        provider: 'google'
+      },
+      select: { profilePictureUrl: true }
+    });
+    
+    res.status(200).json({
+      googleProfilePicture: googleAccount?.profilePictureUrl || null
     });
   } catch (err) {
     next(err);
@@ -289,11 +459,23 @@ exports.updateUserRole = async (req, res, next) => {
 
     const rolesArray = Array.isArray(roleNames) ? roleNames : [roleNames];
     const userRole = rolesArray.map((role) => role.toUpperCase());
-    const roles = await UserService.getRolesByNames(userRole);
 
-    //    console.log('roles array = ' + rolesArray);
-    //    console.log('user role = ' + userRole);
-    //   console.log('roles = ' + roles);
+    const requesterIsSuperAdmin = (req.user.roles || []).includes("SUPER_ADMIN");
+
+    // เฉพาะ SUPER_ADMIN เท่านั้นที่เพิ่ม/ลบ role SUPER_ADMIN ได้
+    if (userRole.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการเพิ่มหรือลบบทบาท SUPER_ADMIN");
+    }
+
+    // ป้องกัน ADMIN แก้ role ของ user ที่เป็น SUPER_ADMIN
+    const targetUser = await UserService.getUserByIdWithRoles(userId);
+    const targetRoleNames = (targetUser?.userRoles || []).map((ur) => ur.role?.name).filter(Boolean);
+
+    if (targetRoleNames.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ไม่สามารถแก้ไขบทบาทของผู้ใช้ที่มีสิทธิ์ SUPER_ADMIN ได้");
+    }
+
+    const roles = await UserService.getRolesByNames(userRole);
 
     if (!roles || roles.length !== userRole.length) {
       throw createError(400, "Invalid roles provided");
@@ -630,6 +812,24 @@ exports.deleteOrganization = async (req, res, next) => {
       throw createError(404, "ไม่พบข้อมูลองค์กร");
     }
 
+    // ตรวจสอบ relations ก่อนลบ
+    const { departmentCount: deptCount, approverPositionCount: approverPosCount } =
+      await OrgAndDeptService.countOrganizationRelations(parseInt(id));
+
+    if (deptCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบองค์กร "${oldOrganization.name}" ได้ เนื่องจากมีแผนก/สาขา ${deptCount} แห่งที่อ้างอิงอยู่ ` +
+        `กรุณาย้ายหรือลบแผนกที่เกี่ยวข้องก่อน`
+      );
+    }
+
+    if (approverPosCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบองค์กร "${oldOrganization.name}" ได้ เนื่องจากมีตำแหน่งผู้อนุมัติ ${approverPosCount} ตำแหน่งที่อ้างอิงอยู่ ` +
+        `กรุณาลบตำแหน่งผู้อนุมัติที่เกี่ยวข้องก่อน`
+      );
+    }
+
     const deletedOrganization = await OrgAndDeptService.deleteOrganization(id);
 
     if (!deletedOrganization) {
@@ -741,11 +941,24 @@ exports.updateDepartment = async (req, res, next) => {
 exports.deleteDepartment = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const deletedDepartment = await OrgAndDeptService.deleteDepartment(id);
+    const numID = parseInt(id);
 
-    if (!deletedDepartment) {
+    const existing = await OrgAndDeptService.getDepartmentById(numID);
+    if (!existing) {
       throw createError(404, "ไม่พบแผนกที่ต้องการลบ");
     }
+
+    // ตรวจสอบ relations ก่อนลบ
+    const userCount = await OrgAndDeptService.countUsersByDepartmentId(numID);
+
+    if (userCount > 0) {
+      throw createError(400,
+        `ไม่สามารถลบแผนก "${existing.name}" ได้ เนื่องจากมีผู้ใช้งาน ${userCount} คนที่สังกัดอยู่ ` +
+        `กรุณาย้ายผู้ใช้งานไปแผนกอื่นก่อนลบ`
+      );
+    }
+
+    const deletedDepartment = await OrgAndDeptService.deleteDepartment(id);
 
     res.status(200).json({ message: "ลบแผนกสำเร็จ", data: deletedDepartment });
   } catch (err) {
@@ -823,7 +1036,7 @@ exports.updatePersonnelType = async (req, res, next) => {
 
     const updatedPersonnelType = await OrgAndDeptService.updatePersonnelType(
       parseInt(id),
-      name 
+      name
     );
 
     if (!updatedPersonnelType) {
@@ -959,7 +1172,7 @@ exports.getApproversForLevel = async (req, res) => {
   try {
     const { level } = req.params;
     const { date } = req.query;
-    
+
     const approvers = await UserService.getApproversForLevel(parseInt(level), date || new Date());
     res.status(200).json({ success: true, data: approvers });
   } catch (err) {

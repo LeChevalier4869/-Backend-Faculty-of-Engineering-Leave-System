@@ -38,9 +38,12 @@ router.post('/reset-password', authController.resetPassword);
 //      User Management (Admin)
 // ==============================
 
-router.post('/update-role/:id', authenticate, authorize(['ADMIN']), authController.updateUserRole);
+router.post('/update-role/:id', authenticate, authorize(['SUPER_ADMIN']), authController.updateUserRole);
 router.put('/users/:id', authenticate, upload.single('images'), authController.updateUser);
 router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('profilePicturePath'), authController.updateProfile);
+router.get('/profile-image/:filename', authController.getProfileImage);
+router.delete('/delete-picture', authenticate, authController.deleteProfilePicture);
+router.get('/google-profile-picture', authenticate, authController.getGoogleProfilePicture);
 
 // ==============================
 //    Organization Management

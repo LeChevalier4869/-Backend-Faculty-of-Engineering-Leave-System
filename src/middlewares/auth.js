@@ -5,7 +5,10 @@ const prisma = require("../config/prisma");
 const authorize = (requiredRoles) => (req, res, next) => {
   const r = req.user?.role || req.user?.roles || [];
   const userRoles = Array.isArray(r) ? r : [r];
-  const ok = requiredRoles.some((role) => userRoles.includes(role));
+  // SUPER_ADMIN สามารถเข้าถึงทุก route ที่ ADMIN เข้าได้
+  const isSuperAdmin = userRoles.includes("SUPER_ADMIN");
+  const ok = requiredRoles.some((role) => userRoles.includes(role))
+    || (isSuperAdmin && requiredRoles.includes("ADMIN"));
   if (!ok) return next(createError(403, "Forbidden"));
   next();
 };
