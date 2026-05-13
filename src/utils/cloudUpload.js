@@ -5,4 +5,14 @@ const cloudUpload = async (path) => {
     return res.secure_url;
 };
 
-module.exports = cloudUpload;
+const cloudDelete = async (publicId) => {
+    try {
+        const res = await cloudinary.uploader.destroy(publicId);
+        return res;
+    } catch (error) {
+        console.error('Cloudinary delete error:', error);
+        throw error;
+    }
+};
+
+module.exports = { cloudUpload, cloudDelete };

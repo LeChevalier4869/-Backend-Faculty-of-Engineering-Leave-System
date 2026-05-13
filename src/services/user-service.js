@@ -65,6 +65,12 @@ class UserService {
             effectiveFrom: true,
           },
         },
+        accounts: {
+          select: {
+            provider: true,
+            profilePictureUrl: true,
+          },
+        },
       },
     });
   }
