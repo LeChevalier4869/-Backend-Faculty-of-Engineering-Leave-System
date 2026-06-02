@@ -14,6 +14,9 @@ router.post("/export-round-report", reportController.exportRoundReportPDF);
 router.post("/export-year-report", reportController.exportFiscalYearReportPDF);
 router.post("/export-month-report", reportController.exportMonthReportPDF);
 
+//export report (pdf or word) - used by LeaveReport admin page
+router.post("/export-report", reportController.exportReport);
+
 //contact admin
 router.get("/contact", apiController.getContactInfo);
 router.put("/contact/:key", authenticate, authorize(["ADMIN"]), apiController.updateContactValue);

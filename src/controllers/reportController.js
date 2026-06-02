@@ -442,7 +442,7 @@ exports.getReportDataForMonth = async (req, res) => {
 // 📍 Export PDF หรือ Word
 
 // ---------------------------------------ประจำรอบประเมิน---------------------------------------
-exports.exportRoundReportWORD = async (req, res) => {
+exports.exportReport = async (req, res) => {
   try {
     const { countReport, organizationId, startDate, endDate, format } =
       req.body;
