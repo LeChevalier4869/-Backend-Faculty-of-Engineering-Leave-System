@@ -1,19 +1,9 @@
 const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
-//reset pass
-const JWT_SECRET = process.env.JWT_SECRET || "mysecret";
-const RESET_TOKEN_EXPIRY = "10m";
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 
 class UserService {
   static async createUser(data) {
     try {
-      // อนุญาตให้สร้างผู้ใช้โดยไม่มี password ได้ (กรณีล็อกอินด้วย Google)
-      if (data.isGoogleAccount && !data.password) {
-        data.password = uuidv4(); // สร้างรหัสชั่วคราว (แต่ต้องไม่ให้ล็อกอินด้วยวิธีปกติ)
-      }
       if (data.hireDate) {
         data.hireDate = new Date(data.hireDate);
       }
@@ -657,83 +647,6 @@ class UserService {
     return roles.map((r) => r.role?.name).filter(Boolean);
   }
 
-  static async changePassword({ email, oldPassword, newPassword }) {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) throw new Error("ไม่พบผู้ใช้");
-
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) throw new Error("รหัสผ่านปัจจุบันไม่ถูกต้อง");
-    if (oldPassword === newPassword)
-      throw new Error("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน");
-
-    const letterCount = (newPassword.match(/[a-zA-Z]/g) || []).length;
-    if (String(newPassword).length < 8 || letterCount < 4) {
-      throw createError(
-        400,
-        "รหัสผ่านต้องมีความยาวมากกว่า 8 ตัวอักษร และต้องมีตัวอักษรอย่างน้อย 4 ตัว"
-      );
-    }
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await prisma.User.update({
-      where: { id: user.id },
-      data: { password: hashed },
-    });
-
-    return "เปลี่ยนรหัสผ่านสำเร็จ";
-  }
-
-  static async forgotPassword(email) {
-    if (!email) throw new Error("กรุณาระบุอีเมล");
-
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) throw new Error("ไม่พบผู้ใช้");
-
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: RESET_TOKEN_EXPIRY || "5m",
-    });
-
-    const resetUrl = `https://frontend-faculty-of-engine-git-c919d8-lechevalier4869s-projects.vercel.app/reset-password?token=${token}`;
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER_RMUTI2,
-        pass: process.env.EMAIL_APP_PASS2, // 🟡 ต้องเป็น App Password เท่านั้น
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
-      to: email,
-      subject: "ลิงก์รีเซ็ตรหัสผ่าน",
-      html: `
-            <p>คุณได้รับคำขอรีเซ็ตรหัสผ่าน</p>
-            <p>คลิกที่ลิงก์ด้านล่างเพื่อรีเซ็ตรหัสผ่านของคุณ:</p>
-            <a href="${resetUrl}">${resetUrl}</a>
-            <p style="color:red;"><strong>ลิงก์นี้จะหมดอายุใน 5 นาที</strong></p>
-            <p>หากคุณไม่ได้ร้องขอ สามารถละเว้นอีเมลนี้ได้</p>
-      `,
-    });
-
-    return "ส่งอีเมลรีเซ็ตรหัสผ่านแล้ว";
-  }
-
-  static async resetPassword({ token, newPassword }) {
-    try {
-      const payload = jwt.verify(token, JWT_SECRET);
-      const hashed = await bcrypt.hash(newPassword, 10);
-
-      await prisma.user.update({
-        where: { id: payload.userId },
-        data: { password: hashed },
-      });
-
-      return "รีเซ็ตรหัสผ่านสำเร็จ";
-    } catch (err) {
-      throw new Error("โทเคนไม่ถูกต้องหรือหมดอายุ");
-    }
-  }
-
   static async assignRankToUser(userId, personnelTypeId, hireDate) {
     if (!hireDate) return;
 
@@ -767,41 +680,79 @@ class UserService {
     }
   }
 
-  static async assignLeaveBalanceFromRanks(userId) {
+  // ตรวจว่าเป็นการลาเฉพาะเพศหญิง (ลาคลอด / ลาไปถือศีลปฏิบัติธรรม) เพื่อไม่ gen ให้ผู้ชาย
+  static isFemaleOnlyLeave(leaveTypeName) {
+    const name = String(leaveTypeName || "").toLowerCase();
+    const isMaternity =
+      (name.includes("คลอด") &&
+        !name.includes("ช่วยเหลือภริยา") &&
+        !name.includes("ภริยา")) ||
+      name.includes("maternity");
+    const isFemaleOrdination =
+      name.includes("ถือศีล") ||
+      (name.includes("ปฏิบัติธรรม") && !name.includes("บวช"));
+    return isMaternity || isFemaleOrdination;
+  }
+
+  static async assignLeaveBalanceFromRanks(userId, sex = null) {
     const fiscalYearSetting = await prisma.setting.findUnique({
-    where: { key: "fiscalYear" },
-  });
-  const yearValue = parseInt(fiscalYearSetting.value, 10);
+      where: { key: "fiscalYear" },
+    });
+    const yearValue = fiscalYearSetting
+      ? parseInt(fiscalYearSetting.value, 10)
+      : new Date().getFullYear();
 
     const userRanks = await prisma.userRank.findMany({
       where: { userId },
       include: {
-        rank: true,
+        rank: { include: { leaveType: true } },
       },
     });
 
     for (const userRank of userRanks) {
-      const { leaveTypeId, maxDays, receiveDays, isBalance } = userRank.rank;
+      const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
 
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
-      // สำหรับประเภทการลาที่ไม่ต้องหักวัน (receiveDays = 0 && isBalance = 1)
-      // ให้ตั้งค่าเป็น 0 เพื่อบอกว่าไม่ต้องตรวจสอบยอดคงเหลือ
-      const balanceData = {
-        userId,
-        leaveTypeId,
-        maxDays: (receiveDays === 0 && isBalance === 1) ? 0 : maxDays,
-        usedDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
-        pendingDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
-        remainingDays: (receiveDays === 0 && isBalance === 1) ? 0 : receiveDays,
-        year: yearValue,
-      };
+      // ข้ามการลาเฉพาะเพศหญิงสำหรับผู้ใช้ชาย
+      if (sex === "ชาย" && UserService.isFemaleOnlyLeave(userRank.rank.leaveType?.name)) {
+        continue;
+      }
+
+      // ใช้เกณฑ์เดียวกับ import excel: leaveType.isNonDeductible
+      const isNonDeductible = userRank.rank.leaveType?.isNonDeductible === true;
+
+      let balanceData;
+      if (isNonDeductible) {
+        // ประเภทไม่หักวัน: เก็บแค่ usedDays (ผู้ใช้ใหม่ยังไม่เคยใช้ = 0)
+        balanceData = {
+          userId,
+          leaveTypeId,
+          maxDays: 0,
+          usedDays: 0,
+          pendingDays: 0,
+          remainingDays: 0,
+          year: yearValue,
+        };
+      } else {
+        // ประเภทหักวัน: ผู้ใช้ใหม่ได้สิทธิ์ปัจจุบัน = receiveDays, ยังไม่ใช้ = 0
+        const remaining =
+          receiveDays !== null && receiveDays !== undefined ? receiveDays : maxDays;
+        balanceData = {
+          userId,
+          leaveTypeId,
+          maxDays,
+          usedDays: 0,
+          pendingDays: 0,
+          remainingDays: remaining,
+          year: yearValue,
+        };
+      }
 
       await prisma.leaveBalance.create({
         data: balanceData,
       });
-      // console.log(`➕ เพิ่ม LeaveBalance ให้ userId ${userId}, leaveType ${leaveTypeId}`);
     }
   }
 
@@ -915,6 +866,82 @@ class UserService {
 
       return newPosition;
     });
+  }
+
+  /**
+   * กำหนดเลขที่ตำแหน่งให้ user ภายใน transaction ที่ส่งเข้ามา (ใช้ตอนสร้าง user / import)
+   * รองรับกรณีเลขซ้ำ: "ย้ายเลขมาคนใหม่" โดยปิด record ของเจ้าของเดิม
+   * ทำงานภายใต้ unique constraint [positionNumber,isCurrent] และ [userId,isCurrent]
+   * @param {object} tx - prisma transaction client
+   * @param {number} userId - ผู้ใช้ที่จะได้รับเลขตำแหน่ง
+   * @param {string} positionNumber - เลขที่ตำแหน่ง
+   * @param {number|null} changedByUserId - ผู้ที่ทำรายการ (สำหรับ audit log)
+   */
+  static async assignPositionNumberToUser(tx, userId, positionNumber, changedByUserId = null) {
+    const value = String(positionNumber).trim();
+    if (!value) {
+      throw createError(400, "ต้องระบุเลขที่ตำแหน่ง (positionNumber)");
+    }
+    const now = new Date();
+
+    // 1) ปลดเลขนี้จากเจ้าของเดิม (ถ้ามีคนอื่นถืออยู่และเป็น current)
+    const currentHolder = await tx.userPositionNumber.findFirst({
+      where: { positionNumber: value, isCurrent: true },
+    });
+    if (currentHolder && currentHolder.userId !== userId) {
+      // ลบ closed record ที่จะชนกับ unique [positionNumber,isCurrent=false] หรือ [holder,isCurrent=false]
+      await tx.userPositionNumber.deleteMany({
+        where: {
+          isCurrent: false,
+          OR: [{ positionNumber: value }, { userId: currentHolder.userId }],
+        },
+      });
+      await tx.userPositionNumber.update({
+        where: { id: currentHolder.id },
+        data: { isCurrent: false, effectiveTo: now },
+      });
+    }
+
+    // 2) ปิด record ปัจจุบันของ user เอง (ถ้ามีและคนละเลข)
+    const ownCurrent = await tx.userPositionNumber.findFirst({
+      where: { userId, isCurrent: true },
+    });
+    if (ownCurrent) {
+      if (ownCurrent.positionNumber === value) {
+        return ownCurrent; // ถือเลขนี้อยู่แล้ว ไม่ต้องทำอะไร
+      }
+      await tx.userPositionNumber.deleteMany({
+        where: { userId, isCurrent: false },
+      });
+      await tx.userPositionNumber.update({
+        where: { id: ownCurrent.id },
+        data: { isCurrent: false, effectiveTo: now },
+      });
+    }
+
+    // 3) สร้าง record ใหม่เป็น current
+    const created = await tx.userPositionNumber.create({
+      data: {
+        userId,
+        positionNumber: value,
+        effectiveFrom: now,
+        isCurrent: true,
+      },
+    });
+
+    if (changedByUserId) {
+      await tx.auditLog.create({
+        data: {
+          userId: changedByUserId,
+          action: "ASSIGN_POSITION_NUMBER",
+          entityType: "User",
+          entityId: userId,
+          details: `Assigned position number ${value}`,
+        },
+      });
+    }
+
+    return created;
   }
 
   static async getUserPositionNumberHistory(userId) {

@@ -7,7 +7,6 @@ const createError = require("../utils/createError");
 const { sendEmail } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const RankService = require("../services/rank-service");
-const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const UserService = require("../services/user-service");
 const AuditLogService = require("../services/auditLog-service");
@@ -1065,9 +1064,9 @@ exports.createUserByAdmin = async (req, res, next) => {
       lastName,
       sex,
       email,
-      password,
       phone,
       position,
+      positionNumber,
       hireDate,
       employmentType,
       personnelTypeId,
@@ -1075,9 +1074,22 @@ exports.createUserByAdmin = async (req, res, next) => {
     } = req.body;
 
     // ✅ Validation
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !firstName || !lastName) {
       throw createError(400, "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
     }
+
+    // ✅ เลขที่ตำแหน่งบังคับกรอก
+    if (!positionNumber || String(positionNumber).trim() === "") {
+      throw createError(400, "กรุณาระบุเลขที่ตำแหน่ง");
+    }
+
+    // ✅ แปลงค่าเพศให้เป็นภาษาไทยให้ตรงทั้งระบบ (ชาย/หญิง)
+    const normalizedSex =
+      sex === "MALE" || sex === "ชาย"
+        ? "ชาย"
+        : sex === "FEMALE" || sex === "หญิง"
+          ? "หญิง"
+          : sex;
 
     if (!email.endsWith("@rmuti.ac.th")) {
       throw createError(400, "อีเมลต้องอยู่ในโดเมน rmuti.ac.th เท่านั้น");
@@ -1088,30 +1100,21 @@ exports.createUserByAdmin = async (req, res, next) => {
       throw createError(400, "อีเมลนี้มีผู้ใช้งานในระบบแล้ว");
     }
 
-    const passLetters = (password.match(/[a-zA-Z]/g) || []).length;
-    if (password.length < 8 || passLetters < 4) {
-      throw createError(
-        400,
-        "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และมีตัวอักษรอย่างน้อย 4 ตัว"
-      );
-    }
-
     if (!["ACADEMIC", "SUPPORT"].includes(employmentType)) {
       throw createError(400, "ประเภทพนักงานไม่ถูกต้อง");
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const parsedHireDate = hireDate ? new Date(hireDate) : null;
 
     const user = await UserService.createUser({
       prefixName,
       firstName,
       lastName,
-      sex,
+      sex: normalizedSex,
       email,
-      password: passwordHash,
       phone,
       position,
-      hireDate: hireDate ? new Date(hireDate) : null,
+      hireDate: parsedHireDate,
       employmentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
@@ -1129,6 +1132,26 @@ exports.createUserByAdmin = async (req, res, next) => {
     await UserService.assignRolesToUser(
       user.id,
       roles.map((role) => role.id)
+    );
+
+    // ✅ กำหนด Rank ตาม personnelType (ดึง hireDate/personnelTypeId ของ user ที่เพิ่งสร้าง)
+    await UserService.assignRankToUser(
+      user.id,
+      parseInt(personnelTypeId),
+      parsedHireDate
+    );
+
+    // ✅ gen leave balance ตาม rank ที่ได้ (กรองสิทธิ์ลาเฉพาะเพศตาม normalizedSex)
+    await UserService.assignLeaveBalanceFromRanks(user.id, normalizedSex);
+
+    // ✅ กำหนดเลขที่ตำแหน่ง (รองรับย้ายเลขจากคนเดิม) ภายใน transaction
+    await prisma.$transaction(async (tx) =>
+      UserService.assignPositionNumberToUser(
+        tx,
+        user.id,
+        positionNumber,
+        req.user?.id || null
+      )
     );
 
     // บันทึก Audit Log การสร้างผู้ใช้

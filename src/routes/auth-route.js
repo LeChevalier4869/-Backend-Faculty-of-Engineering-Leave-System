@@ -5,7 +5,6 @@ const router = express.Router();
 const passport = require("../config/passport");
 
 const { authenticate, authorize, optionalAuth } = require('../middlewares/auth');
-const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");
 const authController = require('../controllers/auth-controller');
@@ -16,23 +15,13 @@ const prisma = require("../config/prisma");
 // 🧑‍💼 Authentication & User
 // ==============================
 
-// "register", "login" เปลี่ยนไปใช้ "google login"
-router.post('/register', registerLimiter, upload.single('images'), authController.register);
-router.post('/login', loginLimiter, uploadFile.uploadProfile.none(), authController.login);
+// ระบบใช้ Google OAuth เท่านั้น (manual register/login ถูกถอดออกแล้ว)
 router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.getMe);
 router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 router.get('/user-info/:id', authenticate, authController.getUserInfoById);
 router.get('/verifier', authenticate, authController.getVerifier);
 router.get('/approvers-for-level/:level', optionalAuth, authController.getApproversForLevel); // ใช้ optionalAuth สำหรับ testing
-
-// ==============================
-// 🔐 Password Management
-// ==============================
-
-router.post('/change-password', authController.changePassword);
-router.post('/forgot-password', authController.forgotPassword);
-router.post('/reset-password', authController.resetPassword);
 
 // ==============================
 //      User Management (Admin)

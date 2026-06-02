@@ -2,21 +2,11 @@
 const express       = require('express');
 const { authenticate, authorize } = require('../middlewares/auth');
 const authController = require('../controllers/auth-controller');
-const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
 const upload         = require("../middlewares/upload");
 
 const router = express.Router();
 
-// register: รับไฟล์ชื่อ profilePicture
-router.post(
-  "/register",
-  registerLimiter,
-  upload.single("profilePicture"),
-  authController.register
-);
-
-// login ไม่ต้อง parse form-data
-router.post("/login", loginLimiter, authController.login);
+// ระบบใช้ Google OAuth เท่านั้น (manual register/login ถูกถอดออกแล้ว)
 
 // me, landing, role
 router.get("/me", authenticate, authController.getMe);
@@ -73,10 +63,6 @@ router.get("/personnel-types/:id",        authController.getPersonnelTypeById);
 router.post("/personnel-types",           authController.createPersonnelType);
 router.put("/personnel-types/:id",        authController.updatePersonnelType);
 router.delete("/personnel-types/:id",     authController.deletePersonnelType);
-
-router.post("/change-password",           authController.changePassword);
-router.post("/forgot-password",           authController.forgotPassword);
-router.post("/reset-password",            authController.resetPassword);
 
 router.get("/all-approver", authController.getAllApprover);
 

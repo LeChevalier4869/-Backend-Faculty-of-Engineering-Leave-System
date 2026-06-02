@@ -15,4 +15,8 @@ const cloudDelete = async (publicId) => {
     }
 };
 
-module.exports = { cloudUpload, cloudDelete };
+// export ตัว cloudUpload เป็น function หลัก (ทุก controller เรียก cloudUpload(path) ตรง ๆ)
+// แนบ cloudDelete / cloudUpload เป็น property เผื่อเรียกแบบ destructure ในอนาคต
+module.exports = cloudUpload;
+module.exports.cloudUpload = cloudUpload;
+module.exports.cloudDelete = cloudDelete;
