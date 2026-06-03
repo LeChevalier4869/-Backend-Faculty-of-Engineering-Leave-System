@@ -38,6 +38,8 @@ jest.mock("docx", () => {
     ShadingType: { CLEAR: "CLEAR" },
     TableLayoutType: { FIXED: "FIXED" },
     TextDirection: { BOTTOM_TO_TOP_LEFT_TO_RIGHT: "BTLR" },
+    VerticalAlign: { CENTER: "center", TOP: "top", BOTTOM: "bottom" },
+    PageOrientation: { LANDSCAPE: "landscape", PORTRAIT: "portrait" },
   };
 });
 
