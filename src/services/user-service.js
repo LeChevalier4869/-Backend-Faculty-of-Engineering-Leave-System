@@ -42,7 +42,15 @@ class UserService {
         },
         personnelType: true,
         department: true,
-        leaveBalances: true,
+        leaveBalances: {
+          include: { leaveType: true },
+          orderBy: [{ year: "desc" }, { leaveTypeId: "asc" }],
+        },
+        userRanks: {
+          include: {
+            rank: { include: { leaveType: true } },
+          },
+        },
         LeaveRequest: {
           include: {
             leaveRequestDetails: true,

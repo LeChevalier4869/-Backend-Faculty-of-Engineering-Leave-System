@@ -505,13 +505,46 @@ exports.uploadUserExcel = async (req, res) => {
         };
       }
 
-      const department = await tx.department.findFirst({
-        where: { name: departmentNameResolved },
+      // จับคู่สาขาแบบยืดหยุ่น (ปลอดภัย): เป๊ะก่อน → ถ้าไม่เจอ ลอง contains แบบไม่กำกวม
+      const deptNameRaw = String(departmentNameResolved).trim();
+      const normalize = (s) => String(s ?? "").trim().toLowerCase();
+      const deptTarget = normalize(deptNameRaw);
+
+      let department = await tx.department.findFirst({
+        where: { name: deptNameRaw },
       });
+
+      if (!department) {
+        const allDepts = await tx.department.findMany({
+          select: { id: true, name: true },
+        });
+        // 1) เป๊ะแบบไม่สนตัวพิมพ์/ช่องว่าง
+        let matches = allDepts.filter((d) => normalize(d.name) === deptTarget);
+        // 2) ไม่เจอ → contains แบบสองทาง (ชื่อ DB มีคำใน excel หรือกลับกัน)
+        if (matches.length === 0) {
+          matches = allDepts.filter(
+            (d) =>
+              normalize(d.name).includes(deptTarget) ||
+              deptTarget.includes(normalize(d.name))
+          );
+        }
+        if (matches.length === 1) {
+          department = matches[0];
+        } else if (matches.length > 1) {
+          throw {
+            email: normalizedEmail,
+            reason: `สาขา "${deptNameRaw}" ตรงกับหลายสาขา (${matches
+              .map((m) => m.name)
+              .join(", ")}) กรุณาระบุให้ชัดเจน`,
+            rowData: user,
+          };
+        }
+      }
+
       if (!department) {
         throw {
           email: normalizedEmail,
-          reason: "สาขาไม่ถูกต้อง",
+          reason: `สาขา "${deptNameRaw}" ไม่ตรงกับสาขาในระบบ`,
           rowData: user,
         };
       }
