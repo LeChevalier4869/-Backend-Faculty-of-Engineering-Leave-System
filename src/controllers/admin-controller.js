@@ -6,7 +6,6 @@ const OrgAndDeptService = require("../services/organizationAndDepartment-service
 const createError = require("../utils/createError");
 const { sendEmail } = require("../utils/emailService");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
-const RankService = require("../services/rank-service");
 const fs = require("fs");
 const UserService = require("../services/user-service");
 const AuditLogService = require("../services/auditLog-service");
@@ -524,110 +523,6 @@ exports.assignHeadDepartment = async (req, res, next) => {
     res
       .status(200)
       .json({ message: "มอบหมายหัวหน้าแผนกสำเร็จ", data: updatedDepartment });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// --------------------
-//        ranks
-// --------------------
-
-exports.getAllRank = async (req, res, next) => {
-  try {
-    const rank = await RankService.getAllRanks();
-    if (!rank) throw createError(404, "ไม่พบข้อมูลของ rank");
-    res.status(200).json({ message: "ดึงข้อมูล rank ทั้งหมดแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.getRankById = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const rank = await RankService.getRankById(parseInt(id));
-    if (!rank) throw createError(404, "ไม่พบข้อมูลของ rank");
-    res
-      .status(200)
-      .json({ message: "ดึงข้อมูล rank เรียบร้อยแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.createRank = async (req, res, next) => {
-  try {
-    const {
-      rank,
-      minHireMonths,
-      maxHireMonths,
-      receiveDays,
-      maxDays,
-      isBalance,
-      personnelTypeId,
-      leaveTypeId,
-    } = req.body;
-    if (
-      rank === undefined ||
-      minHireMonths === undefined ||
-      maxHireMonths === undefined ||
-      receiveDays === undefined ||
-      maxDays === undefined ||
-      isBalance === undefined ||
-      personnelTypeId === undefined ||
-      leaveTypeId === undefined
-    )
-      throw createError(
-        400,
-        "กรุณากรอกข้อมูลให้ครบถ้วนก่อนทำการสร้าง rank ใหม่"
-      );
-    const personnelType = await OrgAndDeptService.getPersonnelTypeById(
-      personnelTypeId
-    );
-    if (!personnelType) throw createError(404, "ไม่พบข้อมูล personnelType");
-
-    const leaveType = await LeaveTypeService.getLeaveTypeById(leaveTypeId);
-    if (!leaveType) throw createError(404, "ไม่พบข้อมูล leaveType");
-
-    const data = {
-      rank,
-      minHireMonths,
-      maxHireMonths,
-      receiveDays,
-      maxDays,
-      isBalance,
-      personnelTypeId,
-      leaveTypeId,
-    };
-
-    const ranks = await RankService.createRank(data);
-    if (!ranks) throw createError(400, "สร้าง rank ไม่สำเร็จ");
-    res.status(201).json({ message: "สร้าง rank สำเร็จแล้ว", data: ranks });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.updateRank = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { updateData } = req.body;
-    if (!id) throw createError(404, "ไม่พบ id");
-    const rank = await RankService.updateRank(parseInt(id), updateData);
-    if (!rank) throw createError(400, "ไม่สามารถอัปเดต rank ได้");
-    res.status(200).json({ message: "อัปเดต rank เหรียบร้อยแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.deleteRank = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!id) throw createError(404, "ไม่พบ id");
-    await RankService.deleteRank(parseInt(id));
-    res.status(200).json({ message: "ลบ rank เรียบร้อยแล้ว" });
   } catch (err) {
     next(err);
   }

@@ -94,11 +94,8 @@ router.delete('/role/:id', authorize(["ADMIN"]), adminController.deleteRole);
 router.post("/assign-head", authorize(["ADMIN"]), adminController.assignHeadDepartment);
 
 //-------------------------------------- rank --------------------------------
-router.get('/rank', authorize(["ADMIN"]), adminController.getAllRank);
-router.get('/rank/:id', authorize(["ADMIN"]), adminController.getRankById);
-router.post('/rank', authorize(["ADMIN"]), adminController.createRank);
-router.put('/rank/:id', authorize(["ADMIN"]), adminController.updateRank);
-router.delete('/rank/:id', authorize(["ADMIN"]), adminController.deleteRank);
+// จัดการ Rank ใช้เส้นทาง /ranks (rank-controller) ที่จำกัดสิทธิ์เฉพาะ SUPER_ADMIN เท่านั้น
+// route /admin/rank เดิม (ADMIN) ถูกถอดออกเพื่อปิดช่องโหว่สิทธิ์ที่ ADMIN สร้าง/ลบ rank ได้
 
 //---------------------------------- personnelType -----------------------
 router.get('/personnel-types', authorize(["ADMIN"]), adminController.getAllPersonnelType);
