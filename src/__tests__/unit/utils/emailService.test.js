@@ -5,7 +5,7 @@ process.env.OAUTH_CLIENT_ID_RMUTI = process.env.OAUTH_CLIENT_ID_RMUTI || "test-c
 process.env.OAUTH_CLIENT_SECRET_RMUTI = process.env.OAUTH_CLIENT_SECRET_RMUTI || "test-secret";
 process.env.OAUTH_REFRESH_TOKEN_RMUTI = process.env.OAUTH_REFRESH_TOKEN_RMUTI || "test-refresh";
 
-// Mock nodemailer — ทุก transporter ใช้ mockSendMail ร่วมกัน
+// Mock nodemailer (ช่องทาง fallback gmail-app) — ทุก transporter ใช้ mockSendMail ร่วมกัน
 const mockSendMail = jest.fn();
 jest.mock("nodemailer", () => ({
   createTransport: jest.fn(() => ({ sendMail: mockSendMail })),
@@ -19,10 +19,20 @@ const {
   EVENT_ALIASES,
 } = require("../../../utils/emailService");
 
+// ตั้งค่า fetch (ช่องทางหลัก gmail-api) ให้สำเร็จ: token endpoint + send endpoint
+function mockGmailApiOk() {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ access_token: "test-access-token" }),
+    text: async () => "",
+  });
+}
+
 describe("emailService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSendMail.mockResolvedValue({ messageId: "test-id" });
+    mockGmailApiOk();
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -226,44 +236,49 @@ describe("emailService", () => {
       await expect(sendNotification("REJECTION", {})).rejects.toMatchObject({
         statusCode: 400,
       });
+      expect(global.fetch).not.toHaveBeenCalled();
       expect(mockSendMail).not.toHaveBeenCalled();
     });
 
-    it("ส่งอีเมลด้วย to/subject/html/from ที่ถูกต้อง", async () => {
-      await sendNotification("FULLY_APPROVED", {
+    it("ส่งผ่าน gmail-api ไปยังผู้รับที่ถูกต้อง", async () => {
+      const result = await sendNotification("FULLY_APPROVED", {
         to: "user@rmuti.ac.th",
         userName: "นายทดสอบ",
       });
-      expect(mockSendMail).toHaveBeenCalledTimes(1);
-      const arg = mockSendMail.mock.calls[0][0];
-      expect(arg.to).toBe("user@rmuti.ac.th");
-      expect(arg.subject).toContain("อนุมัติ");
-      expect(arg.html).toContain("นายทดสอบ");
-      expect(arg.from).toContain("rmuti.ac.th"); // ส่งจากบัญชี Workspace ของคณะ
+      expect(result).toMatchObject({ ok: true, provider: "gmail-api" });
+      // ตรวจ MIME ที่ส่งไป Gmail API
+      const sendCall = global.fetch.mock.calls.find((c) =>
+        String(c[0]).includes("messages/send")
+      );
+      expect(sendCall).toBeDefined();
+      const mime = Buffer.from(
+        JSON.parse(sendCall[1].body).raw,
+        "base64url"
+      ).toString("utf-8");
+      expect(mime).toContain("To: user@rmuti.ac.th");
+      expect(mime).toContain("rmuti.ac.th"); // From = บัญชี Workspace ของคณะ
+      expect(mockSendMail).not.toHaveBeenCalled(); // ไม่ต้อง fallback SMTP
     });
   });
 
-  describe("sendEmail (Gmail nodemailer + fallback)", () => {
-    it("ใช้ OAuth2 เป็นช่องทางหลักเมื่อสำเร็จ", async () => {
+  describe("sendEmail (Gmail API + SMTP fallback)", () => {
+    it("ใช้ Gmail API (HTTPS) เป็นช่องทางหลักเมื่อสำเร็จ", async () => {
       const result = await sendEmail("a@b.com", "หัวข้อ", "<p>hi</p>");
-      expect(mockSendMail).toHaveBeenCalledWith(
-        expect.objectContaining({ to: "a@b.com", subject: "หัวข้อ", html: "<p>hi</p>" })
-      );
-      expect(mockSendMail).toHaveBeenCalledTimes(1); // ไม่ต้อง fallback
-      expect(result).toMatchObject({ ok: true, provider: "gmail-oauth2" });
+      expect(global.fetch).toHaveBeenCalled();
+      expect(mockSendMail).not.toHaveBeenCalled(); // ไม่ต้อง fallback
+      expect(result).toMatchObject({ ok: true, provider: "gmail-api" });
     });
 
-    it("fallback ไป app password เมื่อ OAuth2 ล้มเหลว", async () => {
-      mockSendMail.mockRejectedValueOnce(new Error("invalid_grant"));
+    it("fallback ไป app password (SMTP) เมื่อ Gmail API ล้มเหลว", async () => {
+      global.fetch = jest.fn().mockRejectedValue(new Error("network down"));
       const result = await sendEmail("a@b.com", "หัวข้อ", "<p>hi</p>");
-      expect(mockSendMail).toHaveBeenCalledTimes(2); // OAuth2 ล้ม → app password
+      expect(mockSendMail).toHaveBeenCalledTimes(1);
       expect(result).toMatchObject({ ok: true, provider: "gmail-app" });
     });
 
     it("ไม่ throw แม้ทุกช่องทางล้มเหลว แต่คืน ok:false (กันไม่ให้ flow อนุมัติพัง)", async () => {
-      mockSendMail
-        .mockRejectedValueOnce(new Error("invalid_grant"))
-        .mockRejectedValueOnce(new Error("BadCredentials"));
+      global.fetch = jest.fn().mockRejectedValue(new Error("api down"));
+      mockSendMail.mockRejectedValueOnce(new Error("smtp blocked"));
       const result = await sendEmail("a@b.com", "x", "y");
       expect(result.ok).toBe(false);
       expect(result.errors).toHaveLength(2);
@@ -272,9 +287,8 @@ describe("emailService", () => {
 
   describe("sendEmailTest", () => {
     it("throw error เมื่อส่งล้มเหลวทุกช่องทาง (สำหรับหน้าทดสอบ)", async () => {
-      mockSendMail
-        .mockRejectedValueOnce(new Error("invalid_grant"))
-        .mockRejectedValueOnce(new Error("BadCredentials"));
+      global.fetch = jest.fn().mockRejectedValue(new Error("api down"));
+      mockSendMail.mockRejectedValueOnce(new Error("smtp blocked"));
       await expect(sendEmailTest("a@b.com", "x", "y")).rejects.toThrow(/ส่งอีเมลไม่สำเร็จ/);
     });
 
