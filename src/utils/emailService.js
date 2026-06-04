@@ -35,25 +35,71 @@ const hasGmailAppPass = () => !!(GMAIL_USER && GMAIL_PASS);
 const getFrontendUrl = () =>
   process.env.FRONTEND_URL || "https://frontend-faculty-of-engineering-leave-system.vercel.app";
 
-// transporter แยกตามวิธี auth (lazy + memoize)
-let oauthTransporter = null;
-function getOAuthTransporter() {
-  if (!oauthTransporter) {
-    oauthTransporter = nodemailer.createTransport({
-      service: "gmail",
-      ...SMTP_CONN_OPTS,
-      auth: {
-        type: "OAuth2",
-        user: GMAIL_USER,
-        clientId: GMAIL_OAUTH.clientId,
-        clientSecret: GMAIL_OAUTH.clientSecret,
-        refreshToken: GMAIL_OAUTH.refreshToken,
-      },
-    });
+// ───────────────────────────────────────────────────────────────
+// ช่องทางที่ 1: Gmail API over HTTPS (port 443)
+// ใช้ได้บน host ที่บล็อก outbound SMTP (เช่น Render) เพราะวิ่งผ่าน HTTPS ไม่ใช่ SMTP
+// ───────────────────────────────────────────────────────────────
+
+// แลก refresh token เป็น access token (ผ่าน HTTPS)
+async function getGmailAccessToken() {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GMAIL_OAUTH.clientId,
+      client_secret: GMAIL_OAUTH.clientSecret,
+      refresh_token: GMAIL_OAUTH.refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.access_token) {
+    throw new Error(
+      `OAuth token error: ${data.error_description || data.error || res.status}`
+    );
   }
-  return oauthTransporter;
+  return data.access_token;
 }
 
+// สร้าง MIME message แบบ base64url สำหรับ Gmail API (รองรับ UTF-8/ไทย)
+function buildRawMessage(to, subject, html) {
+  const subjectEnc = `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
+  const mime = [
+    `From: ${GMAIL_FROM}`,
+    `To: ${to}`,
+    `Subject: ${subjectEnc}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(html, "utf-8").toString("base64"),
+  ].join("\r\n");
+  return Buffer.from(mime, "utf-8").toString("base64url");
+}
+
+async function sendViaGmailApi(to, subject, html) {
+  const accessToken = await getGmailAccessToken();
+  const raw = buildRawMessage(to, subject, html);
+  const res = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw }),
+    }
+  );
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Gmail API ${res.status}: ${errText.slice(0, 200)}`);
+  }
+}
+
+// ───────────────────────────────────────────────────────────────
+// ช่องทางที่ 2: Gmail SMTP (app password) — fallback (ใช้บน host ที่ SMTP ไม่ถูกบล็อก เช่น localhost)
+// ───────────────────────────────────────────────────────────────
 let appPassTransporter = null;
 function getAppPassTransporter() {
   if (!appPassTransporter) {
@@ -67,14 +113,15 @@ function getAppPassTransporter() {
 }
 
 /**
- * ช่องทางส่งอีเมล (nodemailer/Gmail) เรียงตามลำดับ — ลอง OAuth2 ก่อน แล้ว fallback เป็น app password
+ * ช่องทางส่งอีเมลเรียงตามลำดับ:
+ * 1) gmail-api (HTTPS/OAuth2) — ใช้ได้ทุก host รวมถึงที่บล็อก SMTP
+ * 2) gmail-app (SMTP/app password) — fallback
  */
 const providers = [
   {
-    name: "gmail-oauth2",
+    name: "gmail-api",
     isConfigured: hasGmailOAuth,
-    send: (to, subject, html) =>
-      getOAuthTransporter().sendMail({ from: GMAIL_FROM, to, subject, html }),
+    send: (to, subject, html) => sendViaGmailApi(to, subject, html),
   },
   {
     name: "gmail-app",
