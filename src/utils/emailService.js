@@ -61,18 +61,52 @@ async function getGmailAccessToken() {
   return data.access_token;
 }
 
-// สร้าง MIME message แบบ base64url สำหรับ Gmail API (รองรับ UTF-8/ไทย)
+// encode header ภาษาไทยตาม RFC2047 (กัน header เพี้ยน)
+function encodeHeaderWord(s) {
+  return `=?UTF-8?B?${Buffer.from(s, "utf-8").toString("base64")}?=`;
+}
+
+// base64 ของ UTF-8 ตัดเป็นบรรทัดละ 76 ตัวอักษรตามมาตรฐาน MIME
+function b64Body(s) {
+  return Buffer.from(s, "utf-8")
+    .toString("base64")
+    .replace(/(.{76})/g, "$1\r\n");
+}
+
+// แปลง HTML เป็นข้อความล้วน (ใช้เป็น text/plain ให้ Gmail สร้าง snippet ได้ถูกต้อง)
+function htmlToText(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// สร้าง MIME แบบ multipart/alternative (text/plain + text/html) base64url สำหรับ Gmail API
 function buildRawMessage(to, subject, html) {
-  const subjectEnc = `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
+  const boundary = "eleave_bndry_" + Date.now();
+  const fromHeader = `${encodeHeaderWord(APP_NAME)} <${GMAIL_USER}>`;
   const mime = [
-    `From: ${GMAIL_FROM}`,
+    `From: ${fromHeader}`,
     `To: ${to}`,
-    `Subject: ${subjectEnc}`,
+    `Subject: ${encodeHeaderWord(subject)}`,
     "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    b64Body(htmlToText(html)),
+    "",
+    `--${boundary}`,
     "Content-Type: text/html; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
     "",
-    Buffer.from(html, "utf-8").toString("base64"),
+    b64Body(html),
+    "",
+    `--${boundary}--`,
   ].join("\r\n");
   return Buffer.from(mime, "utf-8").toString("base64url");
 }
