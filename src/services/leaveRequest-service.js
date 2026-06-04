@@ -6,7 +6,7 @@ const RankService = require("./rank-service");
 const ProxyApprovalService = require("./proxyApproval-service");
 const AuditLogService = require("./auditLog-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
-const { sendNotification } = require("../utils/emailService");
+const { queueNotification } = require("../utils/emailService");
 
 class LeaveRequestService {
   // ────────────────────────────────────────────────────────────────
@@ -207,7 +207,7 @@ class LeaveRequestService {
     const approver = await UserService.getUserByIdWithRoles(approverId);
     if (!approver?.email) return;
 
-    await sendNotification("SUBMISSION", {
+    queueNotification("SUBMISSION", {
       to: approver.email,
       userName: `${approver.prefixName} ${approver.firstName} ${approver.lastName}`,
       requesterName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
@@ -220,7 +220,7 @@ class LeaveRequestService {
   static async notifyRequester({ user, requestedDays, reason, contact }) {
     if (!user?.email) return;
 
-    await sendNotification("SUBMISSION_CONFIRM", {
+    queueNotification("SUBMISSION_CONFIRM", {
       to: user.email,
       userName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
       requestedDays,
@@ -1082,7 +1082,7 @@ class LeaveRequestService {
         }
       }
 
-      await sendNotification("APPROVER1_APPROVED", notificationData);
+      queueNotification("APPROVER1_APPROVED", notificationData);
     }
 
     // 6. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
@@ -1120,7 +1120,7 @@ class LeaveRequestService {
         }
       }
 
-      await sendNotification("STEP_APPROVED_1", notificationData);
+      queueNotification("STEP_APPROVED_1", notificationData);
     }
 
     return {
@@ -1266,7 +1266,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTION", {
+      queueNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -1438,7 +1438,7 @@ class LeaveRequestService {
     });
 
     if (approverUser.email) {
-      await sendNotification("VERIFIER_APPROVED", {
+      queueNotification("VERIFIER_APPROVED", {
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -1456,7 +1456,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVED_2", {
+      queueNotification("STEP_APPROVED_2", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -1548,7 +1548,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTION", {
+      queueNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -1661,7 +1661,7 @@ class LeaveRequestService {
     });
 
     if (approverUser.email) {
-      await sendNotification("APPROVER2_APPROVED", {
+      queueNotification("APPROVER2_APPROVED", {
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -1679,7 +1679,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVED_3", {
+      queueNotification("STEP_APPROVED_3", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -1807,7 +1807,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTION", {
+      queueNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -1895,7 +1895,7 @@ class LeaveRequestService {
     });
 
     if (approverUser.email) {
-      await sendNotification("APPROVER3_APPROVED", {
+      queueNotification("APPROVER3_APPROVED", {
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -1913,7 +1913,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVED_4", {
+      queueNotification("STEP_APPROVED_4", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -2041,7 +2041,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTION", {
+      queueNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -2133,7 +2133,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("FULLY_APPROVED", {
+      queueNotification("FULLY_APPROVED", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -2260,7 +2260,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTION", {
+      queueNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -2419,7 +2419,7 @@ class LeaveRequestService {
     // 3. ส่งอีเมลแจ้งเตือนให้ผู้ใช้ (outside transaction)
     if (leaveRequest.user.email) {
       try {
-        await sendNotification("CANCELLATION", {
+        queueNotification("CANCELLATION", {
           to: leaveRequest.user.email,
           userName: `${leaveRequest.user.prefixName} ${leaveRequest.user.firstName} ${leaveRequest.user.lastName}`,
           documentNumber: leaveRequestNumber,
