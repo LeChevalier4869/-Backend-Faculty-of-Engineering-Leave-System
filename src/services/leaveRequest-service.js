@@ -260,6 +260,14 @@ class LeaveRequestService {
   // 🔎 READ
   // ────────────────────────────────
 
+  // ดึงคำขอลารายการเดียว (findUnique) สำหรับตรวจสอบความเป็นเจ้าของ/สิทธิ์
+  static async getRequestById(requestId) {
+    return await prisma.leaveRequest.findUnique({
+      where: { id: Number(requestId) },
+      select: { id: true, userId: true, status: true },
+    });
+  }
+
   static async getRequestsById(requestId) {
     return await prisma.leaveRequest.findMany({
       where: { id: Number(requestId) },

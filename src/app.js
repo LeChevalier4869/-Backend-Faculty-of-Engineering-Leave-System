@@ -36,7 +36,16 @@ const app = express();
 
 // Session and Passport setup
 app.use(
-  session({ secret: "supersecret", resave: false, saveUninitialized: false })
+  session({
+    secret: process.env.SESSION_SECRET || process.env.JWT_ACCESS_SECRET || "change-me-in-production",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    },
+  })
 );
 app.use(passport.initialize());
 app.use(passport.session());
@@ -129,12 +138,8 @@ app.use("/ranks", rankRoute);
 // Proxy approval routes
 app.use("/proxy-approval", authenticate, proxyApprovalRoute);
 
-// Test routes (สำหรับทดสอบชั่วคราว)
-app.use("/test-proxy-approval", proxyApprovalRoute);
-
-// Excel upload route
-app.use("/excel", exelRoute); //ใช้เพื่อทดสอบเฉยๆ
-// app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute); //ถ้า oaut เสร็จต้องใช้อันนี้
+// Excel upload route (ADMIN only)
+app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute);
 
 // Swagger documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));

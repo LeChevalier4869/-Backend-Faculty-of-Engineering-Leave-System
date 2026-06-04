@@ -1,6 +1,7 @@
 jest.mock("../../../services/leaveRequest-service", () => ({
   getLeaveRequestsByUser: jest.fn(),
   getRequestsById: jest.fn(),
+  getRequestById: jest.fn(),
   getApprovalSteps: jest.fn(),
   updateRequest: jest.fn(),
   deleteRequest: jest.fn(),
@@ -152,7 +153,7 @@ describe("leaveRequest-controller flow", () => {
 
   describe("updateLeaveRequest", () => {
     it("calls next with 404 when request not found", async () => {
-      LeaveRequestService.getRequestsById.mockResolvedValue(null);
+      LeaveRequestService.getRequestById.mockResolvedValue(null);
 
       const req = {
         params: { id: "5" },
@@ -170,7 +171,7 @@ describe("leaveRequest-controller flow", () => {
     });
 
     it("calls next with 403 when not owner", async () => {
-      LeaveRequestService.getRequestsById.mockResolvedValue({ id: 5, userId: 999 });
+      LeaveRequestService.getRequestById.mockResolvedValue({ id: 5, userId: 999 });
 
       const req = {
         params: { id: "5" },
@@ -189,7 +190,7 @@ describe("leaveRequest-controller flow", () => {
     });
 
     it("updates and returns 200", async () => {
-      LeaveRequestService.getRequestsById.mockResolvedValue({ id: 5, userId: 10 });
+      LeaveRequestService.getRequestById.mockResolvedValue({ id: 5, userId: 10 });
       LeaveRequestService.updateRequest.mockResolvedValue({ id: 5, reason: "y" });
 
       const req = {
@@ -215,10 +216,11 @@ describe("leaveRequest-controller flow", () => {
   });
 
   describe("deleteLeaveRequest", () => {
-    it("deletes and returns 200", async () => {
+    it("owner deletes and returns 200", async () => {
+      LeaveRequestService.getRequestById.mockResolvedValue({ id: 5, userId: 10 });
       LeaveRequestService.deleteRequest.mockResolvedValue(true);
 
-      const req = { params: { id: "5" } };
+      const req = { params: { id: "5" }, user: { id: 10, role: [] } };
       const res = makeRes();
       const next = jest.fn();
 
@@ -230,10 +232,54 @@ describe("leaveRequest-controller flow", () => {
       expect(res.json).toHaveBeenCalledWith({ message: "ลบคำขอลา" });
     });
 
+    it("admin can delete another user's request", async () => {
+      LeaveRequestService.getRequestById.mockResolvedValue({ id: 5, userId: 999 });
+      LeaveRequestService.deleteRequest.mockResolvedValue(true);
+
+      const req = { params: { id: "5" }, user: { id: 10, role: ["ADMIN"] } };
+      const res = makeRes();
+      const next = jest.fn();
+
+      await leaveRequestController.deleteLeaveRequest(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(LeaveRequestService.deleteRequest).toHaveBeenCalledWith(5);
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("calls next with 404 when request not found", async () => {
+      LeaveRequestService.getRequestById.mockResolvedValue(null);
+
+      const req = { params: { id: "5" }, user: { id: 10, role: [] } };
+      const res = makeRes();
+      const next = jest.fn();
+
+      await leaveRequestController.deleteLeaveRequest(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(next.mock.calls[0][0].statusCode).toBe(404);
+      expect(LeaveRequestService.deleteRequest).not.toHaveBeenCalled();
+    });
+
+    it("calls next with 403 when not owner and not admin", async () => {
+      LeaveRequestService.getRequestById.mockResolvedValue({ id: 5, userId: 999 });
+
+      const req = { params: { id: "5" }, user: { id: 10, role: ["USER"] } };
+      const res = makeRes();
+      const next = jest.fn();
+
+      await leaveRequestController.deleteLeaveRequest(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(next.mock.calls[0][0].statusCode).toBe(403);
+      expect(LeaveRequestService.deleteRequest).not.toHaveBeenCalled();
+    });
+
     it("calls next with 400 when cannot delete", async () => {
+      LeaveRequestService.getRequestById.mockResolvedValue({ id: 5, userId: 10 });
       LeaveRequestService.deleteRequest.mockResolvedValue(null);
 
-      const req = { params: { id: "5" } };
+      const req = { params: { id: "5" }, user: { id: 10, role: [] } };
       const res = makeRes();
       const next = jest.fn();
 

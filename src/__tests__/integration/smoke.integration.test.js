@@ -37,9 +37,28 @@ describe("Smoke integration", () => {
     expect(res.body.user.id).toBe(42);
   });
 
-  it("POST /api/export-report returns 400 when missing fields", async () => {
+  it("POST /api/export-report requires authentication", async () => {
     const res = await request(app)
       .post("/api/export-report")
+      .send({ organizationId: 10, countReport: 1, startDate: "2025-01-01" })
+      .expect(401);
+
+    expect(res.body).toHaveProperty("message");
+  });
+
+  it("POST /api/export-report returns 400 when missing fields (authenticated ADMIN)", async () => {
+    jwt.verify.mockReturnValue({ userId: 42 });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 42,
+      email: "a@b.com",
+      userRoles: [{ role: { name: "ADMIN" } }],
+      department: { id: 1, organization: { id: 9 } },
+      personnelType: { name: "X" },
+    });
+
+    const res = await request(app)
+      .post("/api/export-report")
+      .set("Authorization", "Bearer token")
       .send({ organizationId: 10, countReport: 1, startDate: "2025-01-01" }) // missing endDate & format
       .expect(400);
 
