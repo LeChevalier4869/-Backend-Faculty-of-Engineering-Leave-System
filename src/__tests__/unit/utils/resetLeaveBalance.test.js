@@ -192,8 +192,9 @@ describe('resetLeaveBalance', () => {
     );
   });
 
-  test('should handle non-deductible leave types', async () => {
-    // Mock กรณีประเภทไม่ต้องหักวันที่มี isBalance: true
+  test('one-time non-deductible leave types: update year but copy old entitlement forward', async () => {
+    // leaveTypeId 5 = non-deductible + resetOnFiscalYear=false (ลาครั้งเดียว เช่น ลาอุปสมบท)
+    // ต้องสร้าง record ของปีใหม่ (year อัปเดต) แต่ copy usedDays/remaining เดิมมา ไม่รีเซ็ต
     mockPrisma.leaveBalance.findMany.mockResolvedValue([]);
     mockPrisma.userRank.findMany.mockResolvedValue([
       {
@@ -205,18 +206,32 @@ describe('resetLeaveBalance', () => {
         }
       }
     ]);
-    
+
+    // ยอดเดิมของปีก่อน (มี usedDays=7) — prev lookup คือ where ไม่มี year
+    mockPrisma.leaveBalance.findFirst.mockImplementation(({ where }) => {
+      if (where.leaveTypeId === 5 && where.year === undefined) {
+        return Promise.resolve({
+          maxDays: 0,
+          usedDays: 7,
+          remainingDays: 3,
+          pendingDays: 0,
+          year: 2024,
+        });
+      }
+      return Promise.resolve(null); // existing-year check -> null เพื่อให้ create
+    });
+
     await resetFunctions.resetLeaveBalance();
-    
+
+    // สร้าง record ปีใหม่ (2025) โดย copy ยอดเดิม (usedDays=7) ไม่รีเซ็ตเป็น 0
     expect(mockPrisma.leaveBalance.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: 1,
         leaveTypeId: 5,
         maxDays: 0,
-        remainingDays: 0,
-        usedDays: 0,
-        pendingDays: 0,
-        year: 2025
+        usedDays: 7,
+        remainingDays: 3,
+        year: 2025,
       })
     });
   });

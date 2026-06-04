@@ -13,8 +13,8 @@ if (!process.env.CLOUDINARY_SECRET) {
 }
 
 cloudinary.config({
-  cloud_name: 'dasrmjl0f',
-  api_key: '316341844843451',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dasrmjl0f',
+  api_key: process.env.CLOUDINARY_API_KEY || '316341844843451',
   api_secret: process.env.CLOUDINARY_SECRET,
 });
 

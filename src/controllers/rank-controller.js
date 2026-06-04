@@ -2,6 +2,30 @@ const RankService = require("../services/rank-service");
 const AuditLogService = require("../services/auditLog-service");
 const createError = require("../utils/createError");
 
+// แปลงค่าเป็น Int โดยถือว่า null/undefined/ค่าว่าง = null (กัน parseInt("") = NaN)
+const toIntOrNull = (v) => {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const n = parseInt(v, 10);
+  return Number.isNaN(n) ? null : n;
+};
+
+// ตรวจช่วงอายุงานและจำนวนวันให้สมเหตุสมผล
+const validateRankNumbers = ({ minHireMonths, maxHireMonths, receiveDays, maxDays }) => {
+  if (
+    minHireMonths != null &&
+    maxHireMonths != null &&
+    minHireMonths > maxHireMonths
+  ) {
+    throw createError(400, "อายุงานขั้นต่ำต้องไม่มากกว่าขั้นสูง");
+  }
+  if (receiveDays != null && receiveDays < 0)
+    throw createError(400, "วันที่ได้รับต่อปีต้องไม่ติดลบ");
+  if (maxDays != null && maxDays < 0)
+    throw createError(400, "วันสะสมสูงสุดต้องไม่ติดลบ");
+  if (receiveDays != null && maxDays != null && receiveDays > maxDays)
+    throw createError(400, "วันที่ได้รับต่อปีต้องไม่มากกว่าวันสะสมสูงสุด");
+};
+
 exports.getAllRanks = async (req, res, next) => {
   try {
     const ranks = await RankService.getAllRanks();
@@ -33,16 +57,32 @@ exports.createRank = async (req, res, next) => {
       throw createError(400, "กรุณาระบุข้อมูลให้ครบ (ชื่อ, ประเภทบุคลากร, ประเภทการลา)");
     }
 
-    const created = await RankService.createRank({
-      rank,
-      minHireMonths: minHireMonths != null ? parseInt(minHireMonths) : null,
-      maxHireMonths: maxHireMonths != null ? parseInt(maxHireMonths) : null,
-      receiveDays: receiveDays != null ? parseInt(receiveDays) : null,
-      maxDays: maxDays != null ? parseInt(maxDays) : null,
+    const payload = {
+      rank: String(rank).trim(),
+      minHireMonths: toIntOrNull(minHireMonths),
+      maxHireMonths: toIntOrNull(maxHireMonths),
+      receiveDays: toIntOrNull(receiveDays),
+      maxDays: toIntOrNull(maxDays),
       isBalance: isBalance ?? null,
       personnelTypeId: parseInt(personnelTypeId),
       leaveTypeId: parseInt(leaveTypeId),
+    };
+    validateRankNumbers(payload);
+
+    const overlap = await RankService.findOverlappingRank({
+      personnelTypeId: payload.personnelTypeId,
+      leaveTypeId: payload.leaveTypeId,
+      minHireMonths: payload.minHireMonths,
+      maxHireMonths: payload.maxHireMonths,
     });
+    if (overlap) {
+      throw createError(
+        400,
+        `ช่วงอายุงานทับซ้อนกับเงื่อนไขที่มีอยู่แล้ว (${overlap.rank})`
+      );
+    }
+
+    const created = await RankService.createRank(payload);
 
     await AuditLogService.createLog(
       req.user.id,
@@ -71,14 +111,39 @@ exports.updateRank = async (req, res, next) => {
     const { rank, minHireMonths, maxHireMonths, receiveDays, maxDays, isBalance, personnelTypeId, leaveTypeId } = req.body;
 
     const data = {};
-    if (rank !== undefined) data.rank = rank;
-    if (minHireMonths !== undefined) data.minHireMonths = minHireMonths != null ? parseInt(minHireMonths) : null;
-    if (maxHireMonths !== undefined) data.maxHireMonths = maxHireMonths != null ? parseInt(maxHireMonths) : null;
-    if (receiveDays !== undefined) data.receiveDays = receiveDays != null ? parseInt(receiveDays) : null;
-    if (maxDays !== undefined) data.maxDays = maxDays != null ? parseInt(maxDays) : null;
+    if (rank !== undefined) data.rank = String(rank).trim();
+    if (minHireMonths !== undefined) data.minHireMonths = toIntOrNull(minHireMonths);
+    if (maxHireMonths !== undefined) data.maxHireMonths = toIntOrNull(maxHireMonths);
+    if (receiveDays !== undefined) data.receiveDays = toIntOrNull(receiveDays);
+    if (maxDays !== undefined) data.maxDays = toIntOrNull(maxDays);
     if (isBalance !== undefined) data.isBalance = isBalance;
     if (personnelTypeId !== undefined) data.personnelTypeId = parseInt(personnelTypeId);
     if (leaveTypeId !== undefined) data.leaveTypeId = parseInt(leaveTypeId);
+
+    // ตรวจความสมเหตุสมผล โดยรวมค่าที่อัปเดตกับค่าเดิม
+    const effective = {
+      personnelTypeId: data.personnelTypeId ?? oldRank.personnelTypeId,
+      leaveTypeId: data.leaveTypeId ?? oldRank.leaveTypeId,
+      minHireMonths: data.minHireMonths ?? oldRank.minHireMonths,
+      maxHireMonths: data.maxHireMonths ?? oldRank.maxHireMonths,
+      receiveDays: data.receiveDays ?? oldRank.receiveDays,
+      maxDays: data.maxDays ?? oldRank.maxDays,
+    };
+    validateRankNumbers(effective);
+
+    const overlap = await RankService.findOverlappingRank({
+      personnelTypeId: effective.personnelTypeId,
+      leaveTypeId: effective.leaveTypeId,
+      minHireMonths: effective.minHireMonths,
+      maxHireMonths: effective.maxHireMonths,
+      excludeId: id,
+    });
+    if (overlap) {
+      throw createError(
+        400,
+        `ช่วงอายุงานทับซ้อนกับเงื่อนไขที่มีอยู่แล้ว (${overlap.rank})`
+      );
+    }
 
     const updated = await RankService.updateRank(id, data);
 

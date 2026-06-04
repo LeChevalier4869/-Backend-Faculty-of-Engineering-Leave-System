@@ -25,15 +25,8 @@ router.get(
 router.get('/my-requests', authenticate, leaveRequestController.getMyLeaveRequests);
 router.get('/my-requests/approved', authenticate, leaveRequestController.getMyApprovedLeaveRequests);
 
-router.get(
-  "/",
-  authenticate,
-  authorize(["ADMIN"]),
-  leaveRequestController.getAllLeaveRequests
-);
-
 router.get("/me", authenticate, leaveRequestController.getLeaveRequestIsMine);
-router.get("last-request/me", authenticate, leaveRequestController.getMyLastApprovedLeaveRequest);
+router.get("/last-request/me", authenticate, leaveRequestController.getMyLastApprovedLeaveRequest);
 router.post("/last/type/:userId", authenticate, leaveRequestController.getLastLeaveBefore);
 
 // Get a specific leave request by ID (authorized roles)
@@ -64,7 +57,7 @@ router.patch(
 // Delete a leave request
 router.delete("/:id", authenticate, leaveRequestController.deleteLeaveRequest);
 
-router.get("/user/:id", leaveRequestController.getLeaveRequestsByUserId);
+router.get("/user/:id", authenticate, leaveRequestController.getLeaveRequestsByUserId);
 
 // ────────────────────────────────
 // 🟢 GET REQUEST FOR APPROVER

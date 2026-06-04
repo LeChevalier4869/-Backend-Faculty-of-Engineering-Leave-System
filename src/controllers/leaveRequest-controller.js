@@ -287,9 +287,7 @@ exports.updateLeaveRequest = async (req, res, next) => {
   const leaveRequestId = req.params.id;
   const updateData = req.body;
   try {
-    const leaveRequest = await LeaveRequestService.getRequestsById(
-      leaveRequestId
-    );
+    const leaveRequest = await LeaveRequestService.getRequestById(leaveRequestId);
     if (!leaveRequest) {
       throw createError(404, "ไม่พบคำขอลา");
     }
@@ -315,10 +313,27 @@ exports.deleteLeaveRequest = async (req, res, next) => {
   const leaveRequestId = parseInt(req.params.id);
 
   try {
+    if (isNaN(leaveRequestId)) {
+      throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
+    }
+
+    // ตรวจสอบสิทธิ์: ต้องเป็นเจ้าของคำขอ หรือเป็น ADMIN/SUPER_ADMIN เท่านั้น
+    const existing = await LeaveRequestService.getRequestById(leaveRequestId);
+    if (!existing) {
+      throw createError(404, "ไม่พบคำขอลา");
+    }
+
+    const userRoles = req.user?.role || [];
+    const isAdmin =
+      userRoles.includes("ADMIN") || userRoles.includes("SUPER_ADMIN");
+    if (existing.userId !== req.user.id && !isAdmin) {
+      throw createError(403, "ไม่มีสิทธิ์ลบคำขอลานี้");
+    }
+
     const result = await LeaveRequestService.deleteRequest(leaveRequestId);
 
     if (!result) {
-      return createError(400, "Leave request can't delete");
+      throw createError(400, "Leave request can't delete");
     }
 
     res.status(200).json({ message: "ลบคำขอลา" });
@@ -369,11 +384,7 @@ exports.getLeaveRequestsForFirstApprover = async (req, res) => {
     // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
     const approvers = await UserService.getApproversForLevel(1, new Date());
     const approverIds = approvers.map(v => v.id);
-    
-    console.log('User ID:', req.user.id);
-    console.log('Approver IDs:', approverIds);
-    console.log('Is user approver?', approverIds.includes(req.user.id));
-    
+
     if (!approverIds.includes(req.user.id)) {
       return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_1 required)" });
     }
@@ -397,11 +408,7 @@ exports.getLeaveRequestsForVerifier = async (req, res) => {
     // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
     const verifiers = await UserService.getApproversForLevel(2, new Date());
     const verifierIds = verifiers.map(v => v.id);
-    
-    console.log('User ID:', req.user.id);
-    console.log('Verifier IDs:', verifierIds);
-    console.log('Is user verifier?', verifierIds.includes(req.user.id));
-    
+
     if (!verifierIds.includes(req.user.id)) {
       return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (VERIFIER required)" });
     }
@@ -425,11 +432,7 @@ exports.getLeaveRequestsForSecondApprover = async (req, res) => {
     // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
     const approvers = await UserService.getApproversForLevel(3, new Date());
     const approverIds = approvers.map(v => v.id);
-    
-    console.log('User ID:', req.user.id);
-    console.log('Approver IDs:', approverIds);
-    console.log('Is user approver?', approverIds.includes(req.user.id));
-    
+
     if (!approverIds.includes(req.user.id)) {
       return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)" });
     }
@@ -453,11 +456,7 @@ exports.getLeaveRequestsForThirdApprover = async (req, res) => {
     // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
     const approvers = await UserService.getApproversForLevel(4, new Date());
     const approverIds = approvers.map(v => v.id);
-    
-    console.log('User ID:', req.user.id);
-    console.log('Approver IDs:', approverIds);
-    console.log('Is user approver?', approverIds.includes(req.user.id));
-    
+
     if (!approverIds.includes(req.user.id)) {
       return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)" });
     }
@@ -481,11 +480,7 @@ exports.getLeaveRequestsForFourthApprover = async (req, res) => {
     // ตรวจสอบว่า user เป็น approver หรือ proxy approver หรือไม่
     const approvers = await UserService.getApproversForLevel(5, new Date());
     const approverIds = approvers.map(v => v.id);
-    
-    console.log('User ID:', req.user.id);
-    console.log('Approver IDs:', approverIds);
-    console.log('Is user approver?', approverIds.includes(req.user.id));
-    
+
     if (!approverIds.includes(req.user.id)) {
       return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)" });
     }
@@ -611,18 +606,8 @@ exports.approveByVerifier = async (req, res, next) => {
   const { remarks, comment } = req.body;
   const approverId = req.user.id;
 
-  console.log('🔥 APPROVE BY VERIFIER - REQUEST START:', {
-    id,
-    approverId,
-    remarks,
-    comment,
-    userAgent: req.get('User-Agent'),
-    ip: req.ip
-  });
-
   try {
     if (typeof id !== "number" || isNaN(id)) {
-      console.log("Debug id: ", id);
       throw createError(400, "รูปแบบ ID คำขอไม่ถูกต้อง");
     }
 

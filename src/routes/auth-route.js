@@ -1,11 +1,11 @@
 const express = require('express');
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const router = express.Router();
 
 const passport = require("../config/passport");
 
 const { authenticate, authorize, optionalAuth } = require('../middlewares/auth');
-const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");
 const authController = require('../controllers/auth-controller');
@@ -16,23 +16,13 @@ const prisma = require("../config/prisma");
 // 🧑‍💼 Authentication & User
 // ==============================
 
-// "register", "login" เปลี่ยนไปใช้ "google login"
-router.post('/register', registerLimiter, upload.single('images'), authController.register);
-router.post('/login', loginLimiter, uploadFile.uploadProfile.none(), authController.login);
+// ระบบใช้ Google OAuth เท่านั้น (manual register/login ถูกถอดออกแล้ว)
 router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.getMe);
 router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 router.get('/user-info/:id', authenticate, authController.getUserInfoById);
 router.get('/verifier', authenticate, authController.getVerifier);
 router.get('/approvers-for-level/:level', optionalAuth, authController.getApproversForLevel); // ใช้ optionalAuth สำหรับ testing
-
-// ==============================
-// 🔐 Password Management
-// ==============================
-
-router.post('/change-password', authController.changePassword);
-router.post('/forgot-password', authController.forgotPassword);
-router.post('/reset-password', authController.resetPassword);
 
 // ==============================
 //      User Management (Admin)
@@ -49,31 +39,31 @@ router.get('/google-profile-picture', authenticate, authController.getGoogleProf
 //    Organization Management
 // ==============================
 
-router.get('/organizations', authController.getAllOrganizations);
-router.get('/organizations/:id', authController.getOrganizationById);
-router.post('/organizations', authController.createOrganization);
-router.put('/organizations/:id', authController.updateOrganization);
-router.delete('/organizations/:id', authController.deleteOrganization);
+router.get('/organizations', authenticate, authController.getAllOrganizations);
+router.get('/organizations/:id', authenticate, authController.getOrganizationById);
+router.post('/organizations', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.createOrganization);
+router.put('/organizations/:id', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.updateOrganization);
+router.delete('/organizations/:id', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.deleteOrganization);
 
 // ==============================
 //     Department Management
 // ==============================
 
-router.get('/departments', authController.getAllDepartments);
-router.get('/departments/:id', authController.getDepartmentById);
-router.post('/departments', authController.createDepartment);
-router.put('/departments/:id', authController.updateDepartment);
-router.delete('/departments/:id', authController.deleteDepartment);
+router.get('/departments', authenticate, authController.getAllDepartments);
+router.get('/departments/:id', authenticate, authController.getDepartmentById);
+router.post('/departments', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.createDepartment);
+router.put('/departments/:id', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.updateDepartment);
+router.delete('/departments/:id', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.deleteDepartment);
 
 // ==============================
 //    Personnel Type Management
 // ==============================
 
-router.get('/personnel-types', authController.getPersonnelTypes);
-router.get('/personnel-types/:id', authController.getPersonnelTypeById);
-router.post('/personnel-types', authController.createPersonnelType);
-router.put('/personnel-types/:id', authController.updatePersonnelType);
-router.delete('/personnel-types/:id', authController.deletePersonnelType);
+router.get('/personnel-types', authenticate, authController.getPersonnelTypes);
+router.get('/personnel-types/:id', authenticate, authController.getPersonnelTypeById);
+router.post('/personnel-types', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.createPersonnelType);
+router.put('/personnel-types/:id', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.updatePersonnelType);
+router.delete('/personnel-types/:id', authenticate, authorize(["ADMIN", "SUPER_ADMIN"]), authController.deletePersonnelType);
 
 // ==============================
 //           Position
@@ -190,9 +180,7 @@ router.get("/profile", authenticate, async (req, res) => {
 });
 
 router.get("/fail", (req, res) => {
-  console.log("=== /auth/fail route called ===");
-  console.log("Query params:", req.query);
-  console.log("Headers:", req.headers);
+  // หมายเหตุ: ไม่ log req.headers เพราะมี Authorization token (ข้อมูลอ่อนไหว)
   res.status(401).json({ message: "Login failed" });
 });
 
@@ -213,8 +201,18 @@ router.post("/logout", async (req, res) => {
     const { refreshToken } = req.body;
     if (!refreshToken) return res.status(400).json({ error: "Missing token" });
 
+    // verify เพื่อหา userId แล้ว query เฉพาะ token ของ user นั้น
+    // (ไม่ดึง refresh token ทั้ง DB มา compare ทีละตัว ซึ่งช้าและกิน CPU)
+    let userId;
+    try {
+      const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      userId = payload.userId;
+    } catch {
+      return res.status(400).json({ error: "Invalid token" });
+    }
+
     const tokens = await prisma.refreshToken.findMany({
-      where: { revoked: false },
+      where: { userId, revoked: false },
     });
 
     for (const t of tokens) {
@@ -229,7 +227,8 @@ router.post("/logout", async (req, res) => {
 
     res.status(400).json({ error: "Invalid token" });
   } catch (err) {
-    console.error(err);
+    console.error("Logout error:", err);
+    res.status(500).json({ error: "Logout failed" });
   }
 });
 

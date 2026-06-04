@@ -4,10 +4,9 @@ const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const createError = require("../utils/createError");
-const { sendEmail } = require("../utils/emailService");
+const { sendNotification } = require("../utils/emailService");
+const { sendPendingApprovalReminders } = require("../utils/pendingApprovalReminder");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
-const RankService = require("../services/rank-service");
-const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const UserService = require("../services/user-service");
 const AuditLogService = require("../services/auditLog-service");
@@ -531,110 +530,6 @@ exports.assignHeadDepartment = async (req, res, next) => {
 };
 
 // --------------------
-//        ranks
-// --------------------
-
-exports.getAllRank = async (req, res, next) => {
-  try {
-    const rank = await RankService.getAllRanks();
-    if (!rank) throw createError(404, "ไม่พบข้อมูลของ rank");
-    res.status(200).json({ message: "ดึงข้อมูล rank ทั้งหมดแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.getRankById = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const rank = await RankService.getRankById(parseInt(id));
-    if (!rank) throw createError(404, "ไม่พบข้อมูลของ rank");
-    res
-      .status(200)
-      .json({ message: "ดึงข้อมูล rank เรียบร้อยแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.createRank = async (req, res, next) => {
-  try {
-    const {
-      rank,
-      minHireMonths,
-      maxHireMonths,
-      receiveDays,
-      maxDays,
-      isBalance,
-      personnelTypeId,
-      leaveTypeId,
-    } = req.body;
-    if (
-      rank === undefined ||
-      minHireMonths === undefined ||
-      maxHireMonths === undefined ||
-      receiveDays === undefined ||
-      maxDays === undefined ||
-      isBalance === undefined ||
-      personnelTypeId === undefined ||
-      leaveTypeId === undefined
-    )
-      throw createError(
-        400,
-        "กรุณากรอกข้อมูลให้ครบถ้วนก่อนทำการสร้าง rank ใหม่"
-      );
-    const personnelType = await OrgAndDeptService.getPersonnelTypeById(
-      personnelTypeId
-    );
-    if (!personnelType) throw createError(404, "ไม่พบข้อมูล personnelType");
-
-    const leaveType = await LeaveTypeService.getLeaveTypeById(leaveTypeId);
-    if (!leaveType) throw createError(404, "ไม่พบข้อมูล leaveType");
-
-    const data = {
-      rank,
-      minHireMonths,
-      maxHireMonths,
-      receiveDays,
-      maxDays,
-      isBalance,
-      personnelTypeId,
-      leaveTypeId,
-    };
-
-    const ranks = await RankService.createRank(data);
-    if (!ranks) throw createError(400, "สร้าง rank ไม่สำเร็จ");
-    res.status(201).json({ message: "สร้าง rank สำเร็จแล้ว", data: ranks });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.updateRank = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { updateData } = req.body;
-    if (!id) throw createError(404, "ไม่พบ id");
-    const rank = await RankService.updateRank(parseInt(id), updateData);
-    if (!rank) throw createError(400, "ไม่สามารถอัปเดต rank ได้");
-    res.status(200).json({ message: "อัปเดต rank เหรียบร้อยแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.deleteRank = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!id) throw createError(404, "ไม่พบ id");
-    await RankService.deleteRank(parseInt(id));
-    res.status(200).json({ message: "ลบ rank เรียบร้อยแล้ว" });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// --------------------
 //     personnelType
 // --------------------
 
@@ -1065,9 +960,9 @@ exports.createUserByAdmin = async (req, res, next) => {
       lastName,
       sex,
       email,
-      password,
       phone,
       position,
+      positionNumber,
       hireDate,
       employmentType,
       personnelTypeId,
@@ -1075,9 +970,22 @@ exports.createUserByAdmin = async (req, res, next) => {
     } = req.body;
 
     // ✅ Validation
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !firstName || !lastName) {
       throw createError(400, "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน");
     }
+
+    // ✅ เลขที่ตำแหน่งบังคับกรอก
+    if (!positionNumber || String(positionNumber).trim() === "") {
+      throw createError(400, "กรุณาระบุเลขที่ตำแหน่ง");
+    }
+
+    // ✅ แปลงค่าเพศให้เป็นภาษาไทยให้ตรงทั้งระบบ (ชาย/หญิง)
+    const normalizedSex =
+      sex === "MALE" || sex === "ชาย"
+        ? "ชาย"
+        : sex === "FEMALE" || sex === "หญิง"
+          ? "หญิง"
+          : sex;
 
     if (!email.endsWith("@rmuti.ac.th")) {
       throw createError(400, "อีเมลต้องอยู่ในโดเมน rmuti.ac.th เท่านั้น");
@@ -1088,30 +996,21 @@ exports.createUserByAdmin = async (req, res, next) => {
       throw createError(400, "อีเมลนี้มีผู้ใช้งานในระบบแล้ว");
     }
 
-    const passLetters = (password.match(/[a-zA-Z]/g) || []).length;
-    if (password.length < 8 || passLetters < 4) {
-      throw createError(
-        400,
-        "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และมีตัวอักษรอย่างน้อย 4 ตัว"
-      );
-    }
-
     if (!["ACADEMIC", "SUPPORT"].includes(employmentType)) {
       throw createError(400, "ประเภทพนักงานไม่ถูกต้อง");
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const parsedHireDate = hireDate ? new Date(hireDate) : null;
 
     const user = await UserService.createUser({
       prefixName,
       firstName,
       lastName,
-      sex,
+      sex: normalizedSex,
       email,
-      password: passwordHash,
       phone,
       position,
-      hireDate: hireDate ? new Date(hireDate) : null,
+      hireDate: parsedHireDate,
       employmentType,
       personnelTypeId: parseInt(personnelTypeId),
       departmentId: parseInt(departmentId),
@@ -1131,6 +1030,26 @@ exports.createUserByAdmin = async (req, res, next) => {
       roles.map((role) => role.id)
     );
 
+    // ✅ กำหนด Rank ตาม personnelType (ดึง hireDate/personnelTypeId ของ user ที่เพิ่งสร้าง)
+    await UserService.assignRankToUser(
+      user.id,
+      parseInt(personnelTypeId),
+      parsedHireDate
+    );
+
+    // ✅ gen leave balance ตาม rank ที่ได้ (กรองสิทธิ์ลาเฉพาะเพศตาม normalizedSex)
+    await UserService.assignLeaveBalanceFromRanks(user.id, normalizedSex);
+
+    // ✅ กำหนดเลขที่ตำแหน่ง (รองรับย้ายเลขจากคนเดิม) ภายใน transaction
+    await prisma.$transaction(async (tx) =>
+      UserService.assignPositionNumberToUser(
+        tx,
+        user.id,
+        positionNumber,
+        req.user?.id || null
+      )
+    );
+
     // บันทึก Audit Log การสร้างผู้ใช้
     await AuditLogService.createLog(
       req.user.id,
@@ -1143,9 +1062,37 @@ exports.createUserByAdmin = async (req, res, next) => {
       // ไม่ส่ง entityData - จะดึงอัตโนมัติ
     );
 
+    // ✅ ส่งอีเมลต้อนรับ (ไม่ให้ email พังกระทบการสร้างผู้ใช้)
+    if (email) {
+      try {
+        await sendNotification("WELCOME", {
+          to: email,
+          userName: `${prefixName || ""} ${firstName} ${lastName}`.trim(),
+          email,
+          position,
+        });
+      } catch (emailError) {
+        console.error("Failed to send welcome email:", emailError.message);
+      }
+    }
+
     return res
       .status(201)
       .json({ message: "สร้างผู้ใช้สำเร็จ", data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ส่งอีเมลเตือนผู้อนุมัติที่มีคำขอลาค้างพิจารณา (เรียกแบบ manual ได้ นอกเหนือจาก cron)
+// POST /admin/send-pending-reminders  body: { thresholdDays?: number }
+exports.sendPendingReminders = async (req, res, next) => {
+  try {
+    const thresholdDays = parseInt(req.body?.thresholdDays, 10);
+    const result = await sendPendingApprovalReminders(
+      Number.isNaN(thresholdDays) ? 3 : thresholdDays
+    );
+    return res.status(200).json({ message: "ส่งอีเมลเตือนเรียบร้อย", ...result });
   } catch (err) {
     next(err);
   }

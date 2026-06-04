@@ -101,6 +101,12 @@ describe("middleware.authenticate", () => {
             effectiveFrom: true,
           },
         },
+        accounts: {
+          select: {
+            provider: true,
+            profilePictureUrl: true,
+          },
+        },
       },
     });
     expect(res.status).toHaveBeenCalledWith(401);

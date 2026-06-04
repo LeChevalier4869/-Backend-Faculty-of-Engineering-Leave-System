@@ -42,6 +42,12 @@ const authenticate = async (req, res, next) => {
             effectiveFrom: true,
           },
         },
+        accounts: {
+          select: {
+            provider: true,
+            profilePictureUrl: true,
+          },
+        },
       },
     });
 
@@ -91,6 +97,12 @@ const optionalAuth = async (req, res, next) => {
             select: {
               positionNumber: true,
               effectiveFrom: true,
+            },
+          },
+          accounts: {
+            select: {
+              provider: true,
+              profilePictureUrl: true,
             },
           },
         },

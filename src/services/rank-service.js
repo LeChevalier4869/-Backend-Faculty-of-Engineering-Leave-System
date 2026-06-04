@@ -2,26 +2,6 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 
 class RankService {
-  // ดึง Rank ที่ตรงกับเงื่อนไขอายุงาน และ PersonnelType ของ user
-  static async getRankForUser(user, leaveTypeId) {
-    if (!user.hireDate || !user.personnelTypeId || !leaveTypeId) {
-      return null;
-    }
-
-    const months = calculateMonths(user.hireDate);
-
-    const rank = await prisma.rank.findFirst({
-      where: {
-        personnelTypeId: user.personnelTypeId,
-        leaveTypeId: leaveTypeId,
-        minHireMonths: { lte: months },
-        maxHireMonths: { gte: months },
-      },
-    });
-
-    return rank;
-  }
-
   // ดึง Rank ทั้งหมด (admin)
   static async getAllRanks() {
     return await prisma.rank.findMany({
@@ -56,15 +36,20 @@ class RankService {
 
   // delete Rank
   static async deleteRank(id) {
+    // กันลบ rank ที่มีผู้ใช้ผูกอยู่ (FK) แล้วขึ้น error งง ๆ
+    const inUse = await prisma.userRank.count({ where: { rankId: id } });
+    if (inUse > 0) {
+      throw createError(
+        400,
+        `ไม่สามารถลบเงื่อนไขวันลานี้ได้ เนื่องจากมีผู้ใช้ ${inUse} คนผูกกับเงื่อนไขนี้อยู่`
+      );
+    }
     return await prisma.rank.delete({
       where: { id },
     });
   }
 
   static async getRankForUserByLeaveType(user, leaveTypeId) {
-    console.log("Debug user.id:", user.id);
-    console.log("Debug user.id:", leaveTypeId);
-    console.log("Debug user.id:", user.personnelTypeId);
     const userRank = await prisma.userRank.findFirst({
       where: {
         userId: user.id,
@@ -77,21 +62,39 @@ class RankService {
         rank: true,
       },
     });
-    console.log("Debug userRank:", userRank);
 
     return userRank?.rank || null;
   }
-}
 
-function calculateMonths(hireDate) {
-  const now = new Date();
-  const hire = new Date(hireDate);
-  let months = (now.getFullYear() - hire.getFullYear()) * 12;
-  months += now.getMonth() - hire.getMonth();
-  if (now.getDate() < hire.getDate()) {
-    months--;
+  // หา rank ที่ช่วงอายุงานทับซ้อนกัน ภายใน personnelType + leaveType เดียวกัน
+  // (null = ไม่จำกัด: min=null -> -∞, max=null -> +∞) ใช้ตอน create/update กันสร้างซ้อน
+  static async findOverlappingRank({
+    personnelTypeId,
+    leaveTypeId,
+    minHireMonths,
+    maxHireMonths,
+    excludeId = null,
+  }) {
+    const siblings = await prisma.rank.findMany({
+      where: {
+        personnelTypeId,
+        leaveTypeId,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+    });
+
+    const newMin = minHireMonths ?? -Infinity;
+    const newMax = maxHireMonths ?? Infinity;
+
+    return (
+      siblings.find((r) => {
+        const exMin = r.minHireMonths ?? -Infinity;
+        const exMax = r.maxHireMonths ?? Infinity;
+        // ทับซ้อนเมื่อ newMin <= exMax && exMin <= newMax
+        return newMin <= exMax && exMin <= newMax;
+      }) || null
+    );
   }
-  return months;
 }
 
 module.exports = RankService;

@@ -174,29 +174,45 @@ async function resetLeaveBalance() {
         continue;
       }
 
-      // ถ้าเป็นประเภทที่ไม่ต้องหักวัน แต่ไม่รีเซ็ตปีใหม่และ isBalance เป็น false ให้ข้าม
-      if (leaveType?.isNonDeductible && !leaveType?.resetOnFiscalYear && !isBalance) {
-        console.log(`⏭️ ข้าม LeaveType ${leaveTypeId} (ไม่ต้องหักวัน ไม่รีเซ็ตปีใหม่ และไม่ต้องสร้าง balance)`);
-        continue;
-      }
+      // หมายเหตุ: ไม่ข้ามประเภทไม่หักวันแล้ว — ต้องสร้าง record ของ "ปีใหม่" เสมอ
+      // เพื่อให้ logic อื่นที่ filter ตาม year ล่าสุด (เช่น การยื่นใบลา) หา balance เจอ
 
       // สำหรับประเภทที่ต้องหักวัน
       const daysToUse = receiveDays > 0 ? receiveDays : maxDays;
-      
+
       let newRemainingDays;
       let balanceData;
-      
+
       if (leaveType?.isNonDeductible) {
-        // ประเภทที่ไม่ต้องหักวัน: สร้าง balance สำหรับเก็บสถิติเท่านั้น
-        balanceData = {
-          userId: id,
-          leaveTypeId,
-          maxDays: 0,
-          usedDays: 0,
-          pendingDays: 0,
-          remainingDays: 0,
-          year,
-        };
+        if (!leaveType?.resetOnFiscalYear) {
+          // ลาครั้งเดียว (ไม่รีเซ็ตปีใหม่ เช่น ลาอุปสมบท/ฮัจย์/ถือศีล):
+          // อัปเดตแค่ year โดย copy ยอดเดิมมา — ไม่แตะสิทธิ์ ไม่ให้ usedDays งอกใหม่
+          const prev = await tx.leaveBalance.findFirst({
+            where: { userId: id, leaveTypeId },
+            orderBy: { year: "desc" },
+          });
+          balanceData = {
+            userId: id,
+            leaveTypeId,
+            maxDays: prev?.maxDays ?? 0,
+            usedDays: prev?.usedDays ?? 0,
+            pendingDays: prev?.pendingDays ?? 0,
+            remainingDays: prev?.remainingDays ?? 0,
+            year,
+          };
+          console.log(`📌 คงยอดลาครั้งเดียว userId ${id}, leaveType ${leaveTypeId} (copy ยอดเดิมมาปี ${year})`);
+        } else {
+          // ประเภทไม่หักวันที่รีเซ็ตทุกปี (ทหาร/องค์การระหว่างประเทศ): เริ่มใหม่เป็น 0
+          balanceData = {
+            userId: id,
+            leaveTypeId,
+            maxDays: 0,
+            usedDays: 0,
+            pendingDays: 0,
+            remainingDays: 0,
+            year,
+          };
+        }
       } else if (Number(leaveTypeId) === 4) {
         // ลาพักผ่อน: จัดการเสมอ
         if (leaveType?.resetOnFiscalYear) {
