@@ -1,5 +1,20 @@
 const createError = require("../utils/createError");
 const nodemailer = require("nodemailer");
+const dns = require("dns");
+
+// บังคับ DNS resolve IPv4 ก่อน — กันปัญหา ENETUNREACH IPv6 บน host (เช่น Render)
+// ที่ Gmail SMTP resolve เป็น IPv6 ก่อนแต่ network ไป IPv6 ไม่ได้
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
+
+// ตัวเลือกการเชื่อมต่อ SMTP: ใช้ IPv4 + ตั้ง timeout ให้ fail เร็ว (ไม่ค้าง)
+const SMTP_CONN_OPTS = {
+  family: 4,
+  connectionTimeout: 10000,
+  greetingTimeout: 8000,
+  socketTimeout: 15000,
+};
 
 const APP_NAME = "ระบบจัดการวันลา คณะวิศวกรรมศาสตร์";
 
@@ -26,6 +41,7 @@ function getOAuthTransporter() {
   if (!oauthTransporter) {
     oauthTransporter = nodemailer.createTransport({
       service: "gmail",
+      ...SMTP_CONN_OPTS,
       auth: {
         type: "OAuth2",
         user: GMAIL_USER,
@@ -43,6 +59,7 @@ function getAppPassTransporter() {
   if (!appPassTransporter) {
     appPassTransporter = nodemailer.createTransport({
       service: "gmail",
+      ...SMTP_CONN_OPTS,
       auth: { user: GMAIL_USER, pass: GMAIL_PASS },
     });
   }
@@ -508,10 +525,25 @@ async function sendNotification(eventType, data) {
   return await sendEmail(data.to, template.subject, template.html);
 }
 
+/**
+ * ส่งอีเมลแจ้งเตือนแบบ background (ไม่ block / ไม่ throw)
+ * ใช้ในขั้นตอนที่ผู้ใช้กำลังรอ response (เช่น approve/reject) เพื่อไม่ให้การส่งอีเมลทำให้ช้า
+ * @param {string} eventType
+ * @param {object} data ต้องมี data.to
+ */
+function queueNotification(eventType, data) {
+  Promise.resolve()
+    .then(() => sendNotification(eventType, data))
+    .catch((err) =>
+      console.error(`[email] queued notification "${eventType}" failed: ${err.message}`)
+    );
+}
+
 module.exports = {
   sendEmail,
   sendEmailTest,
   sendNotification,
+  queueNotification,
   getEmailTemplate,
   EVENT_ALIASES,
 };
