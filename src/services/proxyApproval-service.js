@@ -2,6 +2,24 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 const UserService = require("./user-service");
 const AuditLogService = require("./auditLog-service");
+const { sendNotification } = require("../utils/emailService");
+
+// ป้ายกำกับระดับการอนุมัติ (ใช้ในอีเมลแจ้งเตือนการมอบอำนาจ)
+const PROXY_LEVEL_LABELS = {
+  1: "หัวหน้าสาขา (ผู้อนุมัติระดับ 1)",
+  2: "ผู้ตรวจสอบ",
+  3: "ผู้อนุมัติระดับ 2",
+  4: "ผู้อนุมัติระดับ 3",
+  5: "ผู้อนุมัติระดับ 4",
+};
+
+// สรุปช่วงเวลาของการมอบอำนาจให้อ่านง่าย
+function formatProxyPeriod(proxy) {
+  const fmt = (d) => new Date(d).toLocaleDateString("th-TH");
+  if (proxy.isDaily && proxy.dailyDate) return `รายวัน: ${fmt(proxy.dailyDate)}`;
+  if (proxy.startDate && proxy.endDate) return `${fmt(proxy.startDate)} - ${fmt(proxy.endDate)}`;
+  return null;
+}
 
 class ProxyApprovalService {
   // ────────────────────────────────
@@ -222,6 +240,22 @@ class ProxyApprovalService {
           },
         },
       });
+
+      // แจ้งเตือนผู้รับมอบอำนาจทางอีเมล (ไม่ให้ email พังกระทบการสร้าง)
+      try {
+        if (proxyApproval.proxyApprover?.email) {
+          await sendNotification("PROXY_ASSIGNED", {
+            to: proxyApproval.proxyApprover.email,
+            userName: `${proxyApproval.proxyApprover.prefixName || ""} ${proxyApproval.proxyApprover.firstName} ${proxyApproval.proxyApprover.lastName}`.trim(),
+            originalApproverName: `${proxyApproval.originalApprover.prefixName || ""} ${proxyApproval.originalApprover.firstName} ${proxyApproval.originalApprover.lastName}`.trim(),
+            levelLabel: PROXY_LEVEL_LABELS[proxyApproval.approverLevel],
+            period: formatProxyPeriod(proxyApproval),
+            reason: proxyApproval.reason,
+          });
+        }
+      } catch (emailError) {
+        console.error("Failed to send proxy-assigned email:", emailError.message);
+      }
 
       return proxyApproval;
     } catch (error) {
@@ -965,16 +999,31 @@ class ProxyApprovalService {
         },
       });
 
-      // บันทึก log การทำงาน
+      // บันทึก log การทำงาน (req ไม่อยู่ใน scope ของ service จึงส่ง ip/userAgent เป็น null)
       await AuditLogService.createLog(
         cancelledBy,
         "DELETE",
         "ProxyApproval",
         parseInt(id),
         `ยกเลิกการมอบอำนาจ ID: ${id}`,
-        req.ip,
-        req.get("User-Agent")
+        null,
+        null
       );
+
+      // แจ้งเตือนผู้รับมอบอำนาจว่าการมอบอำนาจถูกยกเลิก (ไม่ให้ email พังกระทบการยกเลิก)
+      try {
+        if (cancelledProxy.proxyApprover?.email) {
+          await sendNotification("PROXY_CANCELLED", {
+            to: cancelledProxy.proxyApprover.email,
+            userName: `${cancelledProxy.proxyApprover.prefixName || ""} ${cancelledProxy.proxyApprover.firstName} ${cancelledProxy.proxyApprover.lastName}`.trim(),
+            originalApproverName: `${cancelledProxy.originalApprover.prefixName || ""} ${cancelledProxy.originalApprover.firstName} ${cancelledProxy.originalApprover.lastName}`.trim(),
+            levelLabel: PROXY_LEVEL_LABELS[cancelledProxy.approverLevel],
+            period: formatProxyPeriod(cancelledProxy),
+          });
+        }
+      } catch (emailError) {
+        console.error("Failed to send proxy-cancelled email:", emailError.message);
+      }
 
       return cancelledProxy;
     } catch (error) {

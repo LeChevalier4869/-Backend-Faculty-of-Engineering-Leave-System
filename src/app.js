@@ -171,6 +171,9 @@ if (process.env.NODE_ENV !== "test") {
 
   // เรียก cron job สำหรับการจัดการการมอบอำนาจรายวัน
   require("./utils/proxyApprovalCron");
+
+  // เรียก cron job เตือนผู้อนุมัติที่มีคำขอลาค้างพิจารณา
+  require("./utils/pendingApprovalReminderCron");
 }
 
 module.exports = app;

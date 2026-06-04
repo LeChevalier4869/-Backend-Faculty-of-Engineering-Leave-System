@@ -6,7 +6,7 @@ const RankService = require("./rank-service");
 const ProxyApprovalService = require("./proxyApproval-service");
 const AuditLogService = require("./auditLog-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
-const { sendNotification, sendEmail } = require("../utils/emailService");
+const { sendNotification } = require("../utils/emailService");
 
 class LeaveRequestService {
   // ────────────────────────────────────────────────────────────────
@@ -205,55 +205,28 @@ class LeaveRequestService {
 
   static async notifyApprover({ approverId, user, requestedDays, reason, contact }) {
     const approver = await UserService.getUserByIdWithRoles(approverId);
-    if (!approver) return;
+    if (!approver?.email) return;
 
-    const approverEmail = approver.email;
-    const approverName = `${approver.prefixName} ${approver.firstName} ${approver.lastName}`;
-    const subject = "ยืนยันการยื่นคำขอลา";
-    const message = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-      <h3 style="color: #2c3e50;">เรียน ${approverName},</h3>
-      <p>คุณได้รับการแจ้งเตือนเกี่ยวกับคำขอลาใหม่จากระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-      <p><strong>รายละเอียดคำขอลา:</strong></p>
-      <ul style="list-style: none; padding: 0;">
-        <li><strong>ผู้ยื่นคำขอ:</strong> ${user.prefixName} ${user.firstName} ${user.lastName}</li>
-        <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
-        <li><strong>เหตุผล:</strong> ${reason}</li>
-        ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
-      </ul>
-      <p>กรุณาตรวจสอบและดำเนินการในระบบตามขั้นตอนที่กำหนด</p>
-      <br/>
-      <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-      <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-    </div>
-  `;
-    await sendEmail(approverEmail, subject, message);
+    await sendNotification("SUBMISSION", {
+      to: approver.email,
+      userName: `${approver.prefixName} ${approver.firstName} ${approver.lastName}`,
+      requesterName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
+      requestedDays,
+      reason,
+      contact,
+    });
   }
 
   static async notifyRequester({ user, requestedDays, reason, contact }) {
     if (!user?.email) return;
-    const subject = "แจ้งเตือนการยื่นคำขอลา";
-    const message = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-      <h3 style="color: #2c3e50;">เรียน ${user.prefixName} ${user.firstName} ${user.lastName},</h3>
-      <p>ระบบได้รับคำขอลาของคุณเรียบร้อยแล้ว</p>
-      <p><strong>รายละเอียดคำขอลา:</strong></p>
-      <ul style="list-style: none; padding: 0;">
-        <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
-        <li><strong>เหตุผล:</strong> ${reason}</li>
-        ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
-      </ul>
-      <p>กรุณารอการอนุมัติจากหัวหน้าสาขา</p>
-      <br/>
-      <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-      <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-    </div>
-  `;
-    await sendEmail(user.email, subject, message);
+
+    await sendNotification("SUBMISSION_CONFIRM", {
+      to: user.email,
+      userName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
+      requestedDays,
+      reason,
+      contact,
+    });
   }
 
   // ────────────────────────────────
@@ -1147,7 +1120,7 @@ class LeaveRequestService {
         }
       }
 
-      await sendNotification("STEP_APPROVER1", notificationData);
+      await sendNotification("STEP_APPROVED_1", notificationData);
     }
 
     return {
@@ -1706,7 +1679,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVER3", {
+      await sendNotification("STEP_APPROVED_3", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -1834,7 +1807,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTED", {
+      await sendNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -1940,7 +1913,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVER4", {
+      await sendNotification("STEP_APPROVED_4", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -2068,7 +2041,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTED", {
+      await sendNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -2287,7 +2260,7 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTED", {
+      await sendNotification("REJECTION", {
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -2446,27 +2419,14 @@ class LeaveRequestService {
     // 3. ส่งอีเมลแจ้งเตือนให้ผู้ใช้ (outside transaction)
     if (leaveRequest.user.email) {
       try {
-        const subject = "แจ้งเตือนการยกเลิกคำขอลา";
-        const message = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h3 style="color: #2c3e50;">เรียน ${leaveRequest.user.prefixName} ${leaveRequest.user.firstName} ${leaveRequest.user.lastName},</h3>
-          <p>คำขอลาของคุณถูกยกเลิกโดยผู้ดูแลระบบ</p>
-          <p><strong>รายละเอียดคำขอลา:</strong></p>
-          <ul style="list-style: none; padding: 0;">
-            <li><strong>เลขที่ใบลา:</strong> ${leaveRequestNumber}</li>
-            <li><strong>ประเภทการลา:</strong> ${leaveRequest.leaveType.name}</li>
-            <li><strong>จำนวนวันลา:</strong> ${leaveRequest.thisTimeDays} วัน</li>
-            <li><strong>วันที่ลา:</strong> ${leaveRequest.startDate.toLocaleDateString('th-TH')} - ${leaveRequest.endDate.toLocaleDateString('th-TH')}</li>
-          </ul>
-          <p>สิทธิ์การลาของคุณได้รับการคืนค่าเรียบร้อยแล้ว</p>
-          <br/>
-          <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-          <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-          <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-        </div>
-      `;
-        await sendEmail(leaveRequest.user.email, subject, message);
+        await sendNotification("CANCELLATION", {
+          to: leaveRequest.user.email,
+          userName: `${leaveRequest.user.prefixName} ${leaveRequest.user.firstName} ${leaveRequest.user.lastName}`,
+          documentNumber: leaveRequestNumber,
+          leaveTypeName: leaveRequest.leaveType.name,
+          requestedDays: leaveRequest.thisTimeDays,
+          dateRange: `${leaveRequest.startDate.toLocaleDateString("th-TH")} - ${leaveRequest.endDate.toLocaleDateString("th-TH")}`,
+        });
       } catch (emailError) {
         console.error("Failed to send cancellation email:", emailError);
         // ไม่ throw error เพราะการส่ง email ไม่ควรทำให้การยกเลิกล้มเหลว

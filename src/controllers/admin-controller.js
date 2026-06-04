@@ -4,7 +4,8 @@ const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const createError = require("../utils/createError");
-const { sendEmail } = require("../utils/emailService");
+const { sendNotification } = require("../utils/emailService");
+const { sendPendingApprovalReminders } = require("../utils/pendingApprovalReminder");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const fs = require("fs");
 const UserService = require("../services/user-service");
@@ -1061,9 +1062,37 @@ exports.createUserByAdmin = async (req, res, next) => {
       // ไม่ส่ง entityData - จะดึงอัตโนมัติ
     );
 
+    // ✅ ส่งอีเมลต้อนรับ (ไม่ให้ email พังกระทบการสร้างผู้ใช้)
+    if (email) {
+      try {
+        await sendNotification("WELCOME", {
+          to: email,
+          userName: `${prefixName || ""} ${firstName} ${lastName}`.trim(),
+          email,
+          position,
+        });
+      } catch (emailError) {
+        console.error("Failed to send welcome email:", emailError.message);
+      }
+    }
+
     return res
       .status(201)
       .json({ message: "สร้างผู้ใช้สำเร็จ", data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ส่งอีเมลเตือนผู้อนุมัติที่มีคำขอลาค้างพิจารณา (เรียกแบบ manual ได้ นอกเหนือจาก cron)
+// POST /admin/send-pending-reminders  body: { thresholdDays?: number }
+exports.sendPendingReminders = async (req, res, next) => {
+  try {
+    const thresholdDays = parseInt(req.body?.thresholdDays, 10);
+    const result = await sendPendingApprovalReminders(
+      Number.isNaN(thresholdDays) ? 3 : thresholdDays
+    );
+    return res.status(200).json({ message: "ส่งอีเมลเตือนเรียบร้อย", ...result });
   } catch (err) {
     next(err);
   }

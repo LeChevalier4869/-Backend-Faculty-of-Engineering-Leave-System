@@ -2,6 +2,24 @@ const xlsx = require("xlsx");
 const prisma = require("../config/prisma");
 const UserService = require("../services/user-service");
 const createError = require("../utils/createError");
+const { sendNotification } = require("../utils/emailService");
+
+// ส่งอีเมลต้อนรับให้ผู้ใช้ที่เพิ่งถูกสร้าง (ทำแบบ background ไม่บล็อกการตอบกลับ)
+async function sendWelcomeToCreatedUsers(createdUsers = []) {
+  for (const u of createdUsers) {
+    if (!u?.email) continue;
+    try {
+      await sendNotification("WELCOME", {
+        to: u.email,
+        userName: `${u.prefixName || ""} ${u.firstName || ""} ${u.lastName || ""}`.trim(),
+        email: u.email,
+        position: u.position,
+      });
+    } catch {
+      // sendEmail กลืน error อยู่แล้ว — ที่นี่กันกรณี throw อื่นๆ
+    }
+  }
+}
 
 exports.uploadUserExcel = async (req, res) => {
   try {
@@ -775,6 +793,7 @@ exports.uploadUserExcel = async (req, res) => {
       console.log(`[MONITORING] Total created balances:`, createdUsers.reduce((acc, user) => acc + (user.createdBalances?.length || 0), 0));
       console.log(`[MONITORING] Total skipped balances:`, createdUsers.reduce((acc, user) => acc + (user.skippedBalances?.length || 0), 0));
       
+      sendWelcomeToCreatedUsers(createdUsers); // background, ไม่บล็อก response
       res.json({
         message: "Users processed",
         createdCount: createdUsers.length,
@@ -806,6 +825,7 @@ exports.uploadUserExcel = async (req, res) => {
     console.log(`[MONITORING] Excel import completed - User creation mode`);
     console.log(`[MONITORING] Total users created: ${createdUsers.length}`);
 
+    sendWelcomeToCreatedUsers(createdUsers); // background, ไม่บล็อก response
     res.json({
       message: "Users processed",
       createdCount: createdUsers.length,

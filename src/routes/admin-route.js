@@ -134,6 +134,9 @@ router.get('/setting/:id', authorize(["ADMIN"]), adminController.getSettingById)
 router.put('/setting/:id', authorize(["ADMIN"]), adminController.updateSetting);
 router.delete('/setting/:id', authorize(["ADMIN"]), adminController.deleteSetting);
 
+//---------------------------------- Pending approval reminder -----------------------
+router.post('/send-pending-reminders', authorize(["ADMIN"]), adminController.sendPendingReminders);
+
 //---------------------------------- Leave Balance Reset -----------------------
 router.post('/reset-leave-balance', authorize(["ADMIN"]), adminController.resetLeaveBalance);
 router.get('/leave-balance/years', authorize(["ADMIN"]), adminController.getAvailableYears);
