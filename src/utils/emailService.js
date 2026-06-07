@@ -267,8 +267,47 @@ function renderDetails(details = []) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0 4px;border-top:1px solid ${COLORS.divider};border-bottom:1px solid ${COLORS.divider};">${rows}</table>`;
 }
 
+// ขั้นตอนการอนุมัติ (เรียงตามลำดับจริงในระบบ)
+const STEP_LABELS = ["หัวหน้าสาขา", "ตรวจสอบ", "หัวหน้าคณะ", "รองคณบดี", "คณบดี"];
+
+/**
+ * แถบความคืบหน้าแบบ delivery tracking
+ * @param {number} current ขั้นที่กำลังดำเนินการ (1 = หัวหน้าสาขา ... 5 = คณบดี, total+1 = เสร็จครบทุกขั้น)
+ */
+function renderProgress(current, total = 5) {
+  if (!current) return "";
+  const steps = STEP_LABELS.slice(0, total);
+  const pct = Math.max(0, Math.min(100, Math.round(((current - 1) / total) * 100)));
+  const cells = steps
+    .map((label, i) => {
+      const n = i + 1;
+      const done = n < current;
+      const active = n === current;
+      const circleBg = done ? COLORS.maroon : active ? COLORS.gold : "#e7dcdd";
+      const circleColor = done || active ? "#ffffff" : "#a08a8c";
+      const mark = done ? "&#10003;" : String(n);
+      const labelColor = n <= current ? COLORS.heading : "#b9a9aa";
+      const labelWeight = active ? "700" : "500";
+      return `<td valign="top" align="center" style="padding:0 2px;">
+        <div style="width:30px;height:30px;line-height:30px;border-radius:999px;background:${circleBg};color:${circleColor};font-size:14px;font-weight:700;margin:0 auto;">${mark}</div>
+        <div class="estep-label" style="margin-top:6px;font-size:11px;font-weight:${labelWeight};color:${labelColor};line-height:1.3;">${label}</div>
+      </td>`;
+    })
+    .join("");
+  return `
+  <div style="margin:22px 0 6px;">
+    <div style="font-size:12px;color:#9b7e80;margin-bottom:8px;font-weight:600;">ความคืบหน้าการพิจารณา</div>
+    <div style="height:8px;border-radius:999px;background:#efe3e4;">
+      <div style="height:8px;width:${pct}%;border-radius:999px;background:${COLORS.maroon};"></div>
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;table-layout:fixed;">
+      <tr>${cells}</tr>
+    </table>
+  </div>`;
+}
+
 /** ครอบเนื้อหาด้วย layout อีเมลแบบมีแบรนด์ของคณะ (inline style เพื่อรองรับ email client) */
-function wrapHtml({ heading, lines = [], details = [], tone, badge }) {
+function wrapHtml({ heading, lines = [], details = [], tone, badge, progress }) {
   const body = lines
     .filter(Boolean)
     .map(
@@ -283,13 +322,21 @@ function wrapHtml({ heading, lines = [], details = [], tone, badge }) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media only screen and (max-width:620px){
+      .ecard{width:100%!important;border-radius:0!important;}
+      .epad{padding:22px 18px!important;}
+      .estep-label{font-size:9px!important;}
+      .ehead{padding:22px 18px!important;}
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:${COLORS.pageBg};font-family:'Sarabun','Kanit',-apple-system,'Segoe UI',Tahoma,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.pageBg};padding:28px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #ecdcde;box-shadow:0 6px 22px rgba(86,16,22,0.08);">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="ecard" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #ecdcde;box-shadow:0 6px 22px rgba(86,16,22,0.08);">
         <tr><td style="height:4px;background:${COLORS.gold};"></td></tr>
-        <tr><td style="background:linear-gradient(135deg,${COLORS.maroon},${COLORS.maroonDark});padding:26px 30px;">
+        <tr><td class="ehead" style="background:linear-gradient(135deg,${COLORS.maroon},${COLORS.maroonDark});padding:26px 30px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             <td>
               <div style="color:#ffffff;font-size:19px;font-weight:700;letter-spacing:.2px;">${APP_NAME}</div>
@@ -298,16 +345,17 @@ function wrapHtml({ heading, lines = [], details = [], tone, badge }) {
             <td align="right" style="font-size:30px;line-height:1;">⚙️</td>
           </tr></table>
         </td></tr>
-        <tr><td style="padding:30px;">
+        <tr><td class="epad" style="padding:30px;">
           ${renderBadge(tone, badge)}
           ${heading ? `<h1 style="margin:14px 0 16px;font-size:20px;color:${COLORS.heading};font-weight:700;">${heading}</h1>` : ""}
           ${body}
+          ${progress ? renderProgress(progress.current, progress.total) : ""}
           ${renderDetails(details)}
           <div style="margin-top:26px;">
             <a href="${getFrontendUrl()}" style="display:inline-block;background:${COLORS.maroon};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 28px;border-radius:9px;box-shadow:0 2px 6px rgba(122,27,34,.25);">เข้าสู่ระบบ</a>
           </div>
         </td></tr>
-        <tr><td style="padding:18px 30px;background:${COLORS.footerBg};border-top:1px solid ${COLORS.divider};color:${COLORS.footerText};font-size:12px;text-align:center;line-height:1.7;">
+        <tr><td class="epad" style="padding:18px 30px;background:${COLORS.footerBg};border-top:1px solid ${COLORS.divider};color:${COLORS.footerText};font-size:12px;text-align:center;line-height:1.7;">
           อีเมลฉบับนี้ส่งจากระบบอัตโนมัติ กรุณาอย่าตอบกลับ<br>© คณะวิศวกรรมศาสตร์ มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น
         </td></tr>
       </table>
@@ -328,6 +376,16 @@ function proxyLine(d = {}) {
 const daysValue = (d) =>
   d.requestedDays != null && d.requestedDays !== "" ? `${d.requestedDays} วัน` : null;
 
+// รายละเอียดการลามาตรฐาน (renderDetails กรอง field ที่ว่างออกให้ — caller ส่งมาเท่าที่มี)
+function leaveDetails(d = {}) {
+  return [
+    { label: "ประเภทการลา", value: d.leaveTypeName },
+    { label: "ช่วงวันที่ลา", value: d.dateRange },
+    { label: "จำนวนวัน", value: daysValue(d) },
+    { label: "เหตุผล", value: d.reason },
+  ];
+}
+
 // ตารางเทมเพลตหลัก (key มาตรฐาน) — แต่ละตัวคืน { subject, heading, lines, tone, badge, details? }
 const TEMPLATES = {
   // ── ยื่นคำขอ → แจ้งผู้อนุมัติระดับแรก ──
@@ -342,10 +400,13 @@ const TEMPLATES = {
     ],
     details: [
       { label: "ผู้ยื่นคำขอ", value: d.requesterName },
+      { label: "ประเภทการลา", value: d.leaveTypeName },
+      { label: "ช่วงวันที่ลา", value: d.dateRange },
       { label: "จำนวนวันลา", value: daysValue(d) },
       { label: "เหตุผล", value: d.reason },
       { label: "ติดต่อ", value: d.contact },
     ],
+    progress: { current: 1 },
   }),
   // ── ยื่นคำขอ → ยืนยันกลับผู้ลา ──
   SUBMISSION_CONFIRM: (d) => ({
@@ -358,10 +419,13 @@ const TEMPLATES = {
       "ระบบได้รับคำขอลาของคุณเรียบร้อยแล้ว ขณะนี้อยู่ระหว่างรอการพิจารณาจากหัวหน้าสาขา",
     ],
     details: [
+      { label: "ประเภทการลา", value: d.leaveTypeName },
+      { label: "ช่วงวันที่ลา", value: d.dateRange },
       { label: "จำนวนวันลา", value: daysValue(d) },
       { label: "เหตุผล", value: d.reason },
       { label: "ติดต่อ", value: d.contact },
     ],
+    progress: { current: 1 },
   }),
   APPROVER1_APPROVED: (d) => ({
     subject: "คำขอลาได้รับการอนุมัติจากหัวหน้าสาขา",
@@ -372,6 +436,8 @@ const TEMPLATES = {
       "เรียน ผู้ตรวจสอบ,",
       `คำขอลาจาก <b>${d.userName}</b> ได้รับการอนุมัติจากหัวหน้าสาขาแล้ว ${proxyLine(d)} กรุณาตรวจสอบข้อมูล`,
     ],
+    details: leaveDetails(d),
+    progress: { current: 2 },
   }),
   VERIFIER_APPROVED: (d) => ({
     subject: "คำขอลาได้รับการตรวจสอบจากผู้ตรวจสอบ",
@@ -382,6 +448,8 @@ const TEMPLATES = {
       "เรียน ผู้บังคับบัญชา,",
       `คำขอลาจาก <b>${d.userName}</b> ได้รับการตรวจสอบผ่านจากผู้ตรวจสอบแล้ว ${proxyLine(d)} กรุณาพิจารณาอนุมัติขั้นต่อไป`,
     ],
+    details: leaveDetails(d),
+    progress: { current: 3 },
   }),
   APPROVER2_APPROVED: (d) => ({
     subject: "คำขอลาได้รับการอนุมัติจากหัวหน้าคณะ",
@@ -392,6 +460,8 @@ const TEMPLATES = {
       "เรียน รองคณบดี,",
       `คำขอลาจาก <b>${d.userName}</b> ได้รับการอนุมัติจากหัวหน้าคณะแล้ว ${proxyLine(d)} กรุณาพิจารณาอนุมัติขั้นต่อไป`,
     ],
+    details: leaveDetails(d),
+    progress: { current: 4 },
   }),
   APPROVER3_APPROVED: (d) => ({
     subject: "คำขอลาได้รับการอนุมัติจากรองคณบดี",
@@ -402,6 +472,8 @@ const TEMPLATES = {
       "เรียน คณบดี,",
       `คำขอลาจาก <b>${d.userName}</b> ได้รับการอนุมัติจากรองคณบดีแล้ว ${proxyLine(d)} กรุณาพิจารณาอนุมัติขั้นสุดท้าย`,
     ],
+    details: leaveDetails(d),
+    progress: { current: 5 },
   }),
   STEP_APPROVED_1: (d) => ({
     subject: "คำขอลาของคุณได้รับการอนุมัติจากหัวหน้าสาขา",
@@ -412,6 +484,8 @@ const TEMPLATES = {
       `เรียน ${d.userName},`,
       "คำขอลาของคุณได้รับการอนุมัติเรียบร้อยแล้วจากหัวหน้าสาขา กรุณาตรวจสอบสถานะในระบบ",
     ],
+    details: leaveDetails(d),
+    progress: { current: 2 },
   }),
   STEP_APPROVED_2: (d) => ({
     subject: "คำขอลาของคุณได้รับการตรวจสอบจากผู้ตรวจสอบ",
@@ -422,6 +496,8 @@ const TEMPLATES = {
       `เรียน ${d.userName},`,
       "คำขอลาของคุณได้รับการตรวจสอบเรียบร้อยแล้วจากผู้ตรวจสอบ กรุณาตรวจสอบสถานะในระบบ",
     ],
+    details: leaveDetails(d),
+    progress: { current: 3 },
   }),
   STEP_APPROVED_3: (d) => ({
     subject: "คำขอลาของคุณได้รับการอนุมัติจากหัวหน้าคณะ",
@@ -432,6 +508,8 @@ const TEMPLATES = {
       `เรียน ${d.userName},`,
       "คำขอลาของคุณได้รับการอนุมัติเรียบร้อยแล้วจากหัวหน้าคณะ กรุณาตรวจสอบสถานะในระบบ",
     ],
+    details: leaveDetails(d),
+    progress: { current: 4 },
   }),
   STEP_APPROVED_4: (d) => ({
     subject: "คำขอลาของคุณได้รับการอนุมัติจากรองคณบดี",
@@ -442,6 +520,8 @@ const TEMPLATES = {
       `เรียน ${d.userName},`,
       "คำขอลาของคุณได้รับการอนุมัติเรียบร้อยแล้วจากรองคณบดี กรุณาตรวจสอบสถานะในระบบ",
     ],
+    details: leaveDetails(d),
+    progress: { current: 5 },
   }),
   FULLY_APPROVED: (d) => ({
     subject: "คำขอลาของคุณได้รับการอนุมัติเรียบร้อยแล้ว",
@@ -452,6 +532,8 @@ const TEMPLATES = {
       `เรียน ${d.userName},`,
       "คำขอลาของคุณได้รับการอนุมัติครบทุกขั้นตอนแล้ว ระบบได้ตัดยอดวันลาเรียบร้อยแล้ว",
     ],
+    details: leaveDetails(d),
+    progress: { current: 6 },
   }),
   REJECTION: (d) => ({
     subject: "คำขอลาของคุณถูกปฏิเสธ",
@@ -462,7 +544,10 @@ const TEMPLATES = {
       `เรียน ${d.userName},`,
       "คำขอลาของคุณถูกปฏิเสธ กรุณาตรวจสอบรายละเอียดและเหตุผลด้านล่าง",
     ],
-    details: [{ label: "เหตุผล", value: d.remarks || "ไม่ได้ระบุเหตุผล" }],
+    details: [
+      ...leaveDetails(d),
+      { label: "เหตุผลที่ปฏิเสธ", value: d.remarks || "ไม่ได้ระบุเหตุผล" },
+    ],
   }),
   // ── ยกเลิกโดยผู้ดูแลระบบ → แจ้งผู้ลา ──
   CANCELLATION: (d) => ({
@@ -589,8 +674,8 @@ function getEmailTemplate(eventType, data = {}) {
     };
   }
 
-  const { subject, heading, lines, tone, badge, details } = builder(data);
-  return { subject, html: wrapHtml({ heading, lines, tone, badge, details }) };
+  const { subject, heading, lines, tone, badge, details, progress } = builder(data);
+  return { subject, html: wrapHtml({ heading, lines, tone, badge, details, progress }) };
 }
 
 /**
