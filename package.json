@@ -10,7 +10,12 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:reset": "jest src/__tests__/unit/utils/resetLeaveBalance.test.js --passWithNoTests",
-    "start": "nodemon ./src/server.js"
+    "start": "nodemon ./src/server.js",
+    "db:seed": "node prisma/seed.js",
+    "db:migrate": "prisma migrate deploy",
+    "db:backup": "node scripts/backup-db.js",
+    "db:restore": "node scripts/restore-db.js",
+    "setup": "prisma migrate deploy && prisma generate && node prisma/seed.js"
   },
   "author": "",
   "license": "ISC",

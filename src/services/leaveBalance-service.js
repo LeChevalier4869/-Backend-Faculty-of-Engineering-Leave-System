@@ -102,7 +102,7 @@ class LeaveBalanceService {
       }
     });
 
-    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === true;
     
     if (leaveType?.isNonDeductible || isNonDeductible) {
       // สำหรับประเภทการลาที่ไม่ต้องหักวัน: อัปเดตเฉพาะ pendingDays แต่ไม่คำนวณ remainingDays
@@ -181,7 +181,7 @@ class LeaveBalanceService {
       }
     });
 
-    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === true;
     
     if (leaveType?.isNonDeductible || isNonDeductible) {
       // สำหรับประเภทการลาที่ไม่ต้องหักวัน: อัปเดตเฉพาะ usedDays แต่ไม่คำนวณ remainingDays
@@ -258,7 +258,7 @@ class LeaveBalanceService {
       }
     });
 
-    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+    const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === true;
     
     if (leaveType?.isNonDeductible || isNonDeductible) {
       // สำหรับประเภทการลาที่ไม่ต้องหักวัน: คืนเฉพาะ pendingDays แต่ไม่คำนวณ remainingDays

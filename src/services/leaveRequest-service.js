@@ -589,7 +589,7 @@ class LeaveRequestService {
         }
       });
 
-      const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+      const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === true;
 
       if (isNonDeductible || specialLeaveTypes.includes(leaveTypeIdInt)) {
         // สำหรับประเภทการลาที่ไม่ต้องหักวัน ให้ข้ามการตรวจสอบยอดคงเหลือ

@@ -12,7 +12,13 @@ async function getOverduePending(thresholdDays = 3) {
   const cutoff = new Date(Date.now() - thresholdDays * DAY_MS);
 
   const pendingDetails = await prisma.leaveRequestDetail.findMany({
-    where: { status: "PENDING", reviewedAt: { lte: cutoff } },
+    where: {
+      status: "PENDING",
+      reviewedAt: { lte: cutoff },
+      // นับเฉพาะ detail ที่คำขอแม่ยัง PENDING อยู่จริง
+      // กัน orphan: detail ที่ค้างใต้คำขอที่ถูก REJECTED/APPROVED/CANCELLED ไปแล้ว
+      leaveRequest: { status: "PENDING" },
+    },
     include: {
       approver: {
         select: {

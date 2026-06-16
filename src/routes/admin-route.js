@@ -123,8 +123,7 @@ router.post('/organizations', authorize(["ADMIN"]), authController.createOrganiz
 router.put('/organizations/:id', authorize(["ADMIN"]), authController.updateOrganization);
 router.delete('/organizations/:id', authorize(["ADMIN"]), authController.deleteOrganization);
 
-  //---------------------------------- employmentType -----------------------
-router.get('/organizations', authorize(["ADMIN"]), adminController.organizationList);
+  // หมายเหตุ: เดิมมี GET '/organizations' ซ้ำตรงนี้ (dead route — ถูก shadow โดยบรรทัดด้านบนที่ผูก authController.getAllOrganizations) ลบออกแล้ว
 router.post("/create-user", upload.single("profilePicture"), authorize(["ADMIN"]), adminController.createUserByAdmin);
 
  //---------------------------------- setting -----------------------
