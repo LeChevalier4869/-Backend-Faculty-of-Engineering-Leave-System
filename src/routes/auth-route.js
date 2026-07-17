@@ -85,9 +85,14 @@ router.delete('/personnel-types/:id', authenticate, authorize(["ADMIN", "SUPER_A
 
 
 // Login via Google
+// prompt: "select_account" บังคับให้ Google แสดงหน้าเลือกบัญชีทุกครั้ง
+// ไม่ว่า browser จะ login ค้างด้วยบัญชีไหน ผู้ใช้จึงเลือกอีเมลองค์กร (@rmuti.ac.th) ได้เสมอ
 router.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    prompt: "select_account",
+  })
 );
 
 // Google callback
