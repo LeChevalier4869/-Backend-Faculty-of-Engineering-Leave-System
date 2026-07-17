@@ -28,7 +28,9 @@ router.get('/approvers-for-level/:level', optionalAuth, authController.getApprov
 //      User Management (Admin)
 // ==============================
 
-router.post('/update-role/:id', authenticate, authorize(['SUPER_ADMIN']), authController.updateUserRole);
+// ADMIN แก้บทบาทได้เหมือน SUPER_ADMIN แต่ controller (updateUserRole) กันไว้ว่า ผู้ที่ไม่ใช่ SUPER_ADMIN
+// จะเพิ่ม/ลบบทบาท SUPER_ADMIN, แก้บทบาทของ SUPER_ADMIN หรือถอด SUPER_ADMIN ของตัวเองไม่ได้
+router.post('/update-role/:id', authenticate, authorize(['ADMIN']), authController.updateUserRole);
 router.put('/users/:id', authenticate, upload.single('images'), authController.updateUser);
 router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('profilePicturePath'), authController.updateProfile);
 router.get('/profile-image/:filename', authController.getProfileImage);
