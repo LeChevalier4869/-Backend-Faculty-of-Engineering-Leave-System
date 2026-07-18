@@ -1,0 +1,974 @@
+{
+  "_meta": {
+    "note": "สร้างอัตโนมัติจาก DB จริงด้วย scripts/generate-seed-data.js — แก้ไขได้ตามต้องการ",
+    "generatedFromCounts": {
+      "organizations": 1,
+      "departments": 14,
+      "personnelTypes": 5,
+      "leaveTypes": 16,
+      "ranks": 75
+    }
+  },
+  "organizations": [
+    {
+      "name": "คณะวิศวกรรมศาสตร์"
+    }
+  ],
+  "departments": [
+    {
+      "name": "แผนกชั่วคราว (รอจัดสรรคนเข้าแผนก)",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมโยธา",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมอิเล็กทรอนิกส์ฯ",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมคอมพิวเตอร์",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมเมคคาทรอนิกส์",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมเครื่องกล",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมเครื่องจักรกลเกษตร",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมอาหารและชีวภาพ",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมอุตสาหการ",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมโลหการ",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "เคมี",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "คณิตศาสตร์",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "ฟิสิกส์ประยุกต์",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "สถิติประยุกต์",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    }
+  ],
+  "personnelTypes": [
+    {
+      "name": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา"
+    },
+    {
+      "name": "ลูกจ้างประจำ"
+    },
+    {
+      "name": "พนักงานราชการ"
+    },
+    {
+      "name": "พนักงานในสถาบันอุดมศึกษา"
+    },
+    {
+      "name": "ลูกจ้างเงินรายได้"
+    }
+  ],
+  "leaveTypes": [
+    {
+      "name": "ลาป่วย",
+      "isAvailable": true,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาคลอดบุตร",
+      "isAvailable": false,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลากิจส่วนตัว",
+      "isAvailable": true,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาพักผ่อน",
+      "isAvailable": true,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาอุปสมบท",
+      "isAvailable": false,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": false
+    },
+    {
+      "name": "ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล",
+      "isAvailable": false,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "isAvailable": false,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "isAvailable": false,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "isAvailable": false,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "isAvailable": false,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": false
+    },
+    {
+      "name": "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "isAvailable": false,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาติดตามคู่สมรส",
+      "isAvailable": false,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ลาไปประกอบพิธีฮัจย์",
+      "isAvailable": false,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": false
+    },
+    {
+      "name": "ลาเข้ารับการตรวจเลือก",
+      "isAvailable": true,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": false
+    },
+    {
+      "name": "ลาศึกษาต่อ",
+      "isAvailable": true,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": false
+    },
+    {
+      "name": "ลาไปต่างประเทศ",
+      "isAvailable": true,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": false
+    }
+  ],
+  "ranks": [
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาป่วย",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาป่วย",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 60,
+      "maxDays": 60,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาคลอดบุตร",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาคลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 90,
+      "maxDays": 90,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลากิจส่วนตัว",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลากิจส่วนตัว",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 45,
+      "maxDays": 45,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาพักผ่อน อายุราชการไม่ถึง 6 เดือน ไม่มีสิทธิลา",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 0,
+      "maxHireMonths": 6,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาพักผ่อน อายุราชการมากกว่า 6 เดือน และไม่เกิน 10 ปี",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 6,
+      "maxHireMonths": 120,
+      "receiveDays": 10,
+      "maxDays": 20,
+      "isBalance": true
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาพักผ่อน อายุราชการมากกว่า 10 ปี",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 120,
+      "maxHireMonths": null,
+      "receiveDays": 10,
+      "maxDays": 30,
+      "isBalance": true
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาอุปสมบท",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาอุปสมบท",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาเข้ารับราชการตรวจเลือกเข้ารับการเตรียมพล",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1461,
+      "maxDays": 1461,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 15,
+      "maxDays": 15,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 366,
+      "maxDays": 366,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาติดตามคู่สมรส",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาติดตามคู่สมรส",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1461,
+      "maxDays": 1461,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปประกอบพิธีฮัจย์",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปประกอบพิธีฮัจย์",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาป่วย",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาป่วย",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 60,
+      "maxDays": 60,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาคลอดบุตร",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาคลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 90,
+      "maxDays": 90,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลากิจส่วนตัว",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลากิจส่วนตัว",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 45,
+      "maxDays": 45,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาพักผ่อน อายุราชการไม่ถึง 6 เดือน ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 0,
+      "maxHireMonths": 6,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาพักผ่อน อายุราชการมากกว่า 6 เดือน และไม่เกิน 10 ปี",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 6,
+      "maxHireMonths": 120,
+      "receiveDays": 10,
+      "maxDays": 20,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาพักผ่อน อายุราชการมากกว่า 10 ปี",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 120,
+      "maxHireMonths": null,
+      "receiveDays": 10,
+      "maxDays": 30,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาอุปสมบท",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาอุปสมบท",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาเข้ารับราชการตรวจเลือกเข้ารับการเตรียมพล",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1461,
+      "maxDays": 1461,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 15,
+      "maxDays": 15,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 366,
+      "maxDays": 366,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาติดตามคู่สมรส",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาติดตามคู่สมรส",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1461,
+      "maxDays": 1461,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาไปประกอบพิธีฮัจย์",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาไปประกอบพิธีฮัจย์",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานราชการ ลาป่วย",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาป่วย",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 30,
+      "maxDays": 30,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาคลอดบุตร",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาคลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 90,
+      "maxDays": 90,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลากิจส่วนตัว",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลากิจส่วนตัว",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 10,
+      "maxDays": 10,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาพักผ่อน อายุราชการไม่ถึง 6 เดือน ไม่มีสิทธิลา",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 0,
+      "maxHireMonths": 6,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาพักผ่อน อายุราชการมากกว่า 6 เดือน และไม่เกิน 1 ปี",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 6,
+      "maxHireMonths": 12,
+      "receiveDays": 10,
+      "maxDays": 10,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาพักผ่อน อายุราชการมากกว่า 1 ปี",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 10,
+      "maxDays": 15,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานราชการ ลาอุปสมบท",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาอุปสมบท",
+      "minHireMonths": 48,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานราชการ ลาเข้ารับราชการตรวจเลือกเข้ารับการเตรียมพล",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน ไม่มีสิทธิลา",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 15,
+      "maxDays": 15,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ ไม่มีสิทธิลา",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานราชการ ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาติดตามคู่สมรส",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาติดตามคู่สมรส",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1461,
+      "maxDays": 1461,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาไปประกอบพิธีฮัจย์",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาไปประกอบพิธีฮัจย์",
+      "minHireMonths": 48,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาป่วย",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาป่วย",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 60,
+      "maxDays": 60,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาคลอดบุตร",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาคลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 90,
+      "maxDays": 90,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลากิจส่วนตัว",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลากิจส่วนตัว",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 45,
+      "maxDays": 45,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาพักผ่อน อายุราชการไม่ถึง 6 เดือน ไม่มีสิทธิลา",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 0,
+      "maxHireMonths": 6,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาพักผ่อน อายุราชการมากกว่า 6 เดือน และไม่เกิน 10 ปี",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 6,
+      "maxHireMonths": 120,
+      "receiveDays": 10,
+      "maxDays": 20,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาพักผ่อน อายุราชการมากกว่า 10 ปี",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 120,
+      "maxHireMonths": null,
+      "receiveDays": 10,
+      "maxDays": 30,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาอุปสมบท",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาอุปสมบท",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาเข้ารับราชการตรวจเลือกเข้ารับการเตรียมพล",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1461,
+      "maxDays": 1461,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 15,
+      "maxDays": 15,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 366,
+      "maxDays": 366,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาติดตามคู่สมรส",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาติดตามคู่สมรส",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1461,
+      "maxDays": 1461,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปประกอบพิธีฮัจย์",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปประกอบพิธีฮัจย์",
+      "minHireMonths": 12,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาป่วย อายุงานไม่ถึง 6 เดือน",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาป่วย",
+      "minHireMonths": 0,
+      "maxHireMonths": 6,
+      "receiveDays": 8,
+      "maxDays": 8,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาป่วย อายุงานมากกว่า 6 เดือน",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาป่วย",
+      "minHireMonths": 6,
+      "maxHireMonths": null,
+      "receiveDays": 15,
+      "maxDays": 15,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาคลอดบุตร",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาคลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 90,
+      "maxDays": 90,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลากิจส่วนตัว ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลากิจส่วนตัว",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาพักผ่อน อายุงานไม่ถึง 6 เดือนไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 0,
+      "maxHireMonths": 6,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาพักผ่อน อายุงานมากกว่า 6 เดือน",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาพักผ่อน",
+      "minHireMonths": 6,
+      "maxHireMonths": null,
+      "receiveDays": 10,
+      "maxDays": 10,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาอุปสมบท ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาอุปสมบท",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาเข้ารับราชการตรวจเลือกเข้ารับการเตรียมพล ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาไปช่วยเหลือภริยาที่คลอดบุตร ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาไปช่วยเหลือภริยาที่คลอดบุตร",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาไปถือศีล ปฏิบัติธรรม (สตรี) ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาไปถือศีล ปฏิบัติธรรม (สตรี)",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาไปปฏิบัติงานในองค์การระหว่างประเทศ ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาติดตามคู่สมรส ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาติดตามคู่สมรส",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาไปประกอบพิธีฮัจย์ ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาไปประกอบพิธีฮัจย์",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    }
+  ],
+  "settings": [
+    {
+      "key": "AdminMail",
+      "type": "string",
+      "value": "ex@rmuti.ac.th"
+    },
+    {
+      "key": "AdminName",
+      "type": "string",
+      "value": "นายทดสอบ ระบบ"
+    },
+    {
+      "key": "AdminPhone",
+      "type": "string",
+      "value": "099-999-9999"
+    },
+    {
+      "key": "DELEGATE_RULES",
+      "type": "json",
+      "value": "[]"
+    },
+    {
+      "key": "drive_template",
+      "type": "url",
+      "value": "https://drive.google.com/drive/folders/1RQJBL8Js2rwGKslKvLUeS1X-Go7aYibp?usp=sharing"
+    },
+    {
+      "key": "leave_information",
+      "type": "url",
+      "value": "https://sites.google.com/rmuti.ac.th/hrkkcrmuti/%E0%B8%AA%E0%B8%97%E0%B8%98%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B9%82%E0%B8%A2%E0%B8%8A%E0%B8%99%E0%B8%A7%E0%B8%B2%E0%B8%94%E0%B8%A7%E0%B8%A2%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A5%E0%B8%B2?authuser=0"
+    }
+  ]
+}

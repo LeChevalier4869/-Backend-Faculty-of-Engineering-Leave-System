@@ -449,7 +449,7 @@ exports.uploadUserExcel = async (req, res) => {
       const positionNumber = user.positionNumber || user["เลขที่ตำแหน่ง"];
 
       // Handle both English and Thai headers for personnel type
-      const personnelTypeName = user.personnelTypeName || user["ประเภทบุคคล"];
+      const personnelTypeName = String(user.personnelTypeName || user["ประเภทบุคคล"] || "").trim();
 
       const normalizedEmail = (email || user["อีเมล"])?.trim().toLowerCase();
       

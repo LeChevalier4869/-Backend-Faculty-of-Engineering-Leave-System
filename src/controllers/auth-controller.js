@@ -266,6 +266,11 @@ exports.updateUserRole = async (req, res, next) => {
       throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการเพิ่มหรือลบบทบาท SUPER_ADMIN");
     }
 
+    // กันไม่ให้ถอดบทบาท SUPER_ADMIN ของตัวเอง (กันล็อกเอาต์ตัวเอง)
+    if (action === "REMOVE" && req.user.id === userId && userRole.includes("SUPER_ADMIN")) {
+      throw createError(403, "ไม่สามารถถอดบทบาท SUPER_ADMIN ของตัวเองได้");
+    }
+
     // ป้องกัน ADMIN แก้ role ของ user ที่เป็น SUPER_ADMIN
     const targetUser = await UserService.getUserByIdWithRoles(userId);
     const targetRoleNames = (targetUser?.userRoles || []).map((ur) => ur.role?.name).filter(Boolean);

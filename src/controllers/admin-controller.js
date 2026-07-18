@@ -1363,13 +1363,60 @@ exports.deleteSetting = async (req, res) => {
 //--------------------- Leave Balance Reset --------------------
 exports.resetLeaveBalance = async (req, res, next) => {
   try {
-    console.log("🔄 Admin กำลังรันการรีเซ็ต Leave Balance ด้วยตนเอง");
+    const { confirm, force } = req.body || {};
+
+    // ชั้นที่ 1: ต้องยืนยันก่อนเสมอ (กันการเรียก API โดยไม่ตั้งใจ)
+    if (confirm !== true) {
+      throw createError(400, "ต้องส่ง confirm: true เพื่อยืนยันการรีเซ็ตยอดวันลา");
+    }
+
+    // อ่านปีงบประมาณปัจจุบันที่จะถูกรีเซ็ต
+    const fySetting = await prisma.setting.findUnique({ where: { key: "fiscalYear" } });
+    const year = fySetting ? parseInt(fySetting.value, 10) : new Date().getFullYear();
+
+    // ชั้นที่ 2: ถ้าปีงบนี้มีการใช้วันลาไปแล้ว (used/pending > 0) การรีเซ็ตจะลบข้อมูลทิ้ง
+    //           → ต้องส่ง force: true เพื่อยืนยันซ้ำ (กันลบข้อมูลกลางปีโดยไม่ตั้งใจ)
+    const activeBalance = await prisma.leaveBalance.findFirst({
+      where: { year, OR: [{ usedDays: { gt: 0 } }, { pendingDays: { gt: 0 } }] },
+      select: { id: true },
+    });
+
+    if (activeBalance && force !== true) {
+      const agg = await prisma.leaveBalance.aggregate({
+        where: { year },
+        _sum: { usedDays: true, pendingDays: true },
+      });
+      throw createError(
+        409,
+        `ปีงบประมาณ ${year} มีการใช้วันลาไปแล้ว (ใช้ไป ${agg._sum.usedDays || 0} วัน, รออนุมัติ ${agg._sum.pendingDays || 0} วัน) — ` +
+          `การรีเซ็ตจะลบยอดเหล่านี้ทิ้งทั้งหมด หากยืนยันให้ส่ง force: true`
+      );
+    }
+
+    console.log(`🔄 Admin รีเซ็ต Leave Balance ด้วยตนเอง (ปีงบ ${year}, force=${!!force})`);
 
     await resetLeaveBalance();
+
+    // บันทึก audit log สำหรับการกระทำที่อันตราย
+    try {
+      await AuditLogService.createLog(
+        req.user?.id || null,
+        "LEAVE_BALANCE_MANUAL_RESET",
+        "SYSTEM",
+        null,
+        `รีเซ็ตยอดวันลาด้วยตนเอง (ปีงบ ${year}${force ? ", force" : ""})`,
+        null,
+        req.user?.email || "ADMIN_MANUAL",
+        { year, force: !!force }
+      );
+    } catch (logErr) {
+      console.error("audit log (reset) ล้มเหลว:", logErr.message);
+    }
 
     res.status(200).json({
       message: "รีเซ็ต Leave Balance สำเร็จ",
       details: "ข้อมูลปีก่อนถูกเก็บรักษาไว้เป็นประวัติ",
+      year,
       timestamp: new Date().toISOString()
     });
   } catch (err) {

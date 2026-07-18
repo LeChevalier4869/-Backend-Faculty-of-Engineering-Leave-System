@@ -65,7 +65,7 @@ exports.sendEmailTest = async (req, res, next) => {
 exports.sendEmailTest2 = async (req, res, next) => {
     try {
         await sendEmailTest(
-            'assawin.in@rmuti.ac.th', // เปลี่ยนเป็นอีเมลผู้รับที่ต้องการ
+            process.env.EMAIL_USER_RMUTI || 'natthawat.pm@rmuti.ac.th', // ผู้รับทดสอบ (ใช้อีเมลผู้ส่งของระบบ)
             'ทดสอบส่งอีเมลผ่าน SendGrid SMTP',
             '<p>สวัสดี นี่คืออีเมลทดสอบจากระบบ eLeave</p>'
         );
@@ -86,7 +86,8 @@ exports.sendAllTemplates = async (req, res, next) => {
         const email =
             (req.body && req.body.email) ||
             req.query.email ||
-            'assawin.in@rmuti.ac.th';
+            process.env.EMAIL_USER_RMUTI ||
+            'natthawat.pm@rmuti.ac.th';
 
         // ข้อมูลตัวอย่างสำหรับเติมลงเทมเพลต (ครอบทุก field ที่เทมเพลตใช้)
         const sampleData = {
