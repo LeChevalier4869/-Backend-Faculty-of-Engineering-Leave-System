@@ -884,9 +884,15 @@ exports.getAllApprover = async (req, res) => {
 exports.getApproversForLevel = async (req, res) => {
   try {
     const { level } = req.params;
-    const { date } = req.query;
+    const { date, departmentId } = req.query;
 
-    const approvers = await UserService.getApproversForLevel(parseInt(level), date || new Date());
+    // ระดับ 1 คือหัวหน้าสาขา ซึ่งมีคนละคนในแต่ละสาขา
+    // ผู้เรียกระบุ departmentId มาได้เพื่อจำกัดเฉพาะสาขานั้น (ไม่ระบุ = ทุกสาขาเหมือนเดิม)
+    const approvers = await UserService.getApproversForLevel(
+      parseInt(level),
+      date || new Date(),
+      departmentId ?? null
+    );
     res.status(200).json({ success: true, data: approvers });
   } catch (err) {
     res.status(400).json({ message: err.message });

@@ -1083,11 +1083,12 @@ class LeaveRequestService {
    *
    * คิวอนุมัติกรองตามสาขาอยู่แล้ว แต่ตัวจัดการ approve ตรวจแค่ว่ามีบทบาท APPROVER_1
    * หัวหน้าสาขาอื่นจึงอนุมัติคำขอข้ามสาขาได้ถ้ารู้ id ของรายการ
-   * ผู้รับมอบอำนาจ (proxy) ยังทำแทนได้ตามปกติ
+   *
+   * กรณีผู้รับมอบอำนาจ: ตาราง ProxyApproval ไม่มีคอลัมน์ระบุสาขา จึงต้องอนุมานขอบเขต
+   * จาก "ผู้มอบอำนาจ" ว่าเป็นหัวหน้าสาขาของผู้ยื่นหรือไม่ ไม่งั้นการมอบอำนาจระดับ 1
+   * ครั้งเดียวจะทำให้อนุมัติได้ทุกสาขาในคณะ
    */
   static async assertFirstStepDepartmentScope(leaveRequestId, approverId, isProxy) {
-    if (isProxy) return;
-
     const request = await prisma.leaveRequest.findUnique({
       where: { id: Number(leaveRequestId) },
       select: {
@@ -1099,11 +1100,33 @@ class LeaveRequestService {
       },
     });
 
-    const head = request?.user?.department;
-    if (head?.headId && head.headId !== Number(approverId)) {
+    const dept = request?.user?.department;
+    if (!dept?.headId) return; // สาขายังไม่มีหัวหน้า ปล่อยผ่านให้ระบบเดินต่อได้
+
+    if (isProxy) {
+      // ต้องเป็นการรับมอบอำนาจ "จากหัวหน้าสาขาของผู้ยื่น" เท่านั้น
+      const delegation = await prisma.proxyApproval.findFirst({
+        where: {
+          proxyApproverId: Number(approverId),
+          originalApproverId: dept.headId,
+          approverLevel: 1,
+          status: "ACTIVE",
+        },
+      });
+
+      if (!delegation) {
+        throw createError(
+          403,
+          `คุณไม่ได้รับมอบอำนาจจากหัวหน้าสาขาของผู้ยื่นคำขอนี้ (${dept.name})`
+        );
+      }
+      return;
+    }
+
+    if (dept.headId !== Number(approverId)) {
       throw createError(
         403,
-        `คุณไม่ใช่หัวหน้าสาขาของผู้ยื่นคำขอนี้ (${head.name})`
+        `คุณไม่ใช่หัวหน้าสาขาของผู้ยื่นคำขอนี้ (${dept.name})`
       );
     }
   }

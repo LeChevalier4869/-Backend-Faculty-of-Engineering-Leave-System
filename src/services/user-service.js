@@ -380,7 +380,14 @@ class UserService {
     return user;
   }
 
-  static async getApproversForLevel(level, date) {
+  /**
+   * ผู้อนุมัติของระดับที่ระบุ (รวมผู้รับมอบอำนาจที่ยัง active ในวันนั้น)
+   *
+   * @param {number} level  1=APPROVER_1 ... 5=APPROVER_4
+   * @param {Date}   date   วันที่ใช้ตรวจช่วงเวลาการมอบอำนาจ
+   * @param {number} [departmentId] ถ้าระบุและ level=1 จะกรองเฉพาะหัวหน้าสาขานั้น
+   */
+  static async getApproversForLevel(level, date, departmentId = null) {
     try {
       // แปลง level เป็น role name
       const roleMap = {
@@ -404,14 +411,21 @@ class UserService {
                 name: roleName
               }
             }
-          }
+          },
+          // ระดับ 1 (หัวหน้าสาขา) ผูกกับสาขา — ถ้าระบุสาขามาให้กรองด้วย
+          // ไม่งั้นจะได้หัวหน้าสาขา "ทุกสาขา" ซึ่งไม่เกี่ยวกับผู้ใช้ที่ถาม
+          ...(level === 1 && departmentId
+            ? { departmentId: Number(departmentId) }
+            : {})
         },
         include: {
           userRoles: {
             include: {
               role: true
             }
-          }
+          },
+          // ให้ผู้เรียกแยกแยะได้ว่าใครอยู่สาขาไหน
+          department: { select: { id: true, name: true } }
         }
       });
 
