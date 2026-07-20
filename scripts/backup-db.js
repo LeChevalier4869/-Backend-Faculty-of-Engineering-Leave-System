@@ -20,7 +20,7 @@ try {
 
 const fs = require("fs");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawn, execFileSync } = require("child_process");
 
 function parseDatabaseUrl(url) {
   if (!url) throw new Error("ไม่พบ DATABASE_URL ใน environment (.env)");
@@ -47,6 +47,19 @@ function timestamp() {
   );
 }
 
+// MariaDB's mysqldump ไม่รู้จัก --set-gtid-purged (เป็น flag ของ MySQL แท้)
+// ถ้าใส่ไปกับ client ของ MariaDB จะล้มทันที (exit 7) จึงตรวจเวอร์ชันก่อน
+function supportsGtidPurged() {
+  try {
+    const out = execFileSync("mysqldump", ["--version"], {
+      encoding: "utf8",
+    });
+    return !/mariadb/i.test(out);
+  } catch {
+    return false; // เรียกไม่ได้ก็ไม่ต้องใส่ flag — ปล่อยให้ error หลักรายงานเอง
+  }
+}
+
 async function main() {
   const cfg = parseDatabaseUrl(process.env.DATABASE_URL);
 
@@ -66,7 +79,7 @@ async function main() {
     "--routines",
     "--triggers",
     "--events",
-    "--set-gtid-purged=OFF",
+    ...(supportsGtidPurged() ? ["--set-gtid-purged=OFF"] : []),
     "--no-tablespaces",
     cfg.database,
   ];
