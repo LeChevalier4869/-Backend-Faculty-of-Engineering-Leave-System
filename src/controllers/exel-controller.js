@@ -523,10 +523,19 @@ exports.uploadUserExcel = async (req, res) => {
         };
       }
 
-      // จับคู่สาขาแบบยืดหยุ่น (ปลอดภัย): เป๊ะก่อน → ถ้าไม่เจอ ลอง contains แบบไม่กำกวม
+      // จับคู่สาขาแบบยืดหยุ่น (ปลอดภัย): เป๊ะก่อน → ตัดคำนำหน้า/อักษรย่อ → ค่อยลอง contains แบบไม่กำกวม
       const deptNameRaw = String(departmentNameResolved).trim();
       const normalize = (s) => String(s ?? "").trim().toLowerCase();
+      // ชื่อสาขาในไฟล์ Excel มักเขียนต่างจากใน DB เล็กน้อย เช่น
+      // "สาขาวิศวกรรมอิเล็กทรอนิกส์" vs "วิศวกรรมอิเล็กทรอนิกส์ฯ"
+      // จึงตัดคำนำหน้า ช่องว่าง และ "ฯ" ท้ายออกก่อนเทียบ เพื่อให้ตรงกันแบบไม่กำกวม
+      const canonical = (s) =>
+        normalize(s)
+          .replace(/\s+/g, "")
+          .replace(/^(สาขาวิชา|สาขา|ภาควิชา|แผนกวิชา|แผนก)/, "")
+          .replace(/ฯ+$/, "");
       const deptTarget = normalize(deptNameRaw);
+      const deptCanon = canonical(deptNameRaw);
 
       let department = await tx.department.findFirst({
         where: { name: deptNameRaw },
@@ -538,7 +547,11 @@ exports.uploadUserExcel = async (req, res) => {
         });
         // 1) เป๊ะแบบไม่สนตัวพิมพ์/ช่องว่าง
         let matches = allDepts.filter((d) => normalize(d.name) === deptTarget);
-        // 2) ไม่เจอ → contains แบบสองทาง (ชื่อ DB มีคำใน excel หรือกลับกัน)
+        // 2) เทียบหลังตัดคำนำหน้า/ช่องว่าง/ฯ (แม่นกว่า contains จึงลองก่อน)
+        if (matches.length === 0 && deptCanon) {
+          matches = allDepts.filter((d) => canonical(d.name) === deptCanon);
+        }
+        // 3) ยังไม่เจอ → contains แบบสองทาง (ชื่อ DB มีคำใน excel หรือกลับกัน)
         if (matches.length === 0) {
           matches = allDepts.filter(
             (d) =>

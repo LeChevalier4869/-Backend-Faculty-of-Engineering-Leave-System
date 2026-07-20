@@ -425,7 +425,16 @@ class AdminService {
   }
   static async createDepartment(data) {
     const { headId, ...deptData } = data;
-    
+
+    // กันสร้างสาขาชื่อซ้ำ (เดิมไม่มีการกัน จึงเคยเกิดสาขาซ้ำจากการทดสอบระบบ)
+    const cleanName = String(deptData.name || "").trim();
+    if (!cleanName) throw createError(400, "กรุณาระบุชื่อแผนก");
+    const duplicate = await prisma.department.findFirst({
+      where: { name: cleanName, organizationId: deptData.organizationId },
+    });
+    if (duplicate) throw createError(409, `มีแผนกชื่อ "${cleanName}" อยู่แล้ว`);
+    deptData.name = cleanName;
+
     return await prisma.$transaction(async (tx) => {
       // Create department
       const newDept = await tx.department.create({ data: deptData });
