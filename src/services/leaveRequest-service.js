@@ -103,8 +103,9 @@ class LeaveRequestService {
     if (!eligibility.success) throw createError(400, eligibility.message);
     if (!verifiers || verifiers.length === 0) throw createError(5001, "ไม่พบผู้ตรวจสอบในระบบ โปรดติดต่อผู้ดูแลระบบ");
 
-    // ใช้ verifier คนแรก (หรือสามารถเลือกตาม logic อื่นได้)
-    const verifier = verifiers[0];
+    // ผู้ยื่นต้องไม่เป็นผู้ตรวจสอบคำขอของตัวเอง
+    // ถ้าไม่มีผู้ตรวจสอบคนอื่น ปล่อย verifierId ว่างไว้ แล้วให้ตัวเลือกขั้นถัดไปไล่ข้ามให้เอง
+    const verifier = verifiers.find((v) => v.id !== userId) || null;
 
     // สร้าง leaveRequest
     let leaveRequest;
@@ -121,7 +122,7 @@ class LeaveRequestService {
           balanceDays: eligibility.balance.remainingDays,
           reason,
           contact,
-          verifierId: verifier.id,
+          verifierId: verifier ? verifier.id : null,
           status: "PENDING",
         },
       });
@@ -146,32 +147,34 @@ class LeaveRequestService {
 
     if (!user) throw createError(404, "ไม่พบข้อมูลผู้ใช้งาน");
 
-    // ดึงหัวหน้าสาขา (APPROVER_1) ที่ใช้งานได้ในวันนี้
-    const approver1s = await UserService.getApproversForLevel(1, new Date());
-    if (!approver1s || approver1s.length === 0) throw createError(500, "ไม่พบหัวหน้าสาขาที่สามารถอนุมัติได้ในวันนี้");
-
-    // หาหัวหน้าสาขาของ department นี้ (ถ้ามี)
-    let departmentHead = approver1s.find(approver =>
-      approver.isOriginal && user.department?.headId === approver.id
+    // หาผู้รับผิดชอบขั้นแรกที่ "ไม่ใช่ผู้ยื่นเอง"
+    // ไล่ตามสายอนุมัติ: หัวหน้าสาขา -> ผู้ตรวจสอบ -> สารบรรณคณะ -> รองคณบดี -> คณบดี
+    const firstStep = await this.resolveFirstPendingStep(
+      userId,
+      user.department?.headId
     );
 
-    // ถ้าไม่พบหัวหน้าสาขาของ department ให้ใช้ headId จาก department โดยตรง
-    if (!departmentHead && user.department?.headId) {
-      departmentHead = approver1s.find(approver => approver.id === user.department.headId);
+    if (!firstStep) {
+      throw createError(
+        500,
+        "ไม่พบผู้อนุมัติที่สามารถดำเนินการคำขอนี้ได้ (ผู้อนุมัติทุกระดับเป็นผู้ยื่นเอง) โปรดติดต่อผู้ดูแลระบบ"
+      );
     }
 
-    // ถ้ายังไม่พบให้ใช้คนแรก
-    if (!departmentHead) {
-      departmentHead = approver1s[0];
+    if (firstStep.stepOrder !== 1) {
+      console.log(
+        `createRequest: ข้ามขั้นหัวหน้าสาขาสำหรับคำขอ #${leaveRequest.id} ` +
+          `-> เริ่มที่ขั้น ${firstStep.stepOrder} (user#${firstStep.approverId})`
+      );
     }
 
-    // เพิ่ม approval step แรก
+    // เพิ่ม approval step แรกของคำขอนี้
     try {
       await prisma.leaveRequestDetail.create({
         data: {
           leaveRequestId: leaveRequest.id,
-          approverId: departmentHead.id,
-          stepOrder: 1,
+          approverId: firstStep.approverId,
+          stepOrder: firstStep.stepOrder,
           status: "PENDING",
         },
       });
@@ -179,9 +182,9 @@ class LeaveRequestService {
       throw createError(500, "สร้าง approval step ไม่สำเร็จ");
     }
 
-    // ส่งอีเมลแจ้งเตือนให้หัวหน้าสาขา
+    // ส่งอีเมลแจ้งเตือนให้ผู้ที่ต้องดำเนินการขั้นแรกจริง (หัวหน้าสาขา หรือผู้ตรวจสอบเมื่อข้ามขั้น)
     this.notifyApprover({
-      approverId: departmentHead.id,
+      approverId: firstStep.approverId,
       user,
       requestedDays,
       reason,
@@ -987,6 +990,89 @@ class LeaveRequestService {
   // 🟢   Approver 1: Head of Department
   // ──────────────────────────────────────────
 
+  /**
+   * กันไม่ให้ผู้ใช้อนุมัติ/ปฏิเสธคำขอลาของตัวเอง
+   *
+   * เดิมทุกขั้นตรวจแค่ว่า "ผู้กดมีบทบาทในระดับนั้นหรือไม่" จึงเปิดช่องให้หัวหน้าสาขา
+   * หรือผู้อนุมัติระดับคณะกดอนุมัติใบลาที่ตัวเองเป็นผู้ยื่นได้
+   */
+  /**
+   * ลำดับขั้นการอนุมัติหลังพ้นหัวหน้าสาขา (stepOrder -> บทบาทที่รับผิดชอบ)
+   */
+  static get APPROVAL_CHAIN() {
+    return [
+      { stepOrder: 2, roleName: "VERIFIER" },
+      { stepOrder: 4, roleName: "APPROVER_2" },
+      { stepOrder: 5, roleName: "APPROVER_3" },
+      { stepOrder: 6, roleName: "APPROVER_4" },
+    ];
+  }
+
+  /**
+   * หาขั้นแรกของคำขอที่มีผู้รับผิดชอบซึ่ง "ไม่ใช่ผู้ยื่นเอง"
+   *
+   * ปกติเริ่มที่หัวหน้าสาขาของผู้ยื่น แต่ถ้าผู้ยื่นเป็นหัวหน้าสาขาเอง (หรือสาขายังไม่มีหัวหน้า)
+   * จะไล่ขึ้นไปตามสายอนุมัติจนเจอคนที่ดำเนินการแทนได้ เพื่อไม่ให้เกิดการอนุมัติให้ตัวเอง
+   * และไม่ให้คำขอค้างโดยไม่มีผู้รับผิดชอบ
+   */
+  static async resolveFirstPendingStep(requesterId, departmentHeadId) {
+    if (departmentHeadId && departmentHeadId !== requesterId) {
+      const headIsApprover = await prisma.userRole.findFirst({
+        where: { userId: departmentHeadId, role: { name: "APPROVER_1" } },
+      });
+      if (headIsApprover) {
+        return { approverId: departmentHeadId, stepOrder: 1 };
+      }
+    }
+
+    for (const step of this.APPROVAL_CHAIN) {
+      const holder = await prisma.userRole.findFirst({
+        where: {
+          role: { name: step.roleName },
+          userId: { not: requesterId },
+        },
+        orderBy: { id: "asc" },
+      });
+      if (holder) {
+        return { approverId: holder.userId, stepOrder: step.stepOrder };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * เลือกผู้อนุมัติของขั้นถัดไปตามบทบาท โดยไม่เลือกผู้ยื่นคำขอเอง
+   * (เดิมใช้ findFirst ตรง ๆ จึงมีโอกาสได้ผู้ยื่นเป็นผู้อนุมัติของตัวเอง)
+   */
+  static async pickNextApprover(roleName, leaveRequestId) {
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: Number(leaveRequestId) },
+      select: { userId: true },
+    });
+
+    return prisma.userRole.findFirst({
+      where: {
+        role: { name: roleName },
+        ...(request ? { userId: { not: request.userId } } : {}),
+      },
+      orderBy: { id: "asc" },
+    });
+  }
+
+  static async assertNotSelfReview(leaveRequestId, actingUserId) {
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: Number(leaveRequestId) },
+      select: { userId: true },
+    });
+    if (request && request.userId === Number(actingUserId)) {
+      throw createError(
+        403,
+        "ไม่สามารถอนุมัติหรือปฏิเสธคำขอลาของตนเองได้"
+      );
+    }
+  }
+
   static async approveByFirstApprover({ id, approverId, remarks, comment }) {
     // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
     const existingDetail = await prisma.leaveRequestDetail.findUnique({
@@ -994,6 +1080,9 @@ class LeaveRequestService {
     });
 
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
+
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
@@ -1051,14 +1140,13 @@ class LeaveRequestService {
     // บันทึก log การทำงาน
 
     // 3. หา verifier user
-    const verifier = await prisma.userRole.findFirst({
-      where: {
-        role: { name: "VERIFIER" },
-      },
-      orderBy: { id: "asc" },
-    });
+    const verifier = await this.pickNextApprover(
+      "VERIFIER",
+      updatedDetail.leaveRequestId
+    );
 
-    if (!verifier) throw createError(404, "ไม่พบผู้ตรวจสอบ (VERIFIER)");
+    if (!verifier)
+      throw createError(404, "ไม่พบผู้ตรวจสอบ (VERIFIER) ที่ตรวจคำขอนี้ได้");
 
     // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ verifier
     const newDetail = await prisma.leaveRequestDetail.create({
@@ -1176,6 +1264,9 @@ class LeaveRequestService {
     });
 
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
+
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
@@ -1326,6 +1417,9 @@ class LeaveRequestService {
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
 
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
+
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
       throw createError(
@@ -1436,14 +1530,13 @@ class LeaveRequestService {
     // บันทึก log การทำงาน
 
     // 3. หา APPROVER_2
-    const approver = await prisma.userRole.findFirst({
-      where: {
-        role: { name: "APPROVER_2" },
-      },
-      orderBy: { id: "asc" },
-    });
+    const approver = await this.pickNextApprover(
+      "APPROVER_2",
+      updatedDetail.leaveRequestId
+    );
 
-    if (!approver) throw createError(404, "ไม่พบผู้อณุมัติ (APPROVER_2)");
+    if (!approver)
+      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_2) ที่อนุมัติคำขอนี้ได้");
 
     // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ approver
     const newDetail = await prisma.leaveRequestDetail.create({
@@ -1513,6 +1606,9 @@ class LeaveRequestService {
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
+
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
@@ -1646,6 +1742,9 @@ class LeaveRequestService {
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
 
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
+
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
       throw createError(
@@ -1701,14 +1800,13 @@ class LeaveRequestService {
     // บันทึก log การทำงาน
 
     // 3. หา approver user
-    const approver = await prisma.UserRole.findFirst({
-      where: {
-        role: { name: "APPROVER_3" },
-      },
-      orderBy: { id: "asc" },
-    });
+    const approver = await this.pickNextApprover(
+      "APPROVER_3",
+      updatedDetail.leaveRequestId
+    );
 
-    if (!approver) throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_3)");
+    if (!approver)
+      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_3) ที่อนุมัติคำขอนี้ได้");
 
     // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_3
     const newDetail = await prisma.leaveRequestDetail.create({
@@ -1785,6 +1883,9 @@ class LeaveRequestService {
     });
     
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
+
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
@@ -1911,6 +2012,9 @@ class LeaveRequestService {
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
 
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
+
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
       throw createError(
@@ -1941,14 +2045,13 @@ class LeaveRequestService {
     // บันทึก log การทำงาน
 
     // 3. หา approver user
-    const approver = await prisma.userRole.findFirst({
-      where: {
-        role: { name: "APPROVER_4" },
-      },
-      orderBy: { id: "asc" },
-    });
+    const approver = await this.pickNextApprover(
+      "APPROVER_4",
+      updatedDetail.leaveRequestId
+    );
 
-    if (!approver) throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_4)");
+    if (!approver)
+      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_4) ที่อนุมัติคำขอนี้ได้");
 
     // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_4
     const newDetail = await prisma.leaveRequestDetail.create({
@@ -2025,6 +2128,9 @@ class LeaveRequestService {
     });
     
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
+
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
@@ -2151,6 +2257,9 @@ class LeaveRequestService {
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
 
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
+
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
       throw createError(
@@ -2248,6 +2357,9 @@ class LeaveRequestService {
     });
     
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
+
+    // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
+    await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
