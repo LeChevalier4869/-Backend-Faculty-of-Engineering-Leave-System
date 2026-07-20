@@ -7,7 +7,7 @@ const jwt = require("jsonwebtoken");
 const cloudUpload = require("../utils/cloudUpload");
 const multer = require("multer");
 const upload = multer();
-const { sendEmail } = require("../utils/emailService");
+const { sendNotification } = require("../utils/emailService");
 const { isCorporateEmail } = require("../utils/checkEmailDomain");
 const { isAllowedEmailDomain } = require("../utils/emailDomainChecker");
 const prisma = require("../config/prisma");
@@ -266,6 +266,11 @@ exports.updateUserRole = async (req, res, next) => {
       throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการเพิ่มหรือลบบทบาท SUPER_ADMIN");
     }
 
+    // กันไม่ให้ถอดบทบาท SUPER_ADMIN ของตัวเอง (กันล็อกเอาต์ตัวเอง)
+    if (action === "REMOVE" && req.user.id === userId && userRole.includes("SUPER_ADMIN")) {
+      throw createError(403, "ไม่สามารถถอดบทบาท SUPER_ADMIN ของตัวเองได้");
+    }
+
     // ป้องกัน ADMIN แก้ role ของ user ที่เป็น SUPER_ADMIN
     const targetUser = await UserService.getUserByIdWithRoles(userId);
     const targetRoleNames = (targetUser?.userRoles || []).map((ur) => ur.role?.name).filter(Boolean);
@@ -295,24 +300,19 @@ exports.updateUserRole = async (req, res, next) => {
       throw createError(400, "Invalid action. Use 'ADD' or 'REMOVE'");
     }
 
-    //email
+    //email — แจ้งผู้ใช้เมื่อบทบาทเปลี่ยน (ใช้ template แบรนด์ของคณะ)
     const user = await UserService.getUserByIdWithRoles(userId);
 
-    if (user) {
-      const userEmail = user.email;
-      const userName = `${user.prefixName} ${user.firstName} ${user.lastName}`;
-      const newRoles = roles.map((role) => role.name);
-
-      const subject = "บทบาทของคุณได้รับการอัพเดตแล้ว!";
-      const message = `
-                <h3>สวัสดี ${userName}</h3>
-                <p>บทบาทของคุณได้รับการอัพเดตแล้ว</p>
-                <p><strong>บทบาทใหม่:</strong> ${newRoles.join(",")}</p>
-                <br/>
-                <p>ขอแสดงความนับถือ</p>
-                <p>ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-            `;
-      await sendEmail(userEmail, subject, message);
+    if (user?.email) {
+      try {
+        await sendNotification("ROLE_UPDATED", {
+          to: user.email,
+          userName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
+          roles: roles.map((role) => role.name).join(", "),
+        });
+      } catch (emailError) {
+        console.error("Failed to send role-updated email:", emailError.message);
+      }
     }
 
     res.status(200).json({ message: "อัปเดตบทบาทผู้ใช้", roles: updatedRole });

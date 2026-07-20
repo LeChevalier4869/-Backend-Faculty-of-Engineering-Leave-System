@@ -6,7 +6,7 @@ const RankService = require("./rank-service");
 const ProxyApprovalService = require("./proxyApproval-service");
 const AuditLogService = require("./auditLog-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
-const { sendNotification, sendEmail } = require("../utils/emailService");
+const { queueNotification } = require("../utils/emailService");
 
 class LeaveRequestService {
   // ────────────────────────────────────────────────────────────────
@@ -220,60 +220,64 @@ class LeaveRequestService {
     contact,
   }) {
     const approver = await UserService.getUserByIdWithRoles(approverId);
-    if (!approver) return;
+    if (!approver?.email) return;
 
-    const approverEmail = approver.email;
-    const approverName = `${approver.prefixName} ${approver.firstName} ${approver.lastName}`;
-    const subject = "ยืนยันการยื่นคำขอลา";
-    const message = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-      <h3 style="color: #2c3e50;">เรียน ${approverName},</h3>
-      <p>คุณได้รับการแจ้งเตือนเกี่ยวกับคำขอลาใหม่จากระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-      <p><strong>รายละเอียดคำขอลา:</strong></p>
-      <ul style="list-style: none; padding: 0;">
-        <li><strong>ผู้ยื่นคำขอ:</strong> ${user.prefixName} ${user.firstName} ${user.lastName}</li>
-        <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
-        <li><strong>เหตุผล:</strong> ${reason}</li>
-        ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
-      </ul>
-      <p>กรุณาตรวจสอบและดำเนินการในระบบตามขั้นตอนที่กำหนด</p>
-      <br/>
-      <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-      <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-    </div>
-  `;
-    await sendEmail(approverEmail, subject, message);
+    queueNotification("SUBMISSION", {
+      to: approver.email,
+      userName: `${approver.prefixName} ${approver.firstName} ${approver.lastName}`,
+      requesterName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
+      requestedDays,
+      reason,
+      contact,
+    });
   }
 
   static async notifyRequester({ user, requestedDays, reason, contact }) {
     if (!user?.email) return;
-    const subject = "แจ้งเตือนการยื่นคำขอลา";
-    const message = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-      <h3 style="color: #2c3e50;">เรียน ${user.prefixName} ${user.firstName} ${user.lastName},</h3>
-      <p>ระบบได้รับคำขอลาของคุณเรียบร้อยแล้ว</p>
-      <p><strong>รายละเอียดคำขอลา:</strong></p>
-      <ul style="list-style: none; padding: 0;">
-        <li><strong>จำนวนวันลา:</strong> ${requestedDays} วัน</li>
-        <li><strong>เหตุผล:</strong> ${reason}</li>
-        ${contact ? `<li><strong>ติดต่อ:</strong> ${contact}</li>` : ""}
-      </ul>
-      <p>กรุณารอการอนุมัติจากหัวหน้าสาขา</p>
-      <br/>
-      <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-      <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-    </div>
-  `;
-    await sendEmail(user.email, subject, message);
+
+    queueNotification("SUBMISSION_CONFIRM", {
+      to: user.email,
+      userName: `${user.prefixName} ${user.firstName} ${user.lastName}`,
+      requestedDays,
+      reason,
+      contact,
+    });
+  }
+
+  // ดึงข้อมูลการลาสำหรับใส่ในอีเมลแจ้งเตือน (ชนิดการลา/ช่วงวันที่/จำนวนวัน/เหตุผล)
+  static async getLeaveEmailInfo(leaveRequestId) {
+    try {
+      const lr = await prisma.leaveRequest.findUnique({
+        where: { id: leaveRequestId },
+        include: { leaveType: true },
+      });
+      if (!lr) return {};
+      const fmt = (x) =>
+        x
+          ? new Date(x).toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "numeric" })
+          : "";
+      return {
+        leaveTypeName: lr.leaveType?.name,
+        dateRange: lr.startDate && lr.endDate ? `${fmt(lr.startDate)} - ${fmt(lr.endDate)}` : undefined,
+        requestedDays: lr.thisTimeDays,
+        reason: lr.reason,
+      };
+    } catch (e) {
+      return {};
+    }
   }
 
   // ────────────────────────────────
   // 🔎 READ
   // ────────────────────────────────
+
+  // ดึงคำขอลารายการเดียว (findUnique) สำหรับตรวจสอบความเป็นเจ้าของ/สิทธิ์
+  static async getRequestById(requestId) {
+    return await prisma.leaveRequest.findUnique({
+      where: { id: Number(requestId) },
+      select: { id: true, userId: true, status: true },
+    });
+  }
 
   static async getRequestsById(requestId) {
     return await prisma.leaveRequest.findMany({
@@ -594,8 +598,7 @@ class LeaveRequestService {
         },
       });
 
-      const isNonDeductible =
-        userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === 1;
+      const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === true;
 
       if (isNonDeductible || specialLeaveTypes.includes(leaveTypeIdInt)) {
         // สำหรับประเภทการลาที่ไม่ต้องหักวัน ให้ข้ามการตรวจสอบยอดคงเหลือ
@@ -1156,6 +1159,8 @@ class LeaveRequestService {
       },
     });
 
+    const leaveInfo = await this.getLeaveEmailInfo(updatedDetail.leaveRequestId);
+
     if (verifierUser.email) {
       const notificationData = {
         to: verifierUser.email,
@@ -1180,7 +1185,8 @@ class LeaveRequestService {
         }
       }
 
-      await sendNotification("APPROVER1_APPROVED", notificationData);
+      Object.assign(notificationData, leaveInfo);
+      queueNotification("APPROVER1_APPROVED", notificationData);
     }
 
     // 6. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
@@ -1218,7 +1224,8 @@ class LeaveRequestService {
         }
       }
 
-      await sendNotification("STEP_APPROVER1", notificationData);
+      Object.assign(notificationData, leaveInfo);
+      queueNotification("STEP_APPROVED_1", notificationData);
     }
 
     return {
@@ -1368,7 +1375,9 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTION", {
+      const leaveInfo = await this.getLeaveEmailInfo(result.leaveRequestId);
+      queueNotification("REJECTION", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -1547,8 +1556,11 @@ class LeaveRequestService {
       },
     });
 
+    const leaveInfo = await this.getLeaveEmailInfo(updatedDetail.leaveRequestId);
+
     if (approverUser.email) {
-      await sendNotification("VERIFIER_APPROVED", {
+      queueNotification("VERIFIER_APPROVED", {
+        ...leaveInfo,
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -1566,7 +1578,8 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVED_2", {
+      queueNotification("STEP_APPROVED_2", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -1580,10 +1593,13 @@ class LeaveRequestService {
   }
 
   static async rejectByVerifier({ id, approverId, remarks, comment }) {
-    // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่
+    // 1. ตรวจสอบว่า leaveRequestDetail นี้มีอยู่หรือไม่ (ดึง leaveRequest มาด้วยเพื่อคืน balance)
     const existingDetail = await prisma.leaveRequestDetail.findFirst({
       where: {
         id: Number(id),
+      },
+      include: {
+        leaveRequest: { include: { user: true, leaveType: true } },
       },
     });
     if (!existingDetail) throw createError(404, "ไม่พบรายการคำขอลา");
@@ -1629,35 +1645,69 @@ class LeaveRequestService {
     // หมายเหตุ: ไม่ต้องเช็คว่า existingDetail.approverId ตรงกับ approverId หรือไม่
     // เพราะถ้า user มีสิทธิ์ reject ในระดับนี้ (อยู่ใน verifierIds แล้ว) ก็ควรอนุญาตให้ reject ได้
 
-    // 2. อัปเดตรายการคำขอลา
-    const updatedDetail = await prisma.leaveRequestDetail.update({
-      where: { id: Number(id) },
-      data: {
-        approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
-        status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
-        reviewedAt: new Date(), // อัปเดตเวลา
-        remarks,
-        comment,
-        proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
-      },
-      include: {
-        leaveRequest: true,
-      },
+    // 2. ใช้ Transaction: ปฏิเสธคำขอ + คืน balance ที่จองไว้ (pending) ให้ผู้ใช้
+    //    (ทำให้สอดคล้องกับการปฏิเสธในระดับ approver อื่น ๆ ที่คืน balance ให้)
+    const result = await prisma.$transaction(async (tx) => {
+      const userId = existingDetail.leaveRequest.userId;
+      const leaveTypeId = existingDetail.leaveRequest.leaveTypeId;
+      const requestedDays = existingDetail.leaveRequest.thisTimeDays;
+
+      console.log(`🔄 คืน balance (Verifier): User ${userId}, Type ${leaveTypeId}, Days ${requestedDays}`);
+
+      // คืน days ใน userLeaveBalance (ปีปัจจุบัน)
+      const currentYear = new Date().getFullYear();
+      const balanceRecord = await tx.leaveBalance.findFirst({
+        where: {
+          AND: [{ userId }, { leaveTypeId }, { year: currentYear }],
+        },
+      });
+
+      if (balanceRecord) {
+        const newRemaining = (balanceRecord.remainingDays || 0) + requestedDays;
+        const newPending = Math.max(0, (balanceRecord.pendingDays || 0) - requestedDays);
+
+        await tx.leaveBalance.update({
+          where: { id: balanceRecord.id },
+          data: {
+            remainingDays: newRemaining,
+            pendingDays: newPending,
+          },
+        });
+        console.log(`✅ Balance Updated Successfully (Verifier reject)`);
+      } else {
+        console.log(`❌ No Balance Record Found for User ${userId}, Type ${leaveTypeId}`);
+      }
+
+      // อัปเดตรายการคำขอลา
+      const updatedDetail = await tx.leaveRequestDetail.update({
+        where: { id: Number(id) },
+        data: {
+          approverId, // บันทึกว่าใครเป็นผู้อนุมัติจริง
+          status: "REJECTED", // เปลี่ยนสถานะเป็น REJECTED
+          reviewedAt: new Date(), // อัปเดตเวลา
+          remarks,
+          comment,
+          proxyApprovalId, // บันทึกว่าเป็นการอนุมัติแทน (ถ้ามี)
+        },
+        include: {
+          leaveRequest: true,
+        },
+      });
+
+      // อัปเดตสถานะคำขอลาทั้งหมดเป็น REJECTED
+      await tx.LeaveRequest.update({
+        where: { id: updatedDetail.leaveRequestId },
+        data: {
+          status: "REJECTED",
+        },
+      });
+
+      return updatedDetail;
     });
 
-    // 3. อัปเดตสถานะคำขอลาทั้งหมดเป็น REJECTED
-    await prisma.LeaveRequest.update({
-      where: { id: updatedDetail.leaveRequestId },
-      data: {
-        status: "REJECTED",
-      },
-    });
-
-    // 4. บันทึก log การทำงาน
-
-    // 5. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
+    // 3. ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
     const requester = await prisma.user.findUnique({
-      where: { id: updatedDetail.leaveRequest.userId },
+      where: { id: result.leaveRequest.userId },
       select: {
         email: true,
         prefixName: true,
@@ -1667,7 +1717,9 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTION", {
+      const leaveInfo = await this.getLeaveEmailInfo(result.leaveRequestId);
+      queueNotification("REJECTION", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -1787,8 +1839,11 @@ class LeaveRequestService {
       },
     });
 
+    const leaveInfo = await this.getLeaveEmailInfo(updatedDetail.leaveRequestId);
+
     if (approverUser.email) {
-      await sendNotification("APPROVER2_APPROVED", {
+      queueNotification("APPROVER2_APPROVED", {
+        ...leaveInfo,
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -1806,7 +1861,8 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVER3", {
+      queueNotification("STEP_APPROVED_3", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -1928,7 +1984,7 @@ class LeaveRequestService {
 
     // ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
     const requester = await prisma.user.findUnique({
-      where: { id: updatedDetail.leaveRequest.userId },
+      where: { id: result.leaveRequest.userId },
       select: {
         email: true,
         prefixName: true,
@@ -1938,7 +1994,9 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTED", {
+      const leaveInfo = await this.getLeaveEmailInfo(result.leaveRequestId);
+      queueNotification("REJECTION", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -2025,8 +2083,11 @@ class LeaveRequestService {
       },
     });
 
+    const leaveInfo = await this.getLeaveEmailInfo(updatedDetail.leaveRequestId);
+
     if (approverUser.email) {
-      await sendNotification("APPROVER3_APPROVED", {
+      queueNotification("APPROVER3_APPROVED", {
+        ...leaveInfo,
         to: approverUser.email,
         userName: `${approverUser.prefixName} ${approverUser.firstName} ${approverUser.lastName}`,
       });
@@ -2044,7 +2105,8 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("STEP_APPROVER4", {
+      queueNotification("STEP_APPROVED_4", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -2166,7 +2228,7 @@ class LeaveRequestService {
 
     // ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
     const requester = await prisma.user.findUnique({
-      where: { id: updatedDetail.leaveRequest.userId },
+      where: { id: result.leaveRequest.userId },
       select: {
         email: true,
         prefixName: true,
@@ -2176,7 +2238,9 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTED", {
+      const leaveInfo = await this.getLeaveEmailInfo(result.leaveRequestId);
+      queueNotification("REJECTION", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -2268,7 +2332,9 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("FULLY_APPROVED", {
+      const leaveInfo = await this.getLeaveEmailInfo(updatedDetail.leaveRequestId);
+      queueNotification("FULLY_APPROVED", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
       });
@@ -2389,7 +2455,7 @@ class LeaveRequestService {
 
     // ส่งอีเมลแจ้งเตือนให้ผู้ขออนุมัติ
     const requester = await prisma.user.findUnique({
-      where: { id: updatedDetail.leaveRequest.userId },
+      where: { id: result.leaveRequest.userId },
       select: {
         email: true,
         prefixName: true,
@@ -2399,7 +2465,9 @@ class LeaveRequestService {
     });
 
     if (requester.email) {
-      await sendNotification("REJECTED", {
+      const leaveInfo = await this.getLeaveEmailInfo(result.leaveRequestId);
+      queueNotification("REJECTION", {
+        ...leaveInfo,
         to: requester.email,
         userName: `${requester.prefixName} ${requester.firstName} ${requester.lastName}`,
         remarks,
@@ -2572,6 +2640,7 @@ class LeaveRequestService {
     // 3. ส่งอีเมลแจ้งเตือนให้ผู้ใช้ (outside transaction)
     if (leaveRequest.user.email) {
       try {
+<<<<<<< HEAD
         const subject = "แจ้งเตือนการยกเลิกคำขอลา";
         const message = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -2593,6 +2662,16 @@ class LeaveRequestService {
         </div>
       `;
         await sendEmail(leaveRequest.user.email, subject, message);
+=======
+        queueNotification("CANCELLATION", {
+          to: leaveRequest.user.email,
+          userName: `${leaveRequest.user.prefixName} ${leaveRequest.user.firstName} ${leaveRequest.user.lastName}`,
+          documentNumber: leaveRequestNumber,
+          leaveTypeName: leaveRequest.leaveType.name,
+          requestedDays: leaveRequest.thisTimeDays,
+          dateRange: `${leaveRequest.startDate.toLocaleDateString("th-TH")} - ${leaveRequest.endDate.toLocaleDateString("th-TH")}`,
+        });
+>>>>>>> 91e60a4e0275debcf13ca6cb500419dd385ce435
       } catch (emailError) {
         console.error("Failed to send cancellation email:", emailError);
         // ไม่ throw error เพราะการส่ง email ไม่ควรทำให้การยกเลิกล้มเหลว

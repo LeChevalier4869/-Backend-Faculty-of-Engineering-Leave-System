@@ -4,3 +4,7 @@
 .env.backup
 .env.production
 readme.md
+
+# Database backups (อย่า commit ไฟล์สำรองข้อมูลขึ้น git)
+backups/
+*.sql.bak

@@ -57,6 +57,7 @@ describe("exel-controller.uploadUserExcel", () => {
 
     prisma.personnelType.findFirst = jest.fn();
     prisma.department.findFirst = jest.fn();
+    prisma.department.findMany = jest.fn().mockResolvedValue([]);
 
     prisma.role.findMany = jest.fn();
     prisma.userRole.createMany = jest.fn();
@@ -312,5 +313,100 @@ describe("exel-controller.uploadUserExcel", () => {
     expect(ordination.maxDays).toBe(0);
     expect(ordination.remainingDays).toBe(0);
     expect(ordination.usedDays).toBe(7);
+  });
+
+  it("matches department leniently when exact name not found (unambiguous contains)", async () => {
+    const users = [
+      {
+        prefixName: "นาย",
+        firstName: "A",
+        lastName: "B",
+        sex: "M",
+        email: "a@rmuti.ac.th",
+        phone: "000",
+        position: "P",
+        positionNumber: "ENG-010",
+        hireDate: "01/01/2025",
+        employmentType: "SUPPORT",
+        departmentName: "คอมพิวเตอร์", // ชื่อย่อ ไม่ตรงเป๊ะ
+        personnelTypeName: "PT1",
+        role: "USER",
+      },
+    ];
+
+    xlsx.read.mockReturnValue({ SheetNames: ["S"], Sheets: { S: {} } });
+    xlsx.utils.sheet_to_json.mockReturnValueOnce(users).mockReturnValueOnce([[]]);
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.personnelType.findFirst.mockResolvedValue({ id: 1, name: "PT1" });
+    // หาเป๊ะไม่เจอ -> ต้อง fallback ไป findMany
+    prisma.department.findFirst.mockResolvedValue(null);
+    prisma.department.findMany.mockResolvedValue([
+      { id: 2, name: "วิศวกรรมโยธา" },
+      { id: 4, name: "วิศวกรรมคอมพิวเตอร์" },
+      { id: 11, name: "เคมี" },
+    ]);
+    prisma.user.create.mockResolvedValue({ id: 10, email: "a@rmuti.ac.th" });
+    prisma.role.findMany.mockResolvedValue([{ id: 5, name: "USER" }]);
+    prisma.rank.findMany.mockResolvedValue([]);
+    prisma.setting.findUnique.mockResolvedValue({ value: "2026" });
+    prisma.userRank.findMany.mockResolvedValue([]);
+
+    const req = makeReq();
+    const res = makeRes();
+
+    await exelController.uploadUserExcel(req, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.createdCount).toBe(1);
+    expect(payload.failedCount).toBe(0);
+    // สร้าง user ด้วย departmentId 4 (วิศวกรรมคอมพิวเตอร์)
+    expect(prisma.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ departmentId: 4 }),
+    });
+  });
+
+  it("rejects ambiguous department match with helpful error", async () => {
+    const users = [
+      {
+        prefixName: "นาย",
+        firstName: "A",
+        lastName: "B",
+        sex: "M",
+        email: "a@rmuti.ac.th",
+        phone: "000",
+        position: "P",
+        positionNumber: "ENG-011",
+        hireDate: "01/01/2025",
+        employmentType: "SUPPORT",
+        departmentName: "วิศวกรรม", // กำกวม ตรงหลายสาขา
+        personnelTypeName: "PT1",
+        role: "USER",
+      },
+    ];
+
+    xlsx.read.mockReturnValue({ SheetNames: ["S"], Sheets: { S: {} } });
+    xlsx.utils.sheet_to_json.mockReturnValueOnce(users).mockReturnValueOnce([[]]);
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.personnelType.findFirst.mockResolvedValue({ id: 1, name: "PT1" });
+    prisma.department.findFirst.mockResolvedValue(null);
+    prisma.department.findMany.mockResolvedValue([
+      { id: 2, name: "วิศวกรรมโยธา" },
+      { id: 4, name: "วิศวกรรมคอมพิวเตอร์" },
+    ]);
+    prisma.role.findMany.mockResolvedValue([{ id: 5, name: "USER" }]);
+    prisma.setting.findUnique.mockResolvedValue({ value: "2026" });
+
+    const req = makeReq();
+    const res = makeRes();
+
+    await exelController.uploadUserExcel(req, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.createdCount).toBe(0);
+    expect(payload.failedCount).toBe(1);
+    expect(payload.failedUsers[0].reason).toContain("ตรงกับหลายสาขา");
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 });

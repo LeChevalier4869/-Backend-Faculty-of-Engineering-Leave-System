@@ -2,6 +2,24 @@ const xlsx = require("xlsx");
 const prisma = require("../config/prisma");
 const UserService = require("../services/user-service");
 const createError = require("../utils/createError");
+const { sendNotification } = require("../utils/emailService");
+
+// ส่งอีเมลต้อนรับให้ผู้ใช้ที่เพิ่งถูกสร้าง (ทำแบบ background ไม่บล็อกการตอบกลับ)
+async function sendWelcomeToCreatedUsers(createdUsers = []) {
+  for (const u of createdUsers) {
+    if (!u?.email) continue;
+    try {
+      await sendNotification("WELCOME", {
+        to: u.email,
+        userName: `${u.prefixName || ""} ${u.firstName || ""} ${u.lastName || ""}`.trim(),
+        email: u.email,
+        position: u.position,
+      });
+    } catch {
+      // sendEmail กลืน error อยู่แล้ว — ที่นี่กันกรณี throw อื่นๆ
+    }
+  }
+}
 
 exports.uploadUserExcel = async (req, res) => {
   try {
@@ -431,7 +449,7 @@ exports.uploadUserExcel = async (req, res) => {
       const positionNumber = user.positionNumber || user["เลขที่ตำแหน่ง"];
 
       // Handle both English and Thai headers for personnel type
-      const personnelTypeName = user.personnelTypeName || user["ประเภทบุคคล"];
+      const personnelTypeName = String(user.personnelTypeName || user["ประเภทบุคคล"] || "").trim();
 
       const normalizedEmail = (email || user["อีเมล"])?.trim().toLowerCase();
       
@@ -505,13 +523,46 @@ exports.uploadUserExcel = async (req, res) => {
         };
       }
 
-      const department = await tx.department.findFirst({
-        where: { name: departmentNameResolved },
+      // จับคู่สาขาแบบยืดหยุ่น (ปลอดภัย): เป๊ะก่อน → ถ้าไม่เจอ ลอง contains แบบไม่กำกวม
+      const deptNameRaw = String(departmentNameResolved).trim();
+      const normalize = (s) => String(s ?? "").trim().toLowerCase();
+      const deptTarget = normalize(deptNameRaw);
+
+      let department = await tx.department.findFirst({
+        where: { name: deptNameRaw },
       });
+
+      if (!department) {
+        const allDepts = await tx.department.findMany({
+          select: { id: true, name: true },
+        });
+        // 1) เป๊ะแบบไม่สนตัวพิมพ์/ช่องว่าง
+        let matches = allDepts.filter((d) => normalize(d.name) === deptTarget);
+        // 2) ไม่เจอ → contains แบบสองทาง (ชื่อ DB มีคำใน excel หรือกลับกัน)
+        if (matches.length === 0) {
+          matches = allDepts.filter(
+            (d) =>
+              normalize(d.name).includes(deptTarget) ||
+              deptTarget.includes(normalize(d.name))
+          );
+        }
+        if (matches.length === 1) {
+          department = matches[0];
+        } else if (matches.length > 1) {
+          throw {
+            email: normalizedEmail,
+            reason: `สาขา "${deptNameRaw}" ตรงกับหลายสาขา (${matches
+              .map((m) => m.name)
+              .join(", ")}) กรุณาระบุให้ชัดเจน`,
+            rowData: user,
+          };
+        }
+      }
+
       if (!department) {
         throw {
           email: normalizedEmail,
-          reason: "สาขาไม่ถูกต้อง",
+          reason: `สาขา "${deptNameRaw}" ไม่ตรงกับสาขาในระบบ`,
           rowData: user,
         };
       }
@@ -742,6 +793,7 @@ exports.uploadUserExcel = async (req, res) => {
       console.log(`[MONITORING] Total created balances:`, createdUsers.reduce((acc, user) => acc + (user.createdBalances?.length || 0), 0));
       console.log(`[MONITORING] Total skipped balances:`, createdUsers.reduce((acc, user) => acc + (user.skippedBalances?.length || 0), 0));
       
+      sendWelcomeToCreatedUsers(createdUsers); // background, ไม่บล็อก response
       res.json({
         message: "Users processed",
         createdCount: createdUsers.length,
@@ -773,6 +825,7 @@ exports.uploadUserExcel = async (req, res) => {
     console.log(`[MONITORING] Excel import completed - User creation mode`);
     console.log(`[MONITORING] Total users created: ${createdUsers.length}`);
 
+    sendWelcomeToCreatedUsers(createdUsers); // background, ไม่บล็อก response
     res.json({
       message: "Users processed",
       createdCount: createdUsers.length,

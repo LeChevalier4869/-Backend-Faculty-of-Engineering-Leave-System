@@ -46,27 +46,29 @@ router.patch(
 // --- ส่วน organizations, departments, personnel-types, reset-password
 // --- ให้เหมือนเดิม ไม่ต้องแตะ multipart
 
-router.get('/organizations',              authController.getAllOrganizations);
-router.get('/organizations/:id',          authController.getOrganizationById);
-router.post('/organizations',             authController.createOrganization);
-router.put('/organizations/:id',          authController.updateOrganization);
-router.delete('/organizations/:id',       authController.deleteOrganization);
+const adminRoles = authorize(["ADMIN", "SUPER_ADMIN"]);
 
-router.get('/departments',                authController.getAllDepartments);
-router.get('/departments/:id',            authController.getDepartmentById);
-router.post('/departments',               authController.createDepartment);
-router.put('/departments/:id',            authController.updateDepartment);
-router.delete('/departments/:id',         authController.deleteDepartment);
+router.get('/organizations',              authenticate, authController.getAllOrganizations);
+router.get('/organizations/:id',          authenticate, authController.getOrganizationById);
+router.post('/organizations',             authenticate, adminRoles, authController.createOrganization);
+router.put('/organizations/:id',          authenticate, adminRoles, authController.updateOrganization);
+router.delete('/organizations/:id',       authenticate, adminRoles, authController.deleteOrganization);
 
-router.get("/personnel-types",            authController.getPersonnelTypes);
-router.get("/personnel-types/:id",        authController.getPersonnelTypeById);
-router.post("/personnel-types",           authController.createPersonnelType);
-router.put("/personnel-types/:id",        authController.updatePersonnelType);
-router.delete("/personnel-types/:id",     authController.deletePersonnelType);
+router.get('/departments',                authenticate, authController.getAllDepartments);
+router.get('/departments/:id',            authenticate, authController.getDepartmentById);
+router.post('/departments',               authenticate, adminRoles, authController.createDepartment);
+router.put('/departments/:id',            authenticate, adminRoles, authController.updateDepartment);
+router.delete('/departments/:id',         authenticate, adminRoles, authController.deleteDepartment);
 
-router.get("/all-approver", authController.getAllApprover);
+router.get("/personnel-types",            authenticate, authController.getPersonnelTypes);
+router.get("/personnel-types/:id",        authenticate, authController.getPersonnelTypeById);
+router.post("/personnel-types",           authenticate, adminRoles, authController.createPersonnelType);
+router.put("/personnel-types/:id",        authenticate, adminRoles, authController.updatePersonnelType);
+router.delete("/personnel-types/:id",     authenticate, adminRoles, authController.deletePersonnelType);
+
+router.get("/all-approver", authenticate, authController.getAllApprover);
 
 // get approvers for level with proxy support
-router.get("/approvers-for-level/:level", authController.getApproversForLevel);
+router.get("/approvers-for-level/:level", authenticate, authController.getApproversForLevel);
 
 module.exports = router;

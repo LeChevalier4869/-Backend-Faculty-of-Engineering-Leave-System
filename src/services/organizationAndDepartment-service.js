@@ -15,13 +15,23 @@ class OrgAndDeptService {
   }
 
   static async createOrganization(name) {
-    return await prisma.organization.create({ data: { name } });
+    const clean = String(name || "").trim();
+    if (!clean) throw createError(400, "กรุณาระบุชื่อองค์กร");
+    const existing = await prisma.organization.findFirst({ where: { name: clean } });
+    if (existing) throw createError(409, `มีองค์กรชื่อ "${clean}" อยู่แล้ว`);
+    return await prisma.organization.create({ data: { name: clean } });
   }
 
   static async updateOrganization(id, name) {
+    const clean = String(name || "").trim();
+    if (!clean) throw createError(400, "กรุณาระบุชื่อองค์กร");
+    const dup = await prisma.organization.findFirst({
+      where: { name: clean, NOT: { id: parseInt(id) } },
+    });
+    if (dup) throw createError(409, `มีองค์กรชื่อ "${clean}" อยู่แล้ว`);
     return await prisma.organization.update({
       where: { id: parseInt(id) },
-      data: { name },
+      data: { name: clean },
     });
   }
 
@@ -102,20 +112,23 @@ class OrgAndDeptService {
   }
 
   static async createPersonnelType(name) {
-    console.log("Creating PersonnelType with name:", name);
-    return await prisma.personnelType.create({
-      data: {
-        name, // หรือเขียน name เฉยๆ ก็ได้ถ้าชื่อ parameter ตรงกัน
-      },
-    });
+    const clean = String(name || "").trim();
+    if (!clean) throw createError(400, "กรุณาระบุชื่อประเภทบุคลากร");
+    const existing = await prisma.personnelType.findFirst({ where: { name: clean } });
+    if (existing) throw createError(409, `มีประเภทบุคลากรชื่อ "${clean}" อยู่แล้ว`);
+    return await prisma.personnelType.create({ data: { name: clean } });
   }
 
   static async updatePersonnelType(id, name) {
+    const clean = String(name || "").trim();
+    if (!clean) throw createError(400, "กรุณาระบุชื่อประเภทบุคลากร");
+    const dup = await prisma.personnelType.findFirst({
+      where: { name: clean, NOT: { id: parseInt(id) } },
+    });
+    if (dup) throw createError(409, `มีประเภทบุคลากรชื่อ "${clean}" อยู่แล้ว`);
     return await prisma.personnelType.update({
-      where: { id },
-      data: {
-        name,
-      },
+      where: { id: parseInt(id) },
+      data: { name: clean },
     });
   }
 

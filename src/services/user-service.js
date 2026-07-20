@@ -42,7 +42,15 @@ class UserService {
         },
         personnelType: true,
         department: true,
-        leaveBalances: true,
+        leaveBalances: {
+          include: { leaveType: true },
+          orderBy: [{ year: "desc" }, { leaveTypeId: "asc" }],
+        },
+        userRanks: {
+          include: {
+            rank: { include: { leaveType: true } },
+          },
+        },
         LeaveRequest: {
           include: {
             leaveRequestDetails: true,
@@ -778,7 +786,7 @@ class UserService {
       // สำหรับประเภทการลาที่ไม่ต้องหักวัน (receiveDays = 0 && isBalance = 1)
       // และเป็นลาพักผ่อน (leaveTypeId = 4) ให้ทำ carry over
       let newRemainingDays;
-      if (receiveDays === 0 && isBalance === 1) {
+      if (receiveDays === 0 && isBalance === true) {
         // ไม่ต้องหักวัน ไม่ต้องคำนวณ carry over
         newRemainingDays = 0;
       } else if (Number(leaveTypeId) === 4) {
@@ -792,10 +800,10 @@ class UserService {
       const balanceData = {
         userId,
         leaveTypeId,
-        maxDays: (receiveDays === 0 && isBalance === 1) ? 0 : maxDays,
-        usedDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
-        pendingDays: (receiveDays === 0 && isBalance === 1) ? 0 : 0,
-        remainingDays: (receiveDays === 0 && isBalance === 1) ? 0 : newRemainingDays,
+        maxDays: (receiveDays === 0 && isBalance === true) ? 0 : maxDays,
+        usedDays: (receiveDays === 0 && isBalance === true) ? 0 : 0,
+        pendingDays: (receiveDays === 0 && isBalance === true) ? 0 : 0,
+        remainingDays: (receiveDays === 0 && isBalance === true) ? 0 : newRemainingDays,
         year: yearValue,
       };
 

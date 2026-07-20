@@ -4,9 +4,9 @@ const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const createError = require("../utils/createError");
-const { sendEmail } = require("../utils/emailService");
+const { sendNotification } = require("../utils/emailService");
+const { sendPendingApprovalReminders } = require("../utils/pendingApprovalReminder");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
-const RankService = require("../services/rank-service");
 const fs = require("fs");
 const UserService = require("../services/user-service");
 const AuditLogService = require("../services/auditLog-service");
@@ -524,110 +524,6 @@ exports.assignHeadDepartment = async (req, res, next) => {
     res
       .status(200)
       .json({ message: "มอบหมายหัวหน้าแผนกสำเร็จ", data: updatedDepartment });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// --------------------
-//        ranks
-// --------------------
-
-exports.getAllRank = async (req, res, next) => {
-  try {
-    const rank = await RankService.getAllRanks();
-    if (!rank) throw createError(404, "ไม่พบข้อมูลของ rank");
-    res.status(200).json({ message: "ดึงข้อมูล rank ทั้งหมดแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.getRankById = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const rank = await RankService.getRankById(parseInt(id));
-    if (!rank) throw createError(404, "ไม่พบข้อมูลของ rank");
-    res
-      .status(200)
-      .json({ message: "ดึงข้อมูล rank เรียบร้อยแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.createRank = async (req, res, next) => {
-  try {
-    const {
-      rank,
-      minHireMonths,
-      maxHireMonths,
-      receiveDays,
-      maxDays,
-      isBalance,
-      personnelTypeId,
-      leaveTypeId,
-    } = req.body;
-    if (
-      rank === undefined ||
-      minHireMonths === undefined ||
-      maxHireMonths === undefined ||
-      receiveDays === undefined ||
-      maxDays === undefined ||
-      isBalance === undefined ||
-      personnelTypeId === undefined ||
-      leaveTypeId === undefined
-    )
-      throw createError(
-        400,
-        "กรุณากรอกข้อมูลให้ครบถ้วนก่อนทำการสร้าง rank ใหม่"
-      );
-    const personnelType = await OrgAndDeptService.getPersonnelTypeById(
-      personnelTypeId
-    );
-    if (!personnelType) throw createError(404, "ไม่พบข้อมูล personnelType");
-
-    const leaveType = await LeaveTypeService.getLeaveTypeById(leaveTypeId);
-    if (!leaveType) throw createError(404, "ไม่พบข้อมูล leaveType");
-
-    const data = {
-      rank,
-      minHireMonths,
-      maxHireMonths,
-      receiveDays,
-      maxDays,
-      isBalance,
-      personnelTypeId,
-      leaveTypeId,
-    };
-
-    const ranks = await RankService.createRank(data);
-    if (!ranks) throw createError(400, "สร้าง rank ไม่สำเร็จ");
-    res.status(201).json({ message: "สร้าง rank สำเร็จแล้ว", data: ranks });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.updateRank = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { updateData } = req.body;
-    if (!id) throw createError(404, "ไม่พบ id");
-    const rank = await RankService.updateRank(parseInt(id), updateData);
-    if (!rank) throw createError(400, "ไม่สามารถอัปเดต rank ได้");
-    res.status(200).json({ message: "อัปเดต rank เหรียบร้อยแล้ว", data: rank });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.deleteRank = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!id) throw createError(404, "ไม่พบ id");
-    await RankService.deleteRank(parseInt(id));
-    res.status(200).json({ message: "ลบ rank เรียบร้อยแล้ว" });
   } catch (err) {
     next(err);
   }
@@ -1166,9 +1062,37 @@ exports.createUserByAdmin = async (req, res, next) => {
       // ไม่ส่ง entityData - จะดึงอัตโนมัติ
     );
 
+    // ✅ ส่งอีเมลต้อนรับ (ไม่ให้ email พังกระทบการสร้างผู้ใช้)
+    if (email) {
+      try {
+        await sendNotification("WELCOME", {
+          to: email,
+          userName: `${prefixName || ""} ${firstName} ${lastName}`.trim(),
+          email,
+          position,
+        });
+      } catch (emailError) {
+        console.error("Failed to send welcome email:", emailError.message);
+      }
+    }
+
     return res
       .status(201)
       .json({ message: "สร้างผู้ใช้สำเร็จ", data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ส่งอีเมลเตือนผู้อนุมัติที่มีคำขอลาค้างพิจารณา (เรียกแบบ manual ได้ นอกเหนือจาก cron)
+// POST /admin/send-pending-reminders  body: { thresholdDays?: number }
+exports.sendPendingReminders = async (req, res, next) => {
+  try {
+    const thresholdDays = parseInt(req.body?.thresholdDays, 10);
+    const result = await sendPendingApprovalReminders(
+      Number.isNaN(thresholdDays) ? 3 : thresholdDays
+    );
+    return res.status(200).json({ message: "ส่งอีเมลเตือนเรียบร้อย", ...result });
   } catch (err) {
     next(err);
   }
@@ -1439,13 +1363,60 @@ exports.deleteSetting = async (req, res) => {
 //--------------------- Leave Balance Reset --------------------
 exports.resetLeaveBalance = async (req, res, next) => {
   try {
-    console.log("🔄 Admin กำลังรันการรีเซ็ต Leave Balance ด้วยตนเอง");
+    const { confirm, force } = req.body || {};
+
+    // ชั้นที่ 1: ต้องยืนยันก่อนเสมอ (กันการเรียก API โดยไม่ตั้งใจ)
+    if (confirm !== true) {
+      throw createError(400, "ต้องส่ง confirm: true เพื่อยืนยันการรีเซ็ตยอดวันลา");
+    }
+
+    // อ่านปีงบประมาณปัจจุบันที่จะถูกรีเซ็ต
+    const fySetting = await prisma.setting.findUnique({ where: { key: "fiscalYear" } });
+    const year = fySetting ? parseInt(fySetting.value, 10) : new Date().getFullYear();
+
+    // ชั้นที่ 2: ถ้าปีงบนี้มีการใช้วันลาไปแล้ว (used/pending > 0) การรีเซ็ตจะลบข้อมูลทิ้ง
+    //           → ต้องส่ง force: true เพื่อยืนยันซ้ำ (กันลบข้อมูลกลางปีโดยไม่ตั้งใจ)
+    const activeBalance = await prisma.leaveBalance.findFirst({
+      where: { year, OR: [{ usedDays: { gt: 0 } }, { pendingDays: { gt: 0 } }] },
+      select: { id: true },
+    });
+
+    if (activeBalance && force !== true) {
+      const agg = await prisma.leaveBalance.aggregate({
+        where: { year },
+        _sum: { usedDays: true, pendingDays: true },
+      });
+      throw createError(
+        409,
+        `ปีงบประมาณ ${year} มีการใช้วันลาไปแล้ว (ใช้ไป ${agg._sum.usedDays || 0} วัน, รออนุมัติ ${agg._sum.pendingDays || 0} วัน) — ` +
+          `การรีเซ็ตจะลบยอดเหล่านี้ทิ้งทั้งหมด หากยืนยันให้ส่ง force: true`
+      );
+    }
+
+    console.log(`🔄 Admin รีเซ็ต Leave Balance ด้วยตนเอง (ปีงบ ${year}, force=${!!force})`);
 
     await resetLeaveBalance();
+
+    // บันทึก audit log สำหรับการกระทำที่อันตราย
+    try {
+      await AuditLogService.createLog(
+        req.user?.id || null,
+        "LEAVE_BALANCE_MANUAL_RESET",
+        "SYSTEM",
+        null,
+        `รีเซ็ตยอดวันลาด้วยตนเอง (ปีงบ ${year}${force ? ", force" : ""})`,
+        null,
+        req.user?.email || "ADMIN_MANUAL",
+        { year, force: !!force }
+      );
+    } catch (logErr) {
+      console.error("audit log (reset) ล้มเหลว:", logErr.message);
+    }
 
     res.status(200).json({
       message: "รีเซ็ต Leave Balance สำเร็จ",
       details: "ข้อมูลปีก่อนถูกเก็บรักษาไว้เป็นประวัติ",
+      year,
       timestamp: new Date().toISOString()
     });
   } catch (err) {
