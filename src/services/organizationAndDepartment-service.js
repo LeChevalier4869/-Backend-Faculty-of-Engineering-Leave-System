@@ -139,6 +139,22 @@ class OrgAndDeptService {
             });
           }
         }
+
+        // โอนคำขอที่ยังรออนุมัติขั้นหัวหน้าสาขาไปให้หัวหน้าคนใหม่ (กันคำขอค้างถาวร)
+        if (data.headId) {
+          await tx.leaveRequestDetail.updateMany({
+            where: {
+              stepOrder: 1,
+              status: "PENDING",
+              leaveRequest: {
+                status: "PENDING",
+                user: { departmentId },
+                userId: { not: data.headId },
+              },
+            },
+            data: { approverId: data.headId },
+          });
+        }
       }
 
       return updated;

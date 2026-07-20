@@ -541,8 +541,24 @@ class AdminService {
             }
           }
         }
+
+        // โอนคำขอที่ยังรออนุมัติขั้นหัวหน้าสาขาไปให้หัวหน้าคนใหม่ (กันคำขอค้างถาวร)
+        if (headId) {
+          await tx.leaveRequestDetail.updateMany({
+            where: {
+              stepOrder: 1,
+              status: "PENDING",
+              leaveRequest: {
+                status: "PENDING",
+                user: { departmentId: id },
+                userId: { not: headId },
+              },
+            },
+            data: { approverId: headId },
+          });
+        }
       }
-      
+
       return updated;
     });
   }
@@ -652,6 +668,22 @@ class AdminService {
       await tx.userRole.createMany({
         data: [{ userId: headId, roleId: approver1Role.id }],
         skipDuplicates: true,
+      });
+
+      // โอนคำขอลาที่ยังรออนุมัติขั้นหัวหน้าสาขาไปให้หัวหน้าคนใหม่
+      // ถ้าไม่ทำ คำขอจะค้างถาวร เพราะคิวอนุมัติกรองด้วย "ผู้ที่มีบทบาท APPROVER_1 ตอนนี้"
+      // หัวหน้าคนเก่าถูกถอดบทบาทไปแล้วจึงหาย ส่วนคนใหม่ก็ไม่ตรงกับ approverId เดิม
+      await tx.leaveRequestDetail.updateMany({
+        where: {
+          stepOrder: 1,
+          status: "PENDING",
+          leaveRequest: {
+            status: "PENDING",
+            user: { departmentId },
+            userId: { not: headId }, // คำขอของหัวหน้าคนใหม่เอง ต้องไม่ถูกโอนมาให้ตัวเอง
+          },
+        },
+        data: { approverId: headId },
       });
 
       return dept;
