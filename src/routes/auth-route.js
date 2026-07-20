@@ -5,7 +5,7 @@ const router = express.Router();
 
 const passport = require("../config/passport");
 
-const { authenticate, authorize, optionalAuth } = require('../middlewares/auth');
+const { authenticate, authorize } = require('../middlewares/auth');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");
 const authController = require('../controllers/auth-controller');
@@ -22,7 +22,8 @@ router.get('/landing', authController.userLanding);
 router.get('/role', authenticate, authController.checkUserRole);
 router.get('/user-info/:id', authenticate, authController.getUserInfoById);
 router.get('/verifier', authenticate, authController.getVerifier);
-router.get('/approvers-for-level/:level', optionalAuth, authController.getApproversForLevel); // ใช้ optionalAuth สำหรับ testing
+// ต้อง login ก่อน — endpoint นี้เปิดเผยรายชื่อและอีเมลผู้อนุมัติทั้งหมด
+router.get('/approvers-for-level/:level', authenticate, authController.getApproversForLevel);
 
 // ==============================
 //      User Management (Admin)
