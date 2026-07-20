@@ -1079,16 +1079,19 @@ class LeaveRequestService {
   }
 
   /**
-   * ขั้นที่ 1 เป็นการอนุมัติของ "หัวหน้าสาขาของผู้ยื่น" เท่านั้น
+   * ระบุ "ฐานะ" ของผู้ดำเนินการขั้นที่ 1 เทียบกับสาขาของผู้ยื่น พร้อมตรวจสิทธิ์ไปในตัว
+   * คืน { isProxy, proxyApproval } หรือโยน 403 ถ้าไม่มีสิทธิ์กับสาขานี้
    *
-   * คิวอนุมัติกรองตามสาขาอยู่แล้ว แต่ตัวจัดการ approve ตรวจแค่ว่ามีบทบาท APPROVER_1
-   * หัวหน้าสาขาอื่นจึงอนุมัติคำขอข้ามสาขาได้ถ้ารู้ id ของรายการ
+   * ขั้นที่ 1 เป็นของ "หัวหน้าสาขาของผู้ยื่น" (หรือผู้รับมอบอำนาจจากหัวหน้าสาขานั้น) เท่านั้น
+   * ตาราง ProxyApproval ไม่มีคอลัมน์ระบุสาขา จึงอนุมานขอบเขตจาก "ผู้มอบอำนาจ" ว่าเป็น
+   * หัวหน้าสาขาของผู้ยื่นหรือไม่ ไม่งั้นการมอบอำนาจระดับ 1 ครั้งเดียวจะอนุมัติได้ทุกสาขา
    *
-   * กรณีผู้รับมอบอำนาจ: ตาราง ProxyApproval ไม่มีคอลัมน์ระบุสาขา จึงต้องอนุมานขอบเขต
-   * จาก "ผู้มอบอำนาจ" ว่าเป็นหัวหน้าสาขาของผู้ยื่นหรือไม่ ไม่งั้นการมอบอำนาจระดับ 1
-   * ครั้งเดียวจะทำให้อนุมัติได้ทุกสาขาในคณะ
+   * สำคัญ: ต้องตัดสินฐานะจาก "ความสัมพันธ์กับสาขาของผู้ยื่น" ไม่ใช่จาก flag isProxy ของ
+   * canUserApprove (ที่ดูจากสิทธิ์รับมอบใด ๆ ที่ผู้ใช้ถือ) — ไม่งั้นหัวหน้าสาขาที่บังเอิญ
+   * ถือสิทธิ์รับมอบอำนาจจากคนอื่นอยู่ด้วย จะถูกบังคับเข้าเส้นทาง proxy แล้วหา delegation
+   * จากหัวหน้าสาขา (= ตัวเอง) ไม่เจอ จึงอนุมัติคำขอสาขาตัวเองไม่ได้ (403)
    */
-  static async assertFirstStepDepartmentScope(leaveRequestId, approverId, isProxy) {
+  static async resolveFirstStepCapacity(leaveRequestId, approverId) {
     const request = await prisma.leaveRequest.findUnique({
       where: { id: Number(leaveRequestId) },
       select: {
@@ -1101,34 +1104,36 @@ class LeaveRequestService {
     });
 
     const dept = request?.user?.department;
-    if (!dept?.headId) return; // สาขายังไม่มีหัวหน้า ปล่อยผ่านให้ระบบเดินต่อได้
 
-    if (isProxy) {
-      // ต้องเป็นการรับมอบอำนาจ "จากหัวหน้าสาขาของผู้ยื่น" เท่านั้น
-      const delegation = await prisma.proxyApproval.findFirst({
-        where: {
-          proxyApproverId: Number(approverId),
-          originalApproverId: dept.headId,
-          approverLevel: 1,
-          status: "ACTIVE",
+    // สาขายังไม่มีหัวหน้า: ปล่อยผ่านให้ระบบเดินต่อได้ (ทำในฐานะปกติ ไม่ใช่ proxy)
+    if (!dept?.headId) return { isProxy: false, proxyApproval: null };
+
+    // (ก) เป็นหัวหน้าสาขาของผู้ยื่นเอง -> ทำในฐานะหัวหน้า (แม้จะถือสิทธิ์รับมอบจากคนอื่นด้วย)
+    if (dept.headId === Number(approverId)) {
+      return { isProxy: false, proxyApproval: null };
+    }
+
+    // (ข) ได้รับมอบอำนาจ "จากหัวหน้าสาขาของผู้ยื่น" -> ทำในฐานะผู้รับมอบอำนาจ
+    const delegation = await prisma.proxyApproval.findFirst({
+      where: {
+        proxyApproverId: Number(approverId),
+        originalApproverId: dept.headId,
+        approverLevel: 1,
+        status: "ACTIVE",
+      },
+      include: {
+        originalApprover: {
+          select: { id: true, prefixName: true, firstName: true, lastName: true },
         },
-      });
+      },
+    });
+    if (delegation) return { isProxy: true, proxyApproval: delegation };
 
-      if (!delegation) {
-        throw createError(
-          403,
-          `คุณไม่ได้รับมอบอำนาจจากหัวหน้าสาขาของผู้ยื่นคำขอนี้ (${dept.name})`
-        );
-      }
-      return;
-    }
-
-    if (dept.headId !== Number(approverId)) {
-      throw createError(
-        403,
-        `คุณไม่ใช่หัวหน้าสาขาของผู้ยื่นคำขอนี้ (${dept.name})`
-      );
-    }
+    // ไม่ใช่ทั้งหัวหน้าสาขาและผู้รับมอบอำนาจของสาขานี้
+    throw createError(
+      403,
+      `คุณไม่มีสิทธิ์ดำเนินการคำขอของสาขานี้ (${dept.name}) — ต้องเป็นหัวหน้าสาขาหรือผู้รับมอบอำนาจจากหัวหน้าสาขา`
+    );
   }
 
   /**
@@ -1196,22 +1201,14 @@ class LeaveRequestService {
       throw createError(403, "คุณไม่มีสิทธิ์อนุมัติในระดับนี้");
     }
 
-    // ดึงข้อมูล proxy approval สำหรับบันทึก (ถ้าเป็น proxy)
-    const permission = await ProxyApprovalService.canUserApprove(approverId, approverLevel);
-
-    // ตรวจสอบว่าเป็นการอนุมัติแทนหรือไม่
-    let proxyApprovalId = null;
-
-    if (permission.isProxy) {
-      proxyApprovalId = permission.proxyApproval.id;
-    }
-
-    // ขั้นที่ 1 อนุมัติได้เฉพาะหัวหน้าสาขาของผู้ยื่น (หรือผู้รับมอบอำนาจ)
-    await this.assertFirstStepDepartmentScope(
+    // ขั้นที่ 1: ฐานะขึ้นกับสาขาของผู้ยื่น — หัวหน้าสาขา หรือผู้รับมอบอำนาจจากหัวหน้าสาขานั้น
+    // ตรวจสิทธิ์ระดับสาขา + ระบุว่าทำในฐานะ proxy หรือไม่ ไปในตัว (แทน canUserApprove
+    // ที่ตัดสิน isProxy จากสิทธิ์รับมอบใด ๆ ที่ผู้ใช้ถือ ทำให้บันทึกผิดฐานะและอาจ 403)
+    const permission = await this.resolveFirstStepCapacity(
       existingDetail.leaveRequestId,
-      approverId,
-      permission.isProxy
+      approverId
     );
+    const proxyApprovalId = permission.isProxy ? permission.proxyApproval.id : null;
 
     // หมายเหตุ: ไม่ต้องเช็คว่า existingDetail.approverId ตรงกับ approverId หรือไม่
     // เพราะถ้า user มีสิทธิ์ approve ในระดับนี้ (อยู่ใน approverIds แล้ว) ก็ควรอนุญาตให้ approve ได้
@@ -1371,16 +1368,8 @@ class LeaveRequestService {
     // ตรวจสิทธิ์: ต้องถือบทบาทของขั้นนี้จริง
     await this.assertApproverPermission(1, approverId);
 
-    // ขั้นที่ 1 ปฏิเสธได้เฉพาะหัวหน้าสาขาของผู้ยื่น (หรือผู้รับมอบอำนาจ)
-    const rejectPermission = await ProxyApprovalService.canUserApprove(
-      approverId,
-      1
-    );
-    await this.assertFirstStepDepartmentScope(
-      existingDetail.leaveRequestId,
-      approverId,
-      rejectPermission.isProxy
-    );
+    // ขั้นที่ 1 ปฏิเสธได้เฉพาะหัวหน้าสาขาของผู้ยื่น (หรือผู้รับมอบอำนาจจากหัวหน้าสาขานั้น)
+    await this.resolveFirstStepCapacity(existingDetail.leaveRequestId, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
