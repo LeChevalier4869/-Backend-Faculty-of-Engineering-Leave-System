@@ -70,6 +70,12 @@ router.get("/user/:id", leaveRequestController.getLeaveRequestsByUserId);
 // 🟢 GET REQUEST FOR APPROVER
 // ────────────────────────────────
 
+//get all request for department
+router.get(
+  "/department",
+  authenticate,
+  leaveRequestController.getAllLeaveRequestsInDepartment
+);
 // get request for head of department (step 1)
 router.get(
   "/for-approver1",

@@ -63,10 +63,14 @@ class AdminService {
       UserService.getApproversForLevel(5, new Date()), // APPROVER_4
     ]);
 
-    const verifierId = verifiers && verifiers.length > 0 ? verifiers[0].id : null;
-    const approver2Id = approver2s && approver2s.length > 0 ? approver2s[0].id : null;
-    const approver3Id = approver3s && approver3s.length > 0 ? approver3s[0].id : null;
-    const approver4Id = approver4s && approver4s.length > 0 ? approver4s[0].id : null;
+    const verifierId =
+      verifiers && verifiers.length > 0 ? verifiers[0].id : null;
+    const approver2Id =
+      approver2s && approver2s.length > 0 ? approver2s[0].id : null;
+    const approver3Id =
+      approver3s && approver3s.length > 0 ? approver3s[0].id : null;
+    const approver4Id =
+      approver4s && approver4s.length > 0 ? approver4s[0].id : null;
 
     const ids = [
       approver1Id,
@@ -85,13 +89,25 @@ class AdminService {
     return [
       { stepOrder: 1, roleName: "APPROVER_1", userId: approver1Id },
       { stepOrder: 2, roleName: "VERIFIER", userId: verifierId },
-      { stepOrder: 4, roleName: "APPROVER_2", userId: approver2?.userId ?? null },
-      { stepOrder: 5, roleName: "APPROVER_3", userId: approver3?.userId ?? null },
-      { stepOrder: 6, roleName: "APPROVER_4", userId: approver4?.userId ?? null },
+      {
+        stepOrder: 4,
+        roleName: "APPROVER_2",
+        userId: approver2?.userId ?? null,
+      },
+      {
+        stepOrder: 5,
+        roleName: "APPROVER_3",
+        userId: approver3?.userId ?? null,
+      },
+      {
+        stepOrder: 6,
+        roleName: "APPROVER_4",
+        userId: approver4?.userId ?? null,
+      },
     ].map((s) => ({
       stepOrder: s.stepOrder,
       roleName: s.roleName,
-      user: s.userId ? byId.get(s.userId) ?? null : null,
+      user: s.userId ? (byId.get(s.userId) ?? null) : null,
     }));
   }
 
@@ -107,7 +123,7 @@ class AdminService {
     documentNumber,
     documentIssuedDate,
     adminId,
-    approvalDetails
+    approvalDetails,
   ) {
     if (!userId || !leaveTypeId || !startDate || !endDate) {
       throw createError(400, "ข้อมูลไม่ครบถ้วน");
@@ -141,7 +157,7 @@ class AdminService {
     const eligibility = await LeaveRequestService.checkEligibility(
       userId,
       leaveTypeId,
-      requestedDays
+      requestedDays,
     );
     if (!eligibility.success) throw createError(400, eligibility.message);
 
@@ -152,7 +168,7 @@ class AdminService {
     if (Number.isNaN(issuedAt.getTime())) {
       // รองรับกรณีส่งรูปแบบ dd/MM/yyyy หรือปี พ.ศ. (เช่น 25/09/2568)
       const m = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/.exec(
-        String(documentIssuedDate)
+        String(documentIssuedDate),
       );
       if (m) {
         let [_, dd, mm, yyyy] = m;
@@ -190,21 +206,34 @@ class AdminService {
         if (!steps.includes(stepOrder)) return;
         byStep.set(stepOrder, {
           stepOrder,
-          comment: d?.comment != null && String(d.comment).trim() ? String(d.comment).trim() : null,
-          remarks: d?.remarks != null && String(d.remarks).trim() ? String(d.remarks).trim() : null,
+          comment:
+            d?.comment != null && String(d.comment).trim()
+              ? String(d.comment).trim()
+              : null,
+          remarks:
+            d?.remarks != null && String(d.remarks).trim()
+              ? String(d.remarks).trim()
+              : null,
           reviewedAt: d?.reviewedAt ? new Date(d.reviewedAt) : null,
         });
       });
 
       // seed steps
       steps.forEach((s) => {
-        if (!byStep.has(s)) byStep.set(s, { stepOrder: s, comment: null, remarks: null, reviewedAt: null });
+        if (!byStep.has(s))
+          byStep.set(s, {
+            stepOrder: s,
+            comment: null,
+            remarks: null,
+            reviewedAt: null,
+          });
       });
 
       // normalize invalid dates -> null
       steps.forEach((s) => {
         const v = byStep.get(s);
-        if (v.reviewedAt && Number.isNaN(v.reviewedAt.getTime())) v.reviewedAt = null;
+        if (v.reviewedAt && Number.isNaN(v.reviewedAt.getTime()))
+          v.reviewedAt = null;
       });
 
       // backfill rule: if missing date => use next step date; if none => fallbackDate
@@ -212,7 +241,10 @@ class AdminService {
         const s = steps[i];
         const cur = byStep.get(s);
         if (cur.reviewedAt) continue;
-        const next = steps.slice(i + 1).map((k) => byStep.get(k)).find((x) => x?.reviewedAt);
+        const next = steps
+          .slice(i + 1)
+          .map((k) => byStep.get(k))
+          .find((x) => x?.reviewedAt);
         cur.reviewedAt = next?.reviewedAt ? next.reviewedAt : fallbackDate;
       }
 
@@ -222,7 +254,10 @@ class AdminService {
         const cur = byStep.get(steps[i]);
         if (!prev?.reviewedAt || !cur?.reviewedAt) continue;
         if (prev.reviewedAt.getTime() > cur.reviewedAt.getTime()) {
-          throw createError(400, "วันที่อนุมัติแต่ละขั้นตอนต้องเรียงตามลำดับ (ก่อนหน้า ≤ ถัดไป)");
+          throw createError(
+            400,
+            "วันที่อนุมัติแต่ละขั้นตอนต้องเรียงตามลำดับ (ก่อนหน้า ≤ ถัดไป)",
+          );
         }
       }
 
@@ -270,7 +305,7 @@ class AdminService {
         userId,
         leaveTypeId,
         requestedDays,
-        { tx }
+        { tx },
       );
 
       const adminCreatedAt = new Date();
@@ -288,7 +323,8 @@ class AdminService {
         },
       });
       const approver1Id = user?.department?.headId;
-      if (!approver1Id) throw createError(400, "ไม่พบหัวหน้าสาขา (Approver1) ของผู้ใช้งาน");
+      if (!approver1Id)
+        throw createError(400, "ไม่พบหัวหน้าสาขา (Approver1) ของผู้ใช้งาน");
 
       const approver2 = await tx.userRole.findFirst({
         where: { role: { name: "APPROVER_2" } },
@@ -304,9 +340,12 @@ class AdminService {
       });
 
       if (!verifierId) throw createError(400, "ไม่พบผู้ตรวจสอบ (VERIFIER)");
-      if (!approver2?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_2)");
-      if (!approver3?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_3)");
-      if (!approver4?.userId) throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_4)");
+      if (!approver2?.userId)
+        throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_2)");
+      if (!approver3?.userId)
+        throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_3)");
+      if (!approver4?.userId)
+        throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_4)");
 
       const normalized = normalizeApprovalDetails(approvalDetails, issuedAt);
 
@@ -446,113 +485,113 @@ class AdminService {
   }
   static async createDepartment(data) {
     const { headId, ...deptData } = data;
-    
+
     return await prisma.$transaction(async (tx) => {
       // Create department
       const newDept = await tx.department.create({ data: deptData });
-      
+
       // If headId is provided, add APPROVER_1 role
       if (headId) {
         const approver1Role = await tx.role.findFirst({
-          where: { name: "APPROVER_1" }
+          where: { name: "APPROVER_1" },
         });
-        
+
         if (approver1Role) {
           // Check if user already has this role
           const existingRole = await tx.userRole.findFirst({
             where: {
               userId: headId,
-              roleId: approver1Role.id
-            }
+              roleId: approver1Role.id,
+            },
           });
-          
+
           if (!existingRole) {
             await tx.userRole.create({
               data: {
                 userId: headId,
-                roleId: approver1Role.id
-              }
+                roleId: approver1Role.id,
+              },
             });
           }
         }
-        
+
         // Update department with headId
         await tx.department.update({
           where: { id: newDept.id },
-          data: { headId }
+          data: { headId },
         });
-        
+
         newDept.headId = headId;
       }
-      
+
       return newDept;
     });
   }
   static async updateDepartment(data) {
     const { id, name, organizationId, appointDate, headId } = data;
-    
+
     return await prisma.$transaction(async (tx) => {
       // Get current department data to check if headId is changing
       const currentDept = await tx.department.findUnique({
         where: { id },
-        select: { headId: true }
+        select: { headId: true },
       });
-      
+
       if (!currentDept) {
         throw createError(404, "Department not found");
       }
-      
+
       // Update department
       const updated = await tx.department.update({
         where: { id },
         data: { name, organizationId, appointDate, headId },
       });
-      
+
       // If headId is changing, sync APPROVER_1 role
       if (currentDept.headId !== headId) {
         // Remove APPROVER_1 role from previous head
         if (currentDept.headId) {
           const approver1Role = await tx.role.findFirst({
-            where: { name: "APPROVER_1" }
+            where: { name: "APPROVER_1" },
           });
-          
+
           if (approver1Role) {
             await tx.userRole.deleteMany({
               where: {
                 userId: currentDept.headId,
-                roleId: approver1Role.id
-              }
+                roleId: approver1Role.id,
+              },
             });
           }
         }
-        
+
         // Add APPROVER_1 role to new head
         if (headId) {
           const approver1Role = await tx.role.findFirst({
-            where: { name: "APPROVER_1" }
+            where: { name: "APPROVER_1" },
           });
-          
+
           if (approver1Role) {
             // Check if user already has this role
             const existingRole = await tx.userRole.findFirst({
               where: {
                 userId: headId,
-                roleId: approver1Role.id
-              }
+                roleId: approver1Role.id,
+              },
             });
-            
+
             if (!existingRole) {
               await tx.userRole.create({
                 data: {
                   userId: headId,
-                  roleId: approver1Role.id
-                }
+                  roleId: approver1Role.id,
+                },
               });
             }
           }
         }
       }
-      
+
       return updated;
     });
   }
@@ -740,25 +779,36 @@ class AdminService {
 
     // Build update data object with only provided fields
     const dataToUpdate = {};
-    
+
     // Only include fields that are explicitly provided in updateData
-    if (updateData.prefixName !== undefined) dataToUpdate.prefixName = updateData.prefixName;
-    if (updateData.firstName !== undefined) dataToUpdate.firstName = updateData.firstName;
-    if (updateData.lastName !== undefined) dataToUpdate.lastName = updateData.lastName;
+    if (updateData.prefixName !== undefined)
+      dataToUpdate.prefixName = updateData.prefixName;
+    if (updateData.firstName !== undefined)
+      dataToUpdate.firstName = updateData.firstName;
+    if (updateData.lastName !== undefined)
+      dataToUpdate.lastName = updateData.lastName;
     if (updateData.email !== undefined) dataToUpdate.email = updateData.email;
     if (updateData.phone !== undefined) dataToUpdate.phone = updateData.phone;
     if (updateData.sex !== undefined) dataToUpdate.sex = updateData.sex;
-    if (updateData.position !== undefined) dataToUpdate.position = updateData.position;
-    if (updateData.hireDate !== undefined) dataToUpdate.hireDate = new Date(updateData.hireDate);
-    if (updateData.employmentType !== undefined) dataToUpdate.employmentType = updateData.employmentType;
-    if (updateData.profilePicturePath !== undefined) dataToUpdate.profilePicturePath = updateData.profilePicturePath;
+    if (updateData.position !== undefined)
+      dataToUpdate.position = updateData.position;
+    if (updateData.hireDate !== undefined)
+      dataToUpdate.hireDate = new Date(updateData.hireDate);
+    if (updateData.employmentType !== undefined)
+      dataToUpdate.employmentType = updateData.employmentType;
+    if (updateData.profilePicturePath !== undefined)
+      dataToUpdate.profilePicturePath = updateData.profilePicturePath;
 
     // Add relations if provided
     if (updateData.personnelTypeId !== undefined) {
-      dataToUpdate.personnelType = { connect: { id: Number(updateData.personnelTypeId) } };
+      dataToUpdate.personnelType = {
+        connect: { id: Number(updateData.personnelTypeId) },
+      };
     }
     if (updateData.departmentId !== undefined) {
-      dataToUpdate.department = { connect: { id: Number(updateData.departmentId) } };
+      dataToUpdate.department = {
+        connect: { id: Number(updateData.departmentId) },
+      };
     }
 
     const updated = await prisma.user.update({
@@ -812,6 +862,48 @@ class AdminService {
       where: { key },
       data: { value },
     });
+  }
+
+  // Admin Dashboard Summary -------------------------------------------------------------------
+
+  static async getDashboardSummary() {
+    const [
+      totalUsers,
+      totalRequests,
+      pendingRequests,
+      approvedRequests,
+      rejectedRequests,
+      cancelledRequests,
+    ] = await Promise.all([
+      prisma.user.count(),
+
+      prisma.leaveRequest.count(),
+
+      prisma.leaveRequest.count({
+        where: { status: "PENDING" },
+      }),
+
+      prisma.leaveRequest.count({
+        where: { status: "APPROVED" },
+      }),
+
+      prisma.leaveRequest.count({
+        where: { status: "REJECTED" },
+      }),
+
+      prisma.leaveRequest.count({
+        where: { status: "CANCELLED" },
+      }),
+    ]);
+
+    return {
+      totalUsers,
+      totalRequests,
+      pendingRequests,
+      approvedRequests,
+      rejectedRequests,
+      cancelledRequests,
+    };
   }
 }
 

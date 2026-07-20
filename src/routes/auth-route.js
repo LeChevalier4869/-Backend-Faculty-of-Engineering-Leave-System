@@ -1,14 +1,18 @@
-const express = require('express');
+const express = require("express");
 const bcrypt = require("bcryptjs");
 const router = express.Router();
 
 const passport = require("../config/passport");
 
-const { authenticate, authorize, optionalAuth } = require('../middlewares/auth');
-const uploadFile = require('../middlewares/fileUpload');
+const {
+  authenticate,
+  authorize,
+  optionalAuth,
+} = require("../middlewares/auth");
+const uploadFile = require("../middlewares/fileUpload");
 const upload = require("../middlewares/upload");
-const authController = require('../controllers/auth-controller');
-const AuthService = require('../services/auth-service');
+const authController = require("../controllers/auth-controller");
+const AuthService = require("../services/auth-service");
 const prisma = require("../config/prisma");
 
 // ==============================
@@ -16,53 +20,85 @@ const prisma = require("../config/prisma");
 // ==============================
 
 // ระบบใช้ Google OAuth เท่านั้น (manual register/login ถูกถอดออกแล้ว)
-router.get('/me', uploadFile.uploadProfile.none(), authenticate, authController.getMe);
-router.get('/landing', authController.userLanding);
-router.get('/role', authenticate, authController.checkUserRole);
-router.get('/user-info/:id', authenticate, authController.getUserInfoById);
-router.get('/verifier', authenticate, authController.getVerifier);
-router.get('/approvers-for-level/:level', optionalAuth, authController.getApproversForLevel); // ใช้ optionalAuth สำหรับ testing
+router.get(
+  "/me",
+  uploadFile.uploadProfile.none(),
+  authenticate,
+  authController.getMe,
+);
+router.get("/landing", authController.userLanding);
+router.get("/role", authenticate, authController.checkUserRole);
+router.get("/user-info/:id", authenticate, authController.getUserInfoById);
+router.get("/verifier", authenticate, authController.getVerifier);
+router.get(
+  "/approvers-for-level/:level",
+  optionalAuth,
+  authController.getApproversForLevel,
+); // ใช้ optionalAuth สำหรับ testing
 
 // ==============================
 //      User Management (Admin)
 // ==============================
 
-router.post('/update-role/:id', authenticate, authorize(['SUPER_ADMIN']), authController.updateUserRole);
-router.put('/users/:id', authenticate, upload.single('images'), authController.updateUser);
-router.patch('/update-picture', authenticate, uploadFile.uploadProfile.single('profilePicturePath'), authController.updateProfile);
-router.get('/profile-image/:filename', authController.getProfileImage);
-router.delete('/delete-picture', authenticate, authController.deleteProfilePicture);
-router.get('/google-profile-picture', authenticate, authController.getGoogleProfilePicture);
+router.post(
+  "/update-role/:id",
+  authenticate,
+  authorize(["SUPER_ADMIN"]),
+  authController.updateUserRole,
+);
+router.put(
+  "/users/:id",
+  authenticate,
+  upload.single("images"),
+  authController.updateUser,
+);
+router.patch(
+  "/update-picture",
+  authenticate,
+  uploadFile.uploadProfile.single("profilePicturePath"),
+  authController.updateProfile,
+);
+router.get("/profile-image/:filename", authController.getProfileImage);
+router.delete(
+  "/delete-picture",
+  authenticate,
+  authController.deleteProfilePicture,
+);
+router.get(
+  "/google-profile-picture",
+  authenticate,
+  authController.getGoogleProfilePicture,
+);
 
 // ==============================
 //    Organization Management
 // ==============================
 
-router.get('/organizations', authController.getAllOrganizations);
-router.get('/organizations/:id', authController.getOrganizationById);
-router.post('/organizations', authController.createOrganization);
-router.put('/organizations/:id', authController.updateOrganization);
-router.delete('/organizations/:id', authController.deleteOrganization);
+router.get("/organizations", authController.getAllOrganizations);
+router.get("/organizations/:id", authController.getOrganizationById);
+router.post("/organizations", authController.createOrganization);
+router.put("/organizations/:id", authController.updateOrganization);
+router.delete("/organizations/:id", authController.deleteOrganization);
 
 // ==============================
 //     Department Management
 // ==============================
 
-router.get('/departments', authController.getAllDepartments);
-router.get('/departments/:id', authController.getDepartmentById);
-router.post('/departments', authController.createDepartment);
-router.put('/departments/:id', authController.updateDepartment);
-router.delete('/departments/:id', authController.deleteDepartment);
+router.get("/departments", authController.getAllDepartments);
+router.get("/departments/:id", authController.getDepartmentById);
+router.post("/departments", authController.createDepartment);
+router.put("/departments/:id", authController.updateDepartment);
+router.delete("/departments/:id", authController.deleteDepartment);
 
 // ==============================
 //    Personnel Type Management
 // ==============================
 
-router.get('/personnel-types', authController.getPersonnelTypes);
-router.get('/personnel-types/:id', authController.getPersonnelTypeById);
-router.post('/personnel-types', authController.createPersonnelType);
-router.put('/personnel-types/:id', authController.updatePersonnelType);
-router.delete('/personnel-types/:id', authController.deletePersonnelType);
+router.get("/personnel-types", authController.getPersonnelTypes);
+router.get("/personnel-types/:id", authController.getPersonnelTypeById);
+router.post("/personnel-types", authController.createPersonnelType);
+router.put("/personnel-types/:id", authController.updatePersonnelType);
+router.delete("/personnel-types/:id", authController.deletePersonnelType);
 
 // ==============================
 //           Position
@@ -79,12 +115,10 @@ router.delete('/personnel-types/:id', authController.deletePersonnelType);
 //   authController.googleLogin
 // );
 
-
-
 // Login via Google
 router.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  passport.authenticate("google", { scope: ["profile", "email"] }),
 );
 
 // Google callback
@@ -96,10 +130,14 @@ router.get(
         const isDev = process.env.NODE_ENV !== "production";
         const allowedOrigins = isDev
           ? ["http://localhost:5173"]
-          : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+          : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(
+              Boolean,
+            );
 
         const targetOrigin = allowedOrigins[0];
-        const errorMessage = encodeURIComponent(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+        const errorMessage = encodeURIComponent(
+          err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+        );
 
         const failRedirectUrl = `${targetOrigin}/callback?error=${errorMessage}`;
         return res.redirect(failRedirectUrl);
@@ -118,13 +156,17 @@ router.get(
     try {
       const user = req.user;
 
-      const { accessToken, refreshToken } = await AuthService.generateTokens(user.id);
+      const { accessToken, refreshToken } = await AuthService.generateTokens(
+        user.id,
+      );
 
       // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
       const isDev = process.env.NODE_ENV !== "production";
       const allowedOrigins = isDev
         ? ["http://localhost:5173"]
-        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(
+            Boolean,
+          );
 
       if (!allowedOrigins.length) {
         return res.status(500).send("No allowed frontend URL configured.");
@@ -160,17 +202,21 @@ router.get(
       const isDev = process.env.NODE_ENV !== "production";
       const allowedOrigins = isDev
         ? ["http://localhost:5173"]
-        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(
+            Boolean,
+          );
 
       const targetOrigin = allowedOrigins[0];
-      const errorMessage = encodeURIComponent(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+      const errorMessage = encodeURIComponent(
+        err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+      );
 
       const failRedirectUrl = `${targetOrigin}/callback?error=${errorMessage}`;
       console.log("Error redirecting to:", failRedirectUrl);
 
       res.redirect(failRedirectUrl);
     }
-  }
+  },
 );
 
 router.get("/profile", authenticate, async (req, res) => {
@@ -189,7 +235,8 @@ router.get("/fail", (req, res) => {
 router.post("/refresh", async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshToken(refreshToken);
+    const { accessToken, refreshToken: newRefreshToken } =
+      await AuthService.refreshToken(refreshToken);
     res.json({ accessToken, refreshToken: newRefreshToken });
   } catch (err) {
     res.status(401).json({ error: err.message });
@@ -221,5 +268,11 @@ router.post("/logout", async (req, res) => {
     console.error(err);
   }
 });
+
+router.get(
+  "/users-department",
+  authenticate,
+  authController.getAllUsersInDepartment,
+);
 
 module.exports = router;

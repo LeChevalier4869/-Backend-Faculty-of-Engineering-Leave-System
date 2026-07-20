@@ -144,5 +144,8 @@ router.delete('/leave-balance/:year', authorize(["ADMIN"]), adminController.dele
 router.get('/fiscal-year', authorize(["ADMIN"]), adminController.getFiscalYearInfo);
 router.put('/fiscal-year', authorize(["ADMIN"]), adminController.updateFiscalYear);
 
+//---------------------------------- Admin Dashboard -----------------------
+router.get('/dashboard-summary', authorize(["ADMIN"]), adminController.getDashboardSummary);
+
 
 module.exports = router;

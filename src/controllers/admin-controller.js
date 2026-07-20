@@ -1534,3 +1534,23 @@ exports.updateFiscalYear = async (req, res, next) => {
   }
 };
 
+
+//--------------------- Admin Dashboard Summary --------------------
+exports.getDashboardSummary = async (req, res) => {
+  try {
+    const summary =
+      await AdminService.getDashboardSummary();
+
+    res.status(200).json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    console.error("Dashboard Summary Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "เกิดข้อผิดพลาดในการดึงข้อมูล Dashboard",
+    });
+  }
+};
