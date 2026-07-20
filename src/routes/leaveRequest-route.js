@@ -62,6 +62,12 @@ router.get("/user/:id", authenticate, leaveRequestController.getLeaveRequestsByU
 // ────────────────────────────────
 // 🟢 GET REQUEST FOR APPROVER
 // ────────────────────────────────
+//
+// หมายเหตุ (สำคัญ): เส้นทางกลุ่มอนุมัติ/ปฏิเสธด้านล่างตั้งใจไม่ใส่ authorize(["APPROVER_x"])
+// เพราะ "ผู้รับมอบอำนาจ" (ProxyApproval) ไม่ได้ถือบทบาทนั้นจริง จะถูก authorize ปัดตกทันที
+// การตรวจสิทธิ์จึงทำที่ชั้น service ด้วย LeaveRequestService.assertApproverPermission()
+// ซึ่งใช้ getApproversForLevel() ที่นับผู้รับมอบอำนาจด้วย
+// -> อย่าเปิด authorize() กลับมา เพราะจะทำให้ระบบมอบอำนาจใช้ไม่ได้
 
 // get request for head of department (step 1)
 router.get(

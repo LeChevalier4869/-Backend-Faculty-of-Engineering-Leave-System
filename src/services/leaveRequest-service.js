@@ -1060,6 +1060,54 @@ class LeaveRequestService {
     });
   }
 
+  /**
+   * ตรวจว่าผู้ดำเนินการถือบทบาทของขั้นนั้นจริง (รวมผู้รับมอบอำนาจ)
+   *
+   * เดิมมีเฉพาะบางฟังก์ชัน ทำให้ approve ระดับ APPROVER_3/APPROVER_4
+   * และ reject เกือบทุกระดับเปิดให้ผู้ใช้ที่ล็อกอินแล้วคนใดก็ได้ดำเนินการ
+   */
+  static async assertApproverPermission(approverLevel, approverId) {
+    const approvers = await UserService.getApproversForLevel(
+      approverLevel,
+      new Date()
+    );
+    const approverIds = approvers.map((a) => a.id);
+
+    if (!approverIds.includes(Number(approverId))) {
+      throw createError(403, "คุณไม่มีสิทธิ์ดำเนินการในระดับนี้");
+    }
+  }
+
+  /**
+   * ขั้นที่ 1 เป็นการอนุมัติของ "หัวหน้าสาขาของผู้ยื่น" เท่านั้น
+   *
+   * คิวอนุมัติกรองตามสาขาอยู่แล้ว แต่ตัวจัดการ approve ตรวจแค่ว่ามีบทบาท APPROVER_1
+   * หัวหน้าสาขาอื่นจึงอนุมัติคำขอข้ามสาขาได้ถ้ารู้ id ของรายการ
+   * ผู้รับมอบอำนาจ (proxy) ยังทำแทนได้ตามปกติ
+   */
+  static async assertFirstStepDepartmentScope(leaveRequestId, approverId, isProxy) {
+    if (isProxy) return;
+
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: Number(leaveRequestId) },
+      select: {
+        user: {
+          select: {
+            department: { select: { name: true, headId: true } },
+          },
+        },
+      },
+    });
+
+    const head = request?.user?.department;
+    if (head?.headId && head.headId !== Number(approverId)) {
+      throw createError(
+        403,
+        `คุณไม่ใช่หัวหน้าสาขาของผู้ยื่นคำขอนี้ (${head.name})`
+      );
+    }
+  }
+
   static async assertNotSelfReview(leaveRequestId, actingUserId) {
     const request = await prisma.leaveRequest.findUnique({
       where: { id: Number(leaveRequestId) },
@@ -1113,6 +1161,14 @@ class LeaveRequestService {
     if (permission.isProxy) {
       proxyApprovalId = permission.proxyApproval.id;
     }
+
+    // ขั้นที่ 1 อนุมัติได้เฉพาะหัวหน้าสาขาของผู้ยื่น (หรือผู้รับมอบอำนาจ)
+    await this.assertFirstStepDepartmentScope(
+      existingDetail.leaveRequestId,
+      approverId,
+      permission.isProxy
+    );
+
     // หมายเหตุ: ไม่ต้องเช็คว่า existingDetail.approverId ตรงกับ approverId หรือไม่
     // เพราะถ้า user มีสิทธิ์ approve ในระดับนี้ (อยู่ใน approverIds แล้ว) ก็ควรอนุญาตให้ approve ได้
     // ไม่ว่าจะถูก assign ไว้ให้คนไหนก็ตาม
@@ -1267,6 +1323,20 @@ class LeaveRequestService {
 
     // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
     await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
+
+    // ตรวจสิทธิ์: ต้องถือบทบาทของขั้นนี้จริง
+    await this.assertApproverPermission(1, approverId);
+
+    // ขั้นที่ 1 ปฏิเสธได้เฉพาะหัวหน้าสาขาของผู้ยื่น (หรือผู้รับมอบอำนาจ)
+    const rejectPermission = await ProxyApprovalService.canUserApprove(
+      approverId,
+      1
+    );
+    await this.assertFirstStepDepartmentScope(
+      existingDetail.leaveRequestId,
+      approverId,
+      rejectPermission.isProxy
+    );
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
@@ -1887,6 +1957,9 @@ class LeaveRequestService {
     // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
     await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
+    // ตรวจสิทธิ์: ต้องถือบทบาทของขั้นนี้จริง
+    await this.assertApproverPermission(3, approverId);
+
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
       throw createError(
@@ -2015,6 +2088,9 @@ class LeaveRequestService {
     // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
     await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
+    // ตรวจสิทธิ์: ต้องถือบทบาทของขั้นนี้จริง
+    await this.assertApproverPermission(4, approverId);
+
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
       throw createError(
@@ -2131,6 +2207,9 @@ class LeaveRequestService {
 
     // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
     await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
+
+    // ตรวจสิทธิ์: ต้องถือบทบาทของขั้นนี้จริง
+    await this.assertApproverPermission(4, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
@@ -2260,6 +2339,9 @@ class LeaveRequestService {
     // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
     await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
 
+    // ตรวจสิทธิ์: ต้องถือบทบาทของขั้นนี้จริง
+    await this.assertApproverPermission(5, approverId);
+
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
       throw createError(
@@ -2360,6 +2442,9 @@ class LeaveRequestService {
 
     // ผู้อนุมัติต้องไม่ใช่ผู้ยื่นคำขอเอง
     await this.assertNotSelfReview(existingDetail.leaveRequestId, approverId);
+
+    // ตรวจสิทธิ์: ต้องถือบทบาทของขั้นนี้จริง
+    await this.assertApproverPermission(5, approverId);
 
     // ตรวจสอบสถานะว่าต้องเป็น PENDING เท่านั้น
     if (existingDetail.status !== "PENDING") {
