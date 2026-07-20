@@ -2640,29 +2640,6 @@ class LeaveRequestService {
     // 3. ส่งอีเมลแจ้งเตือนให้ผู้ใช้ (outside transaction)
     if (leaveRequest.user.email) {
       try {
-<<<<<<< HEAD
-        const subject = "แจ้งเตือนการยกเลิกคำขอลา";
-        const message = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h3 style="color: #2c3e50;">เรียน ${leaveRequest.user.prefixName} ${leaveRequest.user.firstName} ${leaveRequest.user.lastName},</h3>
-          <p>คำขอลาของคุณถูกยกเลิกโดยผู้ดูแลระบบ</p>
-          <p><strong>รายละเอียดคำขอลา:</strong></p>
-          <ul style="list-style: none; padding: 0;">
-            <li><strong>เลขที่ใบลา:</strong> ${leaveRequestNumber}</li>
-            <li><strong>ประเภทการลา:</strong> ${leaveRequest.leaveType.name}</li>
-            <li><strong>จำนวนวันลา:</strong> ${leaveRequest.thisTimeDays} วัน</li>
-            <li><strong>วันที่ลา:</strong> ${leaveRequest.startDate.toLocaleDateString("th-TH")} - ${leaveRequest.endDate.toLocaleDateString("th-TH")}</li>
-          </ul>
-          <p>สิทธิ์การลาของคุณได้รับการคืนค่าเรียบร้อยแล้ว</p>
-          <br/>
-          <p style="color: #7f8c8d;">ขอแสดงความนับถือ,</p>
-          <p style="color: #7f8c8d;">ระบบจัดการวันลาคณะวิศวกรรมศาสตร์</p>
-          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-          <p style="font-size: 12px; color: #95a5a6;">หมายเหตุ: อีเมลนี้เป็นการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับ</p>
-        </div>
-      `;
-        await sendEmail(leaveRequest.user.email, subject, message);
-=======
         queueNotification("CANCELLATION", {
           to: leaveRequest.user.email,
           userName: `${leaveRequest.user.prefixName} ${leaveRequest.user.firstName} ${leaveRequest.user.lastName}`,
@@ -2671,7 +2648,6 @@ class LeaveRequestService {
           requestedDays: leaveRequest.thisTimeDays,
           dateRange: `${leaveRequest.startDate.toLocaleDateString("th-TH")} - ${leaveRequest.endDate.toLocaleDateString("th-TH")}`,
         });
->>>>>>> 91e60a4e0275debcf13ca6cb500419dd385ce435
       } catch (emailError) {
         console.error("Failed to send cancellation email:", emailError);
         // ไม่ throw error เพราะการส่ง email ไม่ควรทำให้การยกเลิกล้มเหลว
