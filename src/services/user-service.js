@@ -74,6 +74,9 @@ class UserService {
   }
 
   static async getUserByIdWithRoles(id) {
+    // กัน id ว่าง (เช่น verifierId ที่ยังไม่ได้กำหนด) ไม่ให้ Prisma โยน error
+    if (id == null) return null;
+
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
