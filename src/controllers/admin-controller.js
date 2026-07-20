@@ -284,71 +284,6 @@ exports.deleteHoliday = async (req, res, next) => {
   }
 };
 
-//--------------------- Approver --------------------
-
-exports.approverList = async (req, res, next) => {
-  try {
-    const approverList = await AdminService.approverList();
-
-    if (!approverList) {
-      console.log("Debug approverList: ", approverList);
-      return createError(404, "approverList not found");
-    }
-
-    res.status(200).json({ message: "respones ok", approverList });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.createApprover = async (req, res, next) => {
-  try {
-    const { name } = req.body;
-
-    // console.log('Debug name: ', name);
-    if (!name) throw createError(400, "กรุณาใส่ชื่อ");
-
-    const approver = await AdminService.createApprover(name);
-
-    res
-      .status(201)
-      .json({ message: "เพิ่ม approver เรียบร้อย", Approver: approver });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.updateApprover = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { name } = req.body;
-
-    if (!id || !name) throw createError(400, "ไม่สามารถอัพเดตได้");
-    if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
-
-    const approver = await AdminService.updateApprover(parseInt(id), name);
-
-    res.status(200).json({ message: "อัพเดตเรียบร้อย", Approver: approver });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.deleteApprover = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) throw createError(400, "ไม่พบไอดี");
-    if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
-
-    const approver = await AdminService.deleteApprover(parseInt(id));
-
-    res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
-  } catch (err) {
-    next(err);
-  }
-};
-
 // --------------------
 //        role
 // --------------------
@@ -486,40 +421,16 @@ exports.getRoleById = async (req, res, next) => {
 
 exports.assignHeadDepartment = async (req, res, next) => {
   try {
-    const { departmentId, headId } = req.body;
+    const departmentId = parseInt(req.body.departmentId, 10);
+    const headId = parseInt(req.body.headId, 10);
 
-    if (!departmentId || !headId) {
-      throw createError(400, "departmentId and headId are required");
+    if (!Number.isInteger(departmentId) || !Number.isInteger(headId)) {
+      throw createError(400, "departmentId และ headId ต้องเป็นตัวเลข");
     }
 
-    const roleName = "APPROVER_1";
-    const [role] = await UserService.getRolesByNames([roleName]);
-    if (!role) {
-      console.log("Debug role: ", roleName);
-      throw createError(400, "Invalid role provided");
-    }
-
-    const { headId: lastHeadId } = await UserService.getHeadIdByDepartmentId(departmentId);
-    const userIdInt = parseInt(lastHeadId, 10);
-    const roleIdInt = parseInt(role.id, 10);
-
-    await UserService.deleteUserRole(userIdInt, roleIdInt);
-
-    const updatedDepartment = await AdminService.assignHead(
-      parseInt(departmentId),
-      parseInt(headId)
-    );
-
-    const roleList = ["APPROVER_1"];
-    const roles = await UserService.getRolesByNames(roleList);
-    if (!roles || roles.length !== roleList.length) {
-      console.log("Debug roles: ", roleList);
-      throw createError(400, "Invalid roles provided");
-    }
-    await UserService.assignRolesToUser(
-      headId,
-      roles.map((role) => role.id)
-    );
+    // AdminService.assignHead จัดการทั้งการตั้งหัวหน้าและ sync บทบาท APPROVER_1
+    // (ถอดจากคนเดิม + ให้คนใหม่) ภายใน transaction เดียว
+    const updatedDepartment = await AdminService.assignHead(departmentId, headId);
 
     res
       .status(200)

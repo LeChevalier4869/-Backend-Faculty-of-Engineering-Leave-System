@@ -65,12 +65,6 @@ router.put('/holiday/:id', authorize(["ADMIN"]), adminController.updateHoliday);
 router.delete('/holiday/:id', authorize(["ADMIN"]), adminController.deleteHoliday);
 
 
-//-------------------------------------- approver -------------------- 
-router.get('/approver', authorize(["ADMIN"]), adminController.approverList);
-router.post('/approver', upload.none(), authorize(["ADMIN"]), adminController.createApprover);
-router.put('/approver/:id', authorize(["ADMIN"]), adminController.updateApprover);
-router.delete('/approver/:id', authorize(["ADMIN"]), adminController.deleteApprover);
-
 //------------------------------------ Manage user -----------------
 router.get(
   '/users',

@@ -80,6 +80,8 @@ class OrgAndDeptService {
   }
 
   static async updateDepartment(id, data) {
+    const departmentId = parseInt(id);
+
     if (data.headId) {
       const headExists = await prisma.user.findUnique({
         where: { id: data.headId },
@@ -88,9 +90,50 @@ class OrgAndDeptService {
         throw createError(400, "ไม่พบผู้ใช้งานที่เป็นหัวหน้าของแผนก");
       }
     }
-    return await prisma.department.update({
-      where: { id: parseInt(id) }, // ตรวจสอบให้แน่ใจว่า id เป็น Int
-      data,
+
+    // เส้นทางนี้เคยเปลี่ยนหัวหน้าแผนกโดยไม่ sync บทบาท APPROVER_1
+    // ทำให้ข้อมูลเพี้ยนเมื่อมีการแก้ผ่าน endpoint นี้แทน /admin/departments/:id
+    return await prisma.$transaction(async (tx) => {
+      const current = await tx.department.findUnique({
+        where: { id: departmentId },
+        select: { headId: true },
+      });
+      if (!current) throw createError(404, "ไม่พบแผนก");
+
+      const updated = await tx.department.update({
+        where: { id: departmentId },
+        data,
+      });
+
+      // sync เฉพาะเมื่อส่ง headId มาจริง และค่าเปลี่ยนไปจากเดิม
+      if (data.headId !== undefined && current.headId !== data.headId) {
+        const approver1Role = await tx.role.findFirst({
+          where: { name: "APPROVER_1" },
+        });
+
+        if (approver1Role) {
+          // ถอดจากหัวหน้าเดิม ถ้าไม่ได้เป็นหัวหน้าแผนกอื่นอยู่ด้วย
+          if (current.headId) {
+            const stillHeadElsewhere = await tx.department.count({
+              where: { headId: current.headId, id: { not: departmentId } },
+            });
+            if (stillHeadElsewhere === 0) {
+              await tx.userRole.deleteMany({
+                where: { userId: current.headId, roleId: approver1Role.id },
+              });
+            }
+          }
+
+          if (data.headId) {
+            await tx.userRole.createMany({
+              data: [{ userId: data.headId, roleId: approver1Role.id }],
+              skipDuplicates: true,
+            });
+          }
+        }
+      }
+
+      return updated;
     });
   }
 
