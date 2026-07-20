@@ -382,7 +382,7 @@ exports.deleteRole = async (req, res, next) => {
 
     const role = await AdminService.deleteRole(parseInt(id));
 
-    // บันทึก Audit Log การลบ Role
+    // บันทึก Audit Log การลบ Role — เก็บ snapshot ก่อนลบเพื่อกู้ข้อมูลย้อนหลังได้
     await AuditLogService.createLog(
       req.user.id,
       "DELETE",
@@ -390,7 +390,8 @@ exports.deleteRole = async (req, res, next) => {
       parseInt(id),
       `ลบ Role: ${role.name} (ID: ${id})`,
       req.ip,
-      req.get('User-Agent')
+      req.get('User-Agent'),
+      existingRole || undefined
     );
 
     res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
@@ -431,6 +432,20 @@ exports.assignHeadDepartment = async (req, res, next) => {
     // AdminService.assignHead จัดการทั้งการตั้งหัวหน้าและ sync บทบาท APPROVER_1
     // (ถอดจากคนเดิม + ให้คนใหม่) ภายใน transaction เดียว
     const updatedDepartment = await AdminService.assignHead(departmentId, headId);
+
+    // บันทึก audit log — เปลี่ยนหัวหน้าสาขา (พร้อมสิทธิ์ APPROVER_1)
+    const headName = updatedDepartment.head
+      ? `${updatedDepartment.head.prefixName || ""}${updatedDepartment.head.firstName || ""} ${updatedDepartment.head.lastName || ""}`.trim()
+      : `user#${headId}`;
+    await AuditLogService.createLog(
+      req.user.id,
+      "ASSIGN_HEAD",
+      "Department",
+      departmentId,
+      `แต่งตั้งหัวหน้าสาขา ${updatedDepartment.name}: ${headName}`,
+      req.ip,
+      req.get("User-Agent")
+    );
 
     res
       .status(200)
@@ -1228,6 +1243,15 @@ exports.createSetting = async (req, res) => {
     }
 
     const setting = await settingService.createSetting(req.body);
+    await AuditLogService.createLog(
+      req.user?.id,
+      "CREATE",
+      "Setting",
+      setting?.id,
+      `สร้างการตั้งค่า: ${setting?.key}`,
+      req.ip,
+      req.get("User-Agent")
+    );
     res.json(setting);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1255,7 +1279,17 @@ exports.getSettingById = async (req, res) => {
 
 exports.updateSetting = async (req, res) => {
   try {
+    const before = await settingService.getSettingById(req.params.id);
     const setting = await settingService.updateSetting(req.params.id, req.body);
+    await AuditLogService.createUpdateLog(
+      req.user?.id,
+      "Setting",
+      Number(req.params.id),
+      before,
+      setting,
+      req.ip,
+      req.get("User-Agent")
+    );
     res.json(setting);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1264,7 +1298,19 @@ exports.updateSetting = async (req, res) => {
 
 exports.deleteSetting = async (req, res) => {
   try {
+    // เก็บ snapshot ก่อนลบ เพื่อกู้ข้อมูลย้อนหลังได้
+    const before = await settingService.getSettingById(req.params.id);
     await settingService.deleteSetting(req.params.id);
+    await AuditLogService.createLog(
+      req.user?.id,
+      "DELETE",
+      "Setting",
+      Number(req.params.id),
+      `ลบการตั้งค่า: ${before?.key || req.params.id}`,
+      req.ip,
+      req.get("User-Agent"),
+      before || undefined
+    );
     res.json({ message: "ลบค่าในระบบเสร็จสิ้น" });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -35,7 +35,7 @@ exports.createProxyApproval = async (req, res, next) => {
     // บันทึก log การทำงาน
     await AuditLogService.createLog(
       req.user.id,
-      "Create Proxy Approval",
+      "CREATE",
       "ProxyApproval",
       proxyApproval.id,
       `สร้างการมอบอำนาจ: ${proxyApproval.id}`,
@@ -76,7 +76,7 @@ exports.createDailyProxyApproval = async (req, res, next) => {
     // บันทึก log การทำงาน
     await AuditLogService.createLog(
       req.user.id,
-      "Create Daily Proxy Approval",
+      "CREATE",
       "ProxyApproval",
       proxyApproval.id,
       `สร้างการมอบอำนาจรายวัน: ${proxyApproval.id}`,

@@ -41,7 +41,7 @@ exports.createLeaveRequest = async (req, res, next) => {
     // create log
     await AuditLogService.createLog(
       req.user.id,
-      "Create Request",
+      "CREATE",
       "LeaveRequest",
       leaveRequest.id,
       `สร้างคำขอลา: ${leaveRequest.id} (ลา ${leaveRequest.thisTimeDays} วัน)`,

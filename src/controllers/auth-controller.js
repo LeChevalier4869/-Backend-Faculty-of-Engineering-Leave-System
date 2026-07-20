@@ -315,6 +315,23 @@ exports.updateUserRole = async (req, res, next) => {
       }
     }
 
+    // บันทึก audit log — การเปลี่ยนสิทธิ์ผู้ใช้ (ADD/REMOVE role)
+    const actionVerb = action === "ADD" ? "เพิ่มบทบาท" : "ถอนบทบาท";
+    const targetName = user
+      ? `${user.prefixName || ""}${user.firstName || ""} ${user.lastName || ""}`.trim()
+      : `user#${userId}`;
+    await AuditLogService.createLog(
+      req.user.id,
+      action === "ADD" ? "ROLE_GRANT" : "ROLE_REVOKE",
+      "User",
+      userId,
+      `${actionVerb} ${userRole.join(", ")} ${action === "ADD" ? "ให้" : "จาก"} ${targetName}`,
+      req.ip,
+      req.get("User-Agent"),
+      // เก็บบทบาทปัจจุบันของผู้ใช้หลังแก้ ไว้ตรวจสอบย้อนหลัง
+      { userId, roles: (user?.userRoles || []).map((ur) => ur.role?.name).filter(Boolean) }
+    );
+
     res.status(200).json({ message: "อัปเดตบทบาทผู้ใช้", roles: updatedRole });
   } catch (err) {
     next(err);
