@@ -162,6 +162,13 @@ class UserService {
     });
   }
 
+  // นับผู้ใช้ที่ถือบทบาทหนึ่ง ๆ (ใช้กันถอด/ลบ SUPER_ADMIN คนสุดท้าย)
+  static async countUsersWithRole(roleName) {
+    return prisma.user.count({
+      where: { userRoles: { some: { role: { name: roleName } } } },
+    });
+  }
+
   static async updateUser(userEmail, data) {
     try {
       const userExists = await prisma.user.findUnique({

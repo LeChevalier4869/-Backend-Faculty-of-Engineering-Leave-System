@@ -266,6 +266,12 @@ exports.updateUserRole = async (req, res, next) => {
       throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการเพิ่มหรือลบบทบาท SUPER_ADMIN");
     }
 
+    // เฉพาะ SUPER_ADMIN เท่านั้นที่แต่งตั้ง/เพิกถอนบทบาท ADMIN ได้
+    // (กัน ADMIN ธรรมดาแต่งตั้ง ADMIN คนอื่นเพื่อขยายพวกตัวเอง)
+    if (userRole.includes("ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการแต่งตั้งหรือเพิกถอนบทบาท ADMIN");
+    }
+
     // กันไม่ให้ถอดบทบาท SUPER_ADMIN ของตัวเอง (กันล็อกเอาต์ตัวเอง)
     if (action === "REMOVE" && req.user.id === userId && userRole.includes("SUPER_ADMIN")) {
       throw createError(403, "ไม่สามารถถอดบทบาท SUPER_ADMIN ของตัวเองได้");
@@ -277,6 +283,18 @@ exports.updateUserRole = async (req, res, next) => {
 
     if (targetRoleNames.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
       throw createError(403, "ไม่สามารถแก้ไขบทบาทของผู้ใช้ที่มีสิทธิ์ SUPER_ADMIN ได้");
+    }
+
+    // กันไม่ให้ถอด SUPER_ADMIN คนสุดท้ายของระบบ (กันองค์กรถูกล็อกออกจากสิทธิ์สูงสุด)
+    if (
+      action === "REMOVE" &&
+      userRole.includes("SUPER_ADMIN") &&
+      targetRoleNames.includes("SUPER_ADMIN")
+    ) {
+      const superAdminCount = await UserService.countUsersWithRole("SUPER_ADMIN");
+      if (superAdminCount <= 1) {
+        throw createError(403, "ไม่สามารถถอดบทบาท SUPER_ADMIN คนสุดท้ายของระบบได้");
+      }
     }
 
     const roles = await UserService.getRolesByNames(userRole);
