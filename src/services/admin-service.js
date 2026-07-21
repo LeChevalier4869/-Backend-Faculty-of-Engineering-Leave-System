@@ -830,18 +830,38 @@ class AdminService {
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) throw createError(404, "User not found");
 
-    // Remove dependent records to satisfy FK constraints
-    await prisma.userRole.deleteMany({ where: { userId: id } });
-    await prisma.auditLog.deleteMany({ where: { userId: id } });
-    await prisma.notification.deleteMany({ where: { userId: id } });
-    await prisma.signature.deleteMany({ where: { userId: id } });
-    await prisma.leaveRequestDetail.deleteMany({ where: { approverId: id } });
-    await prisma.leaveRequest.deleteMany({ where: { userId: id } });
-    await prisma.leaveBalance.deleteMany({ where: { userId: id } });
-    await prisma.userRank.deleteMany({ where: { userId: id } });
+    // ลบ record ที่อ้างถึงผู้ใช้ให้ครบทุก FK ที่เป็น RESTRICT ก่อนลบตัวผู้ใช้
+    // ทำใน transaction เดียวเพื่อความ atomic — ถ้าพลาดจะไม่ลบครึ่ง ๆ กลาง ๆ
+    // เดิมลบไม่ครบ (ขาด account/refresh_token/approver_position/proxy_approval และ
+    // รายละเอียดของคำขอที่ผู้ใช้เป็นเจ้าของ) ทำให้ลบผู้ใช้ที่เคย login/เป็นผู้อนุมัติไม่ได้
+    await prisma.$transaction(async (tx) => {
+      // ความสัมพันธ์ตรงกับผู้ใช้
+      await tx.userRole.deleteMany({ where: { userId: id } });
+      await tx.notification.deleteMany({ where: { userId: id } });
+      await tx.signature.deleteMany({ where: { userId: id } });
+      await tx.userRank.deleteMany({ where: { userId: id } });
+      await tx.leaveBalance.deleteMany({ where: { userId: id } });
+      await tx.auditLog.deleteMany({ where: { userId: id } });
+      await tx.account.deleteMany({ where: { userId: id } });
+      await tx.refreshToken.deleteMany({ where: { userId: id } });
+      await tx.approverPosition.deleteMany({ where: { userId: id } });
+      await tx.proxyApproval.deleteMany({
+        where: { OR: [{ originalApproverId: id }, { proxyApproverId: id }] },
+      });
 
-    // Finally delete user
-    await prisma.user.delete({ where: { id } });
+      // ใบลา: ลบขั้นอนุมัติที่ผู้ใช้เป็นผู้อนุมัติ (บนคำขอของผู้อื่น) และขั้นทั้งหมด
+      // ของคำขอที่ผู้ใช้เป็นเจ้าของ ก่อนจึงลบคำขอได้ (detail -> request เป็น RESTRICT)
+      await tx.leaveRequestDetail.deleteMany({ where: { approverId: id } });
+      await tx.leaveRequestDetail.deleteMany({
+        where: { leaveRequest: { userId: id } },
+      });
+      await tx.leaveRequest.deleteMany({ where: { userId: id } });
+
+      // ที่เหลือ DB จัดการเอง: department.headId, leave_request.verifierId (SET NULL);
+      // user_position_number (Cascade)
+      await tx.user.delete({ where: { id } });
+    });
+
     return { message: "User deleted successfully" };
   }
 

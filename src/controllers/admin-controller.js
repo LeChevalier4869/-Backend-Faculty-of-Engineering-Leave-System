@@ -1208,11 +1208,30 @@ exports.deleteUser = async (req, res, next) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) throw createError(400, "Invalid user ID");
 
-    // Get user info before deletion for audit log
-    const userToDelete = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true, firstName: true, lastName: true, email: true }
-    });
+    // ดึงผู้ใช้พร้อมบทบาท เพื่อตรวจสิทธิ์ก่อนลบ
+    const userToDelete = await UserService.getUserByIdWithRoles(id);
+    if (!userToDelete) throw createError(404, "ไม่พบผู้ใช้งาน");
+
+    const targetRoles = (userToDelete.userRoles || [])
+      .map((ur) => ur.role?.name)
+      .filter(Boolean);
+    const requesterIsSuperAdmin = (req.user.roles || []).includes("SUPER_ADMIN");
+
+    // ห้ามลบบัญชีของตัวเอง
+    if (req.user.id === id) {
+      throw createError(403, "ไม่สามารถลบบัญชีของตัวเองได้");
+    }
+    // เฉพาะ SUPER_ADMIN เท่านั้นที่ลบผู้ใช้ที่เป็น SUPER_ADMIN ได้
+    if (targetRoles.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการลบผู้ใช้ที่มีสิทธิ์ SUPER_ADMIN");
+    }
+    // ห้ามลบ SUPER_ADMIN คนสุดท้ายของระบบ
+    if (targetRoles.includes("SUPER_ADMIN")) {
+      const superAdminCount = await UserService.countUsersWithRole("SUPER_ADMIN");
+      if (superAdminCount <= 1) {
+        throw createError(403, "ไม่สามารถลบผู้ใช้ SUPER_ADMIN คนสุดท้ายของระบบได้");
+      }
+    }
 
     await AdminService.deleteUserById(id);
 
@@ -1221,10 +1240,16 @@ exports.deleteUser = async (req, res, next) => {
       "DELETE",
       "User",
       id,
-      `ลบผู้ใช้: ${userToDelete?.firstName} ${userToDelete?.lastName} (${userToDelete?.email})`,
+      `ลบผู้ใช้: ${userToDelete.firstName} ${userToDelete.lastName} (${userToDelete.email})`,
       req.ip,
       req.get('User-Agent'),
-      userToDelete
+      {
+        id: userToDelete.id,
+        firstName: userToDelete.firstName,
+        lastName: userToDelete.lastName,
+        email: userToDelete.email,
+        roles: targetRoles,
+      }
     );
 
     res.status(200).json({ message: "ลบผู้ใช้เรียบร้อยแล้ว" });
