@@ -3,6 +3,7 @@ const prisma = require("../config/prisma");
 const UserService = require("../services/user-service");
 const createError = require("../utils/createError");
 const { sendNotification } = require("../utils/emailService");
+const AuditLogService = require("../services/auditLog-service");
 
 // ส่งอีเมลต้อนรับให้ผู้ใช้ที่เพิ่งถูกสร้าง (ทำแบบ background ไม่บล็อกการตอบกลับ)
 async function sendWelcomeToCreatedUsers(createdUsers = []) {
@@ -523,10 +524,19 @@ exports.uploadUserExcel = async (req, res) => {
         };
       }
 
-      // จับคู่สาขาแบบยืดหยุ่น (ปลอดภัย): เป๊ะก่อน → ถ้าไม่เจอ ลอง contains แบบไม่กำกวม
+      // จับคู่สาขาแบบยืดหยุ่น (ปลอดภัย): เป๊ะก่อน → ตัดคำนำหน้า/อักษรย่อ → ค่อยลอง contains แบบไม่กำกวม
       const deptNameRaw = String(departmentNameResolved).trim();
       const normalize = (s) => String(s ?? "").trim().toLowerCase();
+      // ชื่อสาขาในไฟล์ Excel มักเขียนต่างจากใน DB เล็กน้อย เช่น
+      // "สาขาวิศวกรรมอิเล็กทรอนิกส์" vs "วิศวกรรมอิเล็กทรอนิกส์ฯ"
+      // จึงตัดคำนำหน้า ช่องว่าง และ "ฯ" ท้ายออกก่อนเทียบ เพื่อให้ตรงกันแบบไม่กำกวม
+      const canonical = (s) =>
+        normalize(s)
+          .replace(/\s+/g, "")
+          .replace(/^(สาขาวิชา|สาขา|ภาควิชา|แผนกวิชา|แผนก)/, "")
+          .replace(/ฯ+$/, "");
       const deptTarget = normalize(deptNameRaw);
+      const deptCanon = canonical(deptNameRaw);
 
       let department = await tx.department.findFirst({
         where: { name: deptNameRaw },
@@ -538,7 +548,11 @@ exports.uploadUserExcel = async (req, res) => {
         });
         // 1) เป๊ะแบบไม่สนตัวพิมพ์/ช่องว่าง
         let matches = allDepts.filter((d) => normalize(d.name) === deptTarget);
-        // 2) ไม่เจอ → contains แบบสองทาง (ชื่อ DB มีคำใน excel หรือกลับกัน)
+        // 2) เทียบหลังตัดคำนำหน้า/ช่องว่าง/ฯ (แม่นกว่า contains จึงลองก่อน)
+        if (matches.length === 0 && deptCanon) {
+          matches = allDepts.filter((d) => canonical(d.name) === deptCanon);
+        }
+        // 3) ยังไม่เจอ → contains แบบสองทาง (ชื่อ DB มีคำใน excel หรือกลับกัน)
         if (matches.length === 0) {
           matches = allDepts.filter(
             (d) =>
@@ -793,6 +807,17 @@ exports.uploadUserExcel = async (req, res) => {
       console.log(`[MONITORING] Total created balances:`, createdUsers.reduce((acc, user) => acc + (user.createdBalances?.length || 0), 0));
       console.log(`[MONITORING] Total skipped balances:`, createdUsers.reduce((acc, user) => acc + (user.skippedBalances?.length || 0), 0));
       
+      await AuditLogService.createLog(
+        req.user?.id,
+        "IMPORT",
+        "User",
+        null,
+        `นำเข้าผู้ใช้จาก Excel: สำเร็จ ${createdUsers.length} คน, ล้มเหลว ${failedUsers.length} คน`,
+        req.ip,
+        req.get("User-Agent"),
+        { createdCount: createdUsers.length, failedCount: failedUsers.length }
+      );
+
       sendWelcomeToCreatedUsers(createdUsers); // background, ไม่บล็อก response
       res.json({
         message: "Users processed",
@@ -824,6 +849,17 @@ exports.uploadUserExcel = async (req, res) => {
 
     console.log(`[MONITORING] Excel import completed - User creation mode`);
     console.log(`[MONITORING] Total users created: ${createdUsers.length}`);
+
+    await AuditLogService.createLog(
+      req.user?.id,
+      "IMPORT",
+      "User",
+      null,
+      `นำเข้าผู้ใช้จาก Excel: สำเร็จ ${createdUsers.length} คน, ล้มเหลว ${failedUsers.length} คน`,
+      req.ip,
+      req.get("User-Agent"),
+      { createdCount: createdUsers.length, failedCount: failedUsers.length }
+    );
 
     sendWelcomeToCreatedUsers(createdUsers); // background, ไม่บล็อก response
     res.json({

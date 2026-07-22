@@ -266,6 +266,12 @@ exports.updateUserRole = async (req, res, next) => {
       throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการเพิ่มหรือลบบทบาท SUPER_ADMIN");
     }
 
+    // เฉพาะ SUPER_ADMIN เท่านั้นที่แต่งตั้ง/เพิกถอนบทบาท ADMIN ได้
+    // (กัน ADMIN ธรรมดาแต่งตั้ง ADMIN คนอื่นเพื่อขยายพวกตัวเอง)
+    if (userRole.includes("ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการแต่งตั้งหรือเพิกถอนบทบาท ADMIN");
+    }
+
     // กันไม่ให้ถอดบทบาท SUPER_ADMIN ของตัวเอง (กันล็อกเอาต์ตัวเอง)
     if (action === "REMOVE" && req.user.id === userId && userRole.includes("SUPER_ADMIN")) {
       throw createError(403, "ไม่สามารถถอดบทบาท SUPER_ADMIN ของตัวเองได้");
@@ -277,6 +283,18 @@ exports.updateUserRole = async (req, res, next) => {
 
     if (targetRoleNames.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
       throw createError(403, "ไม่สามารถแก้ไขบทบาทของผู้ใช้ที่มีสิทธิ์ SUPER_ADMIN ได้");
+    }
+
+    // กันไม่ให้ถอด SUPER_ADMIN คนสุดท้ายของระบบ (กันองค์กรถูกล็อกออกจากสิทธิ์สูงสุด)
+    if (
+      action === "REMOVE" &&
+      userRole.includes("SUPER_ADMIN") &&
+      targetRoleNames.includes("SUPER_ADMIN")
+    ) {
+      const superAdminCount = await UserService.countUsersWithRole("SUPER_ADMIN");
+      if (superAdminCount <= 1) {
+        throw createError(403, "ไม่สามารถถอดบทบาท SUPER_ADMIN คนสุดท้ายของระบบได้");
+      }
     }
 
     const roles = await UserService.getRolesByNames(userRole);
@@ -314,6 +332,23 @@ exports.updateUserRole = async (req, res, next) => {
         console.error("Failed to send role-updated email:", emailError.message);
       }
     }
+
+    // บันทึก audit log — การเปลี่ยนสิทธิ์ผู้ใช้ (ADD/REMOVE role)
+    const actionVerb = action === "ADD" ? "เพิ่มบทบาท" : "ถอนบทบาท";
+    const targetName = user
+      ? `${user.prefixName || ""}${user.firstName || ""} ${user.lastName || ""}`.trim()
+      : `user#${userId}`;
+    await AuditLogService.createLog(
+      req.user.id,
+      action === "ADD" ? "ROLE_GRANT" : "ROLE_REVOKE",
+      "User",
+      userId,
+      `${actionVerb} ${userRole.join(", ")} ${action === "ADD" ? "ให้" : "จาก"} ${targetName}`,
+      req.ip,
+      req.get("User-Agent"),
+      // เก็บบทบาทปัจจุบันของผู้ใช้หลังแก้ ไว้ตรวจสอบย้อนหลัง
+      { userId, roles: (user?.userRoles || []).map((ur) => ur.role?.name).filter(Boolean) }
+    );
 
     res.status(200).json({ message: "อัปเดตบทบาทผู้ใช้", roles: updatedRole });
   } catch (err) {
@@ -884,9 +919,15 @@ exports.getAllApprover = async (req, res) => {
 exports.getApproversForLevel = async (req, res) => {
   try {
     const { level } = req.params;
-    const { date } = req.query;
+    const { date, departmentId } = req.query;
 
-    const approvers = await UserService.getApproversForLevel(parseInt(level), date || new Date());
+    // ระดับ 1 คือหัวหน้าสาขา ซึ่งมีคนละคนในแต่ละสาขา
+    // ผู้เรียกระบุ departmentId มาได้เพื่อจำกัดเฉพาะสาขานั้น (ไม่ระบุ = ทุกสาขาเหมือนเดิม)
+    const approvers = await UserService.getApproversForLevel(
+      parseInt(level),
+      date || new Date(),
+      departmentId ?? null
+    );
     res.status(200).json({ success: true, data: approvers });
   } catch (err) {
     res.status(400).json({ message: err.message });

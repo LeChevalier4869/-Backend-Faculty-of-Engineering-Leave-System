@@ -13,13 +13,8 @@ router.get("/me", authenticate, authController.getMe);
 router.get("/landing", authController.userLanding);
 router.get("/role", authenticate, authController.checkUserRole);
 
-// update role
-router.post(
-  "/update-role/:id",
-  authenticate,
-  authorize(["SUPER_ADMIN"]),
-  authController.updateUserRole
-);
+// อัปเดตบทบาทผู้ใช้ใช้เส้นเดียวที่ POST /auth/update-role/:id (มี guard ใน controller)
+// เดิมมีเส้นซ้ำที่นี่ (guard SUPER_ADMIN) ที่ frontend ไม่ได้ใช้ และ guard ไม่ตรงกัน จึงถอดออก
 
 // update user profile + รูป
 router.put(

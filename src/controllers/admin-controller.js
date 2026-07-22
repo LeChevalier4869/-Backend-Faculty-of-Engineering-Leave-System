@@ -284,71 +284,6 @@ exports.deleteHoliday = async (req, res, next) => {
   }
 };
 
-//--------------------- Approver --------------------
-
-exports.approverList = async (req, res, next) => {
-  try {
-    const approverList = await AdminService.approverList();
-
-    if (!approverList) {
-      console.log("Debug approverList: ", approverList);
-      return createError(404, "approverList not found");
-    }
-
-    res.status(200).json({ message: "respones ok", approverList });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.createApprover = async (req, res, next) => {
-  try {
-    const { name } = req.body;
-
-    // console.log('Debug name: ', name);
-    if (!name) throw createError(400, "กรุณาใส่ชื่อ");
-
-    const approver = await AdminService.createApprover(name);
-
-    res
-      .status(201)
-      .json({ message: "เพิ่ม approver เรียบร้อย", Approver: approver });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.updateApprover = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { name } = req.body;
-
-    if (!id || !name) throw createError(400, "ไม่สามารถอัพเดตได้");
-    if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
-
-    const approver = await AdminService.updateApprover(parseInt(id), name);
-
-    res.status(200).json({ message: "อัพเดตเรียบร้อย", Approver: approver });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.deleteApprover = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) throw createError(400, "ไม่พบไอดี");
-    if (isNaN(id)) throw createError(400, "ไอดีต้องเป็นตัวเลขเท่านั้น");
-
-    const approver = await AdminService.deleteApprover(parseInt(id));
-
-    res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
-  } catch (err) {
-    next(err);
-  }
-};
-
 // --------------------
 //        role
 // --------------------
@@ -447,7 +382,7 @@ exports.deleteRole = async (req, res, next) => {
 
     const role = await AdminService.deleteRole(parseInt(id));
 
-    // บันทึก Audit Log การลบ Role
+    // บันทึก Audit Log การลบ Role — เก็บ snapshot ก่อนลบเพื่อกู้ข้อมูลย้อนหลังได้
     await AuditLogService.createLog(
       req.user.id,
       "DELETE",
@@ -455,7 +390,8 @@ exports.deleteRole = async (req, res, next) => {
       parseInt(id),
       `ลบ Role: ${role.name} (ID: ${id})`,
       req.ip,
-      req.get('User-Agent')
+      req.get('User-Agent'),
+      existingRole || undefined
     );
 
     res.status(200).json({ message: "ลบเรียบร้อยแล้ว" });
@@ -486,39 +422,29 @@ exports.getRoleById = async (req, res, next) => {
 
 exports.assignHeadDepartment = async (req, res, next) => {
   try {
-    const { departmentId, headId } = req.body;
+    const departmentId = parseInt(req.body.departmentId, 10);
+    const headId = parseInt(req.body.headId, 10);
 
-    if (!departmentId || !headId) {
-      throw createError(400, "departmentId and headId are required");
+    if (!Number.isInteger(departmentId) || !Number.isInteger(headId)) {
+      throw createError(400, "departmentId และ headId ต้องเป็นตัวเลข");
     }
 
-    const roleName = "APPROVER_1";
-    const [role] = await UserService.getRolesByNames([roleName]);
-    if (!role) {
-      console.log("Debug role: ", roleName);
-      throw createError(400, "Invalid role provided");
-    }
+    // AdminService.assignHead จัดการทั้งการตั้งหัวหน้าและ sync บทบาท APPROVER_1
+    // (ถอดจากคนเดิม + ให้คนใหม่) ภายใน transaction เดียว
+    const updatedDepartment = await AdminService.assignHead(departmentId, headId);
 
-    const { headId: lastHeadId } = await UserService.getHeadIdByDepartmentId(departmentId);
-    const userIdInt = parseInt(lastHeadId, 10);
-    const roleIdInt = parseInt(role.id, 10);
-
-    await UserService.deleteUserRole(userIdInt, roleIdInt);
-
-    const updatedDepartment = await AdminService.assignHead(
-      parseInt(departmentId),
-      parseInt(headId)
-    );
-
-    const roleList = ["APPROVER_1"];
-    const roles = await UserService.getRolesByNames(roleList);
-    if (!roles || roles.length !== roleList.length) {
-      console.log("Debug roles: ", roleList);
-      throw createError(400, "Invalid roles provided");
-    }
-    await UserService.assignRolesToUser(
-      headId,
-      roles.map((role) => role.id)
+    // บันทึก audit log — เปลี่ยนหัวหน้าสาขา (พร้อมสิทธิ์ APPROVER_1)
+    const headName = updatedDepartment.head
+      ? `${updatedDepartment.head.prefixName || ""}${updatedDepartment.head.firstName || ""} ${updatedDepartment.head.lastName || ""}`.trim()
+      : `user#${headId}`;
+    await AuditLogService.createLog(
+      req.user.id,
+      "ASSIGN_HEAD",
+      "Department",
+      departmentId,
+      `แต่งตั้งหัวหน้าสาขา ${updatedDepartment.name}: ${headName}`,
+      req.ip,
+      req.get("User-Agent")
     );
 
     res
@@ -1282,11 +1208,30 @@ exports.deleteUser = async (req, res, next) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) throw createError(400, "Invalid user ID");
 
-    // Get user info before deletion for audit log
-    const userToDelete = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true, firstName: true, lastName: true, email: true }
-    });
+    // ดึงผู้ใช้พร้อมบทบาท เพื่อตรวจสิทธิ์ก่อนลบ
+    const userToDelete = await UserService.getUserByIdWithRoles(id);
+    if (!userToDelete) throw createError(404, "ไม่พบผู้ใช้งาน");
+
+    const targetRoles = (userToDelete.userRoles || [])
+      .map((ur) => ur.role?.name)
+      .filter(Boolean);
+    const requesterIsSuperAdmin = (req.user.roles || []).includes("SUPER_ADMIN");
+
+    // ห้ามลบบัญชีของตัวเอง
+    if (req.user.id === id) {
+      throw createError(403, "ไม่สามารถลบบัญชีของตัวเองได้");
+    }
+    // เฉพาะ SUPER_ADMIN เท่านั้นที่ลบผู้ใช้ที่เป็น SUPER_ADMIN ได้
+    if (targetRoles.includes("SUPER_ADMIN") && !requesterIsSuperAdmin) {
+      throw createError(403, "ต้องใช้สิทธิ์ SUPER_ADMIN ในการลบผู้ใช้ที่มีสิทธิ์ SUPER_ADMIN");
+    }
+    // ห้ามลบ SUPER_ADMIN คนสุดท้ายของระบบ
+    if (targetRoles.includes("SUPER_ADMIN")) {
+      const superAdminCount = await UserService.countUsersWithRole("SUPER_ADMIN");
+      if (superAdminCount <= 1) {
+        throw createError(403, "ไม่สามารถลบผู้ใช้ SUPER_ADMIN คนสุดท้ายของระบบได้");
+      }
+    }
 
     await AdminService.deleteUserById(id);
 
@@ -1295,10 +1240,16 @@ exports.deleteUser = async (req, res, next) => {
       "DELETE",
       "User",
       id,
-      `ลบผู้ใช้: ${userToDelete?.firstName} ${userToDelete?.lastName} (${userToDelete?.email})`,
+      `ลบผู้ใช้: ${userToDelete.firstName} ${userToDelete.lastName} (${userToDelete.email})`,
       req.ip,
       req.get('User-Agent'),
-      userToDelete
+      {
+        id: userToDelete.id,
+        firstName: userToDelete.firstName,
+        lastName: userToDelete.lastName,
+        email: userToDelete.email,
+        roles: targetRoles,
+      }
     );
 
     res.status(200).json({ message: "ลบผู้ใช้เรียบร้อยแล้ว" });
@@ -1317,6 +1268,15 @@ exports.createSetting = async (req, res) => {
     }
 
     const setting = await settingService.createSetting(req.body);
+    await AuditLogService.createLog(
+      req.user?.id,
+      "CREATE",
+      "Setting",
+      setting?.id,
+      `สร้างการตั้งค่า: ${setting?.key}`,
+      req.ip,
+      req.get("User-Agent")
+    );
     res.json(setting);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1344,7 +1304,17 @@ exports.getSettingById = async (req, res) => {
 
 exports.updateSetting = async (req, res) => {
   try {
+    const before = await settingService.getSettingById(req.params.id);
     const setting = await settingService.updateSetting(req.params.id, req.body);
+    await AuditLogService.createUpdateLog(
+      req.user?.id,
+      "Setting",
+      Number(req.params.id),
+      before,
+      setting,
+      req.ip,
+      req.get("User-Agent")
+    );
     res.json(setting);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1353,7 +1323,19 @@ exports.updateSetting = async (req, res) => {
 
 exports.deleteSetting = async (req, res) => {
   try {
+    // เก็บ snapshot ก่อนลบ เพื่อกู้ข้อมูลย้อนหลังได้
+    const before = await settingService.getSettingById(req.params.id);
     await settingService.deleteSetting(req.params.id);
+    await AuditLogService.createLog(
+      req.user?.id,
+      "DELETE",
+      "Setting",
+      Number(req.params.id),
+      `ลบการตั้งค่า: ${before?.key || req.params.id}`,
+      req.ip,
+      req.get("User-Agent"),
+      before || undefined
+    );
     res.json({ message: "ลบค่าในระบบเสร็จสิ้น" });
   } catch (err) {
     res.status(500).json({ error: err.message });

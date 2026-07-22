@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin-controller');
+const approverPositionController = require('../controllers/approverPosition-controller');
 const upload = require('../middlewares/upload');
 const authController = require('../controllers/auth-controller');
 const { authenticate , authorize } = require('../middlewares/auth');
@@ -65,11 +66,12 @@ router.put('/holiday/:id', authorize(["ADMIN"]), adminController.updateHoliday);
 router.delete('/holiday/:id', authorize(["ADMIN"]), adminController.deleteHoliday);
 
 
-//-------------------------------------- approver -------------------- 
-router.get('/approver', authorize(["ADMIN"]), adminController.approverList);
-router.post('/approver', upload.none(), authorize(["ADMIN"]), adminController.createApprover);
-router.put('/approver/:id', authorize(["ADMIN"]), adminController.updateApprover);
-router.delete('/approver/:id', authorize(["ADMIN"]), adminController.deleteApprover);
+//------------------------- approver positions (ผู้อนุมัติระดับคณะ) -------------------
+// ระดับ 1 (หัวหน้าสาขา) จัดการผ่าน /admin/assign-head เพราะผูกกับ Department.headId
+router.get('/approver-positions', authorize(["ADMIN"]), approverPositionController.listCurrent);
+router.post('/approver-positions', authorize(["ADMIN"]), approverPositionController.assign);
+router.get('/approver-positions/:level/history', authorize(["ADMIN"]), approverPositionController.history);
+router.delete('/approver-positions/:level', authorize(["ADMIN"]), approverPositionController.vacate);
 
 //------------------------------------ Manage user -----------------
 router.get(

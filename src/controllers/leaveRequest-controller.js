@@ -45,7 +45,7 @@ exports.createLeaveRequest = async (req, res, next) => {
     // create log
     await AuditLogService.createLog(
       req.user.id,
-      "Create Request",
+      "CREATE",
       "LeaveRequest",
       leaveRequest.id,
       `สร้างคำขอลา: ${leaveRequest.id} (ลา ${leaveRequest.thisTimeDays} วัน)`,
@@ -170,18 +170,14 @@ exports.updateLeaveStatus = async (req, res, next) => {
 exports.getLeaveRequest = async (req, res, next) => {
   try {
     const requestId = parseInt(req.params.id);
-    // console.log("Debug requestId11:", requestId);
-    const user = req.user;
 
     // const leaveRequests = await LeaveRequestService.getRequests(whereCondition);
     const leaveRequests = await LeaveRequestService.getRequestsById(requestId);
     // console.log("Debug leaveRequest: ", leaveRequests);
-    if (!leaveRequests) {
+    // getRequestsById คืนเป็น array — ถ้าไม่พบจะได้ [] ซึ่ง truthy
+    // เดิมเช็คแค่ !leaveRequests จึงหลุดไปพังตอน leaveRequests[0].user (500 แทนที่จะเป็น 404)
+    if (!leaveRequests || leaveRequests.length === 0) {
       throw createError(404, "ไม่พบคำขอลา");
-    }
-
-    if (!user.department || !user.department.id) {
-      throw createError(400, "ผู้ใช้ไม่มีแผนกที่กำหนด");
     }
 
     // ค้นหาหัวหน้าสาขาของคำขอลานี้ (ใช้ department ของคนที่ยื่นลา)

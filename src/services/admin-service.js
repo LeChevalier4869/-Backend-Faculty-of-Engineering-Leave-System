@@ -89,21 +89,9 @@ class AdminService {
     return [
       { stepOrder: 1, roleName: "APPROVER_1", userId: approver1Id },
       { stepOrder: 2, roleName: "VERIFIER", userId: verifierId },
-      {
-        stepOrder: 4,
-        roleName: "APPROVER_2",
-        userId: approver2?.userId ?? null,
-      },
-      {
-        stepOrder: 5,
-        roleName: "APPROVER_3",
-        userId: approver3?.userId ?? null,
-      },
-      {
-        stepOrder: 6,
-        roleName: "APPROVER_4",
-        userId: approver4?.userId ?? null,
-      },
+      { stepOrder: 4, roleName: "APPROVER_2", userId: approver2Id },
+      { stepOrder: 5, roleName: "APPROVER_3", userId: approver3Id },
+      { stepOrder: 6, roleName: "APPROVER_4", userId: approver4Id },
     ].map((s) => ({
       stepOrder: s.stepOrder,
       roleName: s.roleName,
@@ -441,27 +429,6 @@ class AdminService {
     });
   }
 
-  //---------------------- Approver -------------
-  static async approverList() {
-    return await prisma.approver.findMany();
-  }
-  static async createApprover(name) {
-    return await prisma.approver.create({ data: { name } });
-  }
-  static async updateApprover(id, name) {
-    return await prisma.approver.update({
-      where: { id },
-      data: {
-        name: name,
-      },
-    });
-  }
-  static async deleteApprover(id) {
-    return await prisma.approver.delete({
-      where: { id },
-    });
-  }
-
   //------------------------ Department -------------
   static async departmentList() {
     return await prisma.department.findMany({
@@ -485,6 +452,15 @@ class AdminService {
   }
   static async createDepartment(data) {
     const { headId, ...deptData } = data;
+
+    // กันสร้างสาขาชื่อซ้ำ (เดิมไม่มีการกัน จึงเคยเกิดสาขาซ้ำจากการทดสอบระบบ)
+    const cleanName = String(deptData.name || "").trim();
+    if (!cleanName) throw createError(400, "กรุณาระบุชื่อแผนก");
+    const duplicate = await prisma.department.findFirst({
+      where: { name: cleanName, organizationId: deptData.organizationId },
+    });
+    if (duplicate) throw createError(409, `มีแผนกชื่อ "${cleanName}" อยู่แล้ว`);
+    deptData.name = cleanName;
 
     return await prisma.$transaction(async (tx) => {
       // Create department
@@ -546,9 +522,11 @@ class AdminService {
         where: { id },
         data: { name, organizationId, appointDate, headId },
       });
-
-      // If headId is changing, sync APPROVER_1 role
-      if (currentDept.headId !== headId) {
+      
+      // sync บทบาท APPROVER_1 เฉพาะเมื่อ "ส่ง headId มาจริง" และค่าเปลี่ยนไปจากเดิม
+      // ถ้าไม่ได้ส่ง headId มา (เช่น แก้แค่ชื่อแผนก) Prisma จะไม่แตะคอลัมน์นี้
+      // จึงต้องไม่ไปถอดบทบาทของหัวหน้าคนเดิมด้วย
+      if (headId !== undefined && currentDept.headId !== headId) {
         // Remove APPROVER_1 role from previous head
         if (currentDept.headId) {
           const approver1Role = await tx.role.findFirst({
@@ -589,6 +567,22 @@ class AdminService {
               });
             }
           }
+        }
+
+        // โอนคำขอที่ยังรออนุมัติขั้นหัวหน้าสาขาไปให้หัวหน้าคนใหม่ (กันคำขอค้างถาวร)
+        if (headId) {
+          await tx.leaveRequestDetail.updateMany({
+            where: {
+              stepOrder: 1,
+              status: "PENDING",
+              leaveRequest: {
+                status: "PENDING",
+                user: { departmentId: id },
+                userId: { not: headId },
+              },
+            },
+            data: { approverId: headId },
+          });
         }
       }
 
@@ -655,6 +649,10 @@ class AdminService {
     });
   }
 
+  /**
+   * แต่งตั้งหัวหน้าแผนก พร้อม sync บทบาท APPROVER_1 ให้สอดคล้องกัน
+   * ทำใน transaction เดียว เพื่อไม่ให้เกิดสภาพ "ถอด role คนเก่าแล้วแต่ตั้งคนใหม่ไม่สำเร็จ"
+   */
   static async assignHead(departmentId, headId) {
     const department = await prisma.department.findUnique({
       where: { id: departmentId },
@@ -666,36 +664,82 @@ class AdminService {
     });
     if (!user) throw createError(404, "User not found");
 
-    const updated = await prisma.department.update({
-      where: { id: departmentId },
-      data: {
-        headId,
-        appointDate: new Date(), // เพิ่มตรงนี้
-      },
-      include: { head: true },
+    const approver1Role = await prisma.role.findFirst({
+      where: { name: "APPROVER_1" },
+    });
+    if (!approver1Role) throw createError(400, "ไม่พบบทบาท APPROVER_1 ในระบบ");
+
+    const previousHeadId = department.headId;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // ถอด APPROVER_1 จากหัวหน้าคนเดิม — เฉพาะเมื่อเปลี่ยนตัวจริง
+      // และคนเดิมไม่ได้เป็นหัวหน้าแผนกอื่นอยู่ด้วย (ไม่งั้นจะถอดสิทธิ์ผิดคน)
+      if (previousHeadId && previousHeadId !== headId) {
+        const stillHeadElsewhere = await tx.department.count({
+          where: { headId: previousHeadId, id: { not: departmentId } },
+        });
+        if (stillHeadElsewhere === 0) {
+          await tx.userRole.deleteMany({
+            where: { userId: previousHeadId, roleId: approver1Role.id },
+          });
+        }
+      }
+
+      const dept = await tx.department.update({
+        where: { id: departmentId },
+        data: { headId, appointDate: new Date() },
+        include: { head: true },
+      });
+
+      // ให้ APPROVER_1 กับหัวหน้าคนใหม่ (skipDuplicates กันชนกับ unique [userId, roleId])
+      await tx.userRole.createMany({
+        data: [{ userId: headId, roleId: approver1Role.id }],
+        skipDuplicates: true,
+      });
+
+      // โอนคำขอลาที่ยังรออนุมัติขั้นหัวหน้าสาขาไปให้หัวหน้าคนใหม่
+      // ถ้าไม่ทำ คำขอจะค้างถาวร เพราะคิวอนุมัติกรองด้วย "ผู้ที่มีบทบาท APPROVER_1 ตอนนี้"
+      // หัวหน้าคนเก่าถูกถอดบทบาทไปแล้วจึงหาย ส่วนคนใหม่ก็ไม่ตรงกับ approverId เดิม
+      await tx.leaveRequestDetail.updateMany({
+        where: {
+          stepOrder: 1,
+          status: "PENDING",
+          leaveRequest: {
+            status: "PENDING",
+            user: { departmentId },
+            userId: { not: headId }, // คำขอของหัวหน้าคนใหม่เอง ต้องไม่ถูกโอนมาให้ตัวเอง
+          },
+        },
+        data: { approverId: headId },
+      });
+
+      return dept;
     });
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER_RMUTI2,
-        pass: process.env.EMAIL_APP_PASS2,
-      },
-    });
+    // แจ้งเมลผู้ได้รับแต่งตั้ง — ถ้าส่งไม่สำเร็จต้องไม่ทำให้การแต่งตั้งล้มเหลว
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER_RMUTI2,
+          pass: process.env.EMAIL_APP_PASS2,
+        },
+      });
 
-    const email = user.email;
-
-    await transporter.sendMail({
-      from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
-      to: email,
-      subject: `คุณได้รับการแต่งตั้งเป็นหัวหน้าสาขา`,
-      html: `
+      await transporter.sendMail({
+        from: `"ระบบลาคณะวิศวกรรมศาสตร์" <${process.env.EMAIL_USER_RMUTI2}>`,
+        to: user.email,
+        subject: `คุณได้รับการแต่งตั้งเป็นหัวหน้าสาขา`,
+        html: `
         <p>เรียนคุณ ${user.firstName} ${user.lastName},</p>
         <p>คุณได้รับการแต่งตั้งเป็นหัวหน้าสาขา ${department.name} ในระบบลาคณะวิศวกรรมศาสตร์ เรียบร้อยแล้ว</p>
         <p>ขอแสดงความยินดี!</p>
         <p>จากระบบการจัดการของคณะวิศวกรรมศาสตร์</p>
       `,
-    });
+      });
+    } catch (mailErr) {
+      console.error("assignHead: ส่งอีเมลแจ้งเตือนไม่สำเร็จ:", mailErr.message);
+    }
 
     return updated;
   }
@@ -824,18 +868,38 @@ class AdminService {
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) throw createError(404, "User not found");
 
-    // Remove dependent records to satisfy FK constraints
-    await prisma.userRole.deleteMany({ where: { userId: id } });
-    await prisma.auditLog.deleteMany({ where: { userId: id } });
-    await prisma.notification.deleteMany({ where: { userId: id } });
-    await prisma.signature.deleteMany({ where: { userId: id } });
-    await prisma.leaveRequestDetail.deleteMany({ where: { approverId: id } });
-    await prisma.leaveRequest.deleteMany({ where: { userId: id } });
-    await prisma.leaveBalance.deleteMany({ where: { userId: id } });
-    await prisma.userRank.deleteMany({ where: { userId: id } });
+    // ลบ record ที่อ้างถึงผู้ใช้ให้ครบทุก FK ที่เป็น RESTRICT ก่อนลบตัวผู้ใช้
+    // ทำใน transaction เดียวเพื่อความ atomic — ถ้าพลาดจะไม่ลบครึ่ง ๆ กลาง ๆ
+    // เดิมลบไม่ครบ (ขาด account/refresh_token/approver_position/proxy_approval และ
+    // รายละเอียดของคำขอที่ผู้ใช้เป็นเจ้าของ) ทำให้ลบผู้ใช้ที่เคย login/เป็นผู้อนุมัติไม่ได้
+    await prisma.$transaction(async (tx) => {
+      // ความสัมพันธ์ตรงกับผู้ใช้
+      await tx.userRole.deleteMany({ where: { userId: id } });
+      await tx.notification.deleteMany({ where: { userId: id } });
+      await tx.signature.deleteMany({ where: { userId: id } });
+      await tx.userRank.deleteMany({ where: { userId: id } });
+      await tx.leaveBalance.deleteMany({ where: { userId: id } });
+      await tx.auditLog.deleteMany({ where: { userId: id } });
+      await tx.account.deleteMany({ where: { userId: id } });
+      await tx.refreshToken.deleteMany({ where: { userId: id } });
+      await tx.approverPosition.deleteMany({ where: { userId: id } });
+      await tx.proxyApproval.deleteMany({
+        where: { OR: [{ originalApproverId: id }, { proxyApproverId: id }] },
+      });
 
-    // Finally delete user
-    await prisma.user.delete({ where: { id } });
+      // ใบลา: ลบขั้นอนุมัติที่ผู้ใช้เป็นผู้อนุมัติ (บนคำขอของผู้อื่น) และขั้นทั้งหมด
+      // ของคำขอที่ผู้ใช้เป็นเจ้าของ ก่อนจึงลบคำขอได้ (detail -> request เป็น RESTRICT)
+      await tx.leaveRequestDetail.deleteMany({ where: { approverId: id } });
+      await tx.leaveRequestDetail.deleteMany({
+        where: { leaveRequest: { userId: id } },
+      });
+      await tx.leaveRequest.deleteMany({ where: { userId: id } });
+
+      // ที่เหลือ DB จัดการเอง: department.headId, leave_request.verifierId (SET NULL);
+      // user_position_number (Cascade)
+      await tx.user.delete({ where: { id } });
+    });
+
     return { message: "User deleted successfully" };
   }
 
