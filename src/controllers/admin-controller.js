@@ -343,7 +343,12 @@ exports.updateRole = async (req, res, next) => {
 
     const oldRole = await AdminService.getRoleById(parseInt(id));
 
-    // ป้องกัน system role: ห้ามเปลี่ยนชื่อ (แก้ description ได้)
+    // SUPER_ADMIN: อ่านอย่างเดียว แก้ไขไม่ได้เลย (ทั้งชื่อและคำอธิบาย)
+    if (oldRole?.name === "SUPER_ADMIN") {
+      throw createError(403, `ไม่สามารถแก้ไข Role "SUPER_ADMIN" ได้`);
+    }
+
+    // ป้องกัน system role อื่น: ห้ามเปลี่ยนชื่อ (แก้ description ได้)
     if (SYSTEM_ROLES.includes(oldRole.name) && name !== oldRole.name) {
       throw createError(400, `ไม่สามารถเปลี่ยนชื่อ Role "${oldRole.name}" ได้ เนื่องจากเป็น System Role ที่ระบบใช้งานอยู่`);
     }
