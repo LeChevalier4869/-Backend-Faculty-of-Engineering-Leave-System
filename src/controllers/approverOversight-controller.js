@@ -182,7 +182,9 @@ exports.getUserDetail = async (req, res, next) => {
         : profile.department?.id === scope.departmentId;
     if (!inScope) throw createError(403, "ผู้ใช้นี้อยู่นอกขอบเขตที่คุณดูแล");
 
-    const [balances, history] = await Promise.all([
+    // จำกัดประวัติไว้ที่ N ล่าสุด กันกรณีผู้ใช้มีประวัติจำนวนมาก (payload/หน้าจอบวม)
+    const HISTORY_LIMIT = 100;
+    const [balances, history, historyTotal] = await Promise.all([
       LeaveBalanceService.getAllBalancesForUser(userId),
       prisma.leaveRequest.findMany({
         where: { userId },
@@ -199,7 +201,9 @@ exports.getUserDetail = async (req, res, next) => {
           leaveType: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
+        take: HISTORY_LIMIT,
       }),
+      prisma.leaveRequest.count({ where: { userId } }),
     ]);
 
     res.json({
@@ -207,6 +211,8 @@ exports.getUserDetail = async (req, res, next) => {
         profile: { ...profile, fullName: fullName(profile) },
         balances,
         history,
+        historyTotal,
+        historyLimit: HISTORY_LIMIT,
       },
     });
   } catch (err) {
