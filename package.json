@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:backup": "node scripts/backup-db.js",
     "db:restore": "node scripts/restore-db.js",
+    "create-super-admin": "node scripts/create-super-admin.js",
     "setup": "prisma migrate deploy && prisma generate && node prisma/seed.js"
   },
   "author": "",
