@@ -112,6 +112,45 @@ exports.listUsers = async (req, res, next) => {
   }
 };
 
+// GET /approver/oversight/leave-requests — คำขอลาของผู้ใช้ในขอบเขตที่ดูแล (สำหรับสถิติ dashboard)
+exports.listLeaveRequests = async (req, res, next) => {
+  try {
+    const scope = resolveScope(req.user);
+    if (!scope) throw createError(403, "เฉพาะผู้อนุมัติเท่านั้นที่เข้าถึงได้");
+
+    // scope.where เป็นตัวกรองระดับ "user" อยู่แล้ว จึงกรองคำขอผ่าน relation user ได้ตรง ๆ
+    const requests = await prisma.leaveRequest.findMany({
+      where: { user: scope.where },
+      select: {
+        id: true,
+        userId: true,
+        leaveTypeId: true,
+        startDate: true,
+        endDate: true,
+        thisTimeDays: true,
+        totalDays: true,
+        status: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            prefixName: true,
+            firstName: true,
+            lastName: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+        leaveType: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json({ data: requests, scope: { level: scope.level } });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // GET /approver/oversight/users/:userId — โปรไฟล์ + ยอดวันลา + ประวัติการลา (ตรวจขอบเขต)
 exports.getUserDetail = async (req, res, next) => {
   try {

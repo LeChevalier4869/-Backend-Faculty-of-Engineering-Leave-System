@@ -11,6 +11,9 @@ router.get("/oversight/scope", approverOversight.getScope);
 // รายชื่อผู้ใช้ในความดูแล
 router.get("/oversight/users", approverOversight.listUsers);
 
+// คำขอลาของผู้ใช้ในความดูแล (สำหรับสถิติ dashboard)
+router.get("/oversight/leave-requests", approverOversight.listLeaveRequests);
+
 // รายละเอียดผู้ใช้: โปรไฟล์ + ยอดวันลา + ประวัติการลา
 router.get("/oversight/users/:userId", approverOversight.getUserDetail);
 
