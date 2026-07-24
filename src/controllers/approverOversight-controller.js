@@ -23,6 +23,16 @@ function resolveScope(reqUser) {
     null;
   const deptId = reqUser?.departmentId ?? null;
 
+  // ADMIN/SUPER_ADMIN เห็นได้ทั้งระบบ (ไม่จำกัดขอบเขต)
+  if (roles.includes("ADMIN") || roles.includes("SUPER_ADMIN")) {
+    return {
+      level: "system",
+      organizationId: orgId,
+      departmentId: deptId,
+      where: {},
+    };
+  }
+
   if (roles.some((r) => FACULTY_ROLES.includes(r))) {
     return {
       level: "faculty",
@@ -175,11 +185,13 @@ exports.getUserDetail = async (req, res, next) => {
     });
     if (!profile) throw createError(404, "ไม่พบผู้ใช้งาน");
 
-    // ตรวจว่าผู้ใช้เป้าหมายอยู่ในขอบเขตที่ดูแลจริง
+    // ตรวจว่าผู้ใช้เป้าหมายอยู่ในขอบเขตที่ดูแลจริง (ระดับ system เห็นได้ทุกคน)
     const inScope =
-      scope.level === "faculty"
-        ? profile.department?.organization?.id === scope.organizationId
-        : profile.department?.id === scope.departmentId;
+      scope.level === "system"
+        ? true
+        : scope.level === "faculty"
+          ? profile.department?.organization?.id === scope.organizationId
+          : profile.department?.id === scope.departmentId;
     if (!inScope) throw createError(403, "ผู้ใช้นี้อยู่นอกขอบเขตที่คุณดูแล");
 
     // จำกัดประวัติไว้ที่ N ล่าสุด กันกรณีผู้ใช้มีประวัติจำนวนมาก (payload/หน้าจอบวม)
