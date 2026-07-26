@@ -72,7 +72,6 @@ class ReportService {
         department: {
           organizationId: Number(organizationId),
         },
-        personnelTypeId: Number(personnelTypeId),
       },
       select: {
         id: true,

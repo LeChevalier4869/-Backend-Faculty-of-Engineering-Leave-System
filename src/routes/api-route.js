@@ -6,13 +6,18 @@ const { authenticate , authorize } = require('../middlewares/auth');
 
 //report
 router.post('/download-report', authenticate, reportController.downloadReport);
-router.post("/report/data", authenticate, authorize(["ADMIN"]), reportController.reportData);
-router.post("/report/data-month", authenticate, authorize(["ADMIN"]), reportController.getReportDataForMonth);
+router.post("/report/data", authenticate, reportController.reportData);
+router.post("/report/data-month", authenticate, reportController.getReportDataForMonth);
 
 //export to pdf
-router.post("/export-round-report", authenticate, authorize(["ADMIN"]), reportController.exportRoundReportPDF);
-router.post("/export-year-report", authenticate, authorize(["ADMIN"]), reportController.exportFiscalYearReportPDF);
-router.post("/export-month-report", authenticate, authorize(["ADMIN"]), reportController.exportMonthReportPDF);
+router.post("/export-round-report-pdf", authenticate, reportController.exportRoundReportPDF);
+router.post("/export-year-report-pdf", authenticate, reportController.exportFiscalYearReportPDF);
+router.post("/export-month-report-pdf", authenticate, reportController.exportMonthReportPDF);
+
+//export to word
+router.post("/export-round-report-word", authenticate, reportController.exportRoundReportPDF);
+router.post("/export-year-report-word", authenticate, reportController.exportFiscalYearReportWORD);
+router.post("/export-month-report-word", authenticate, reportController.exportMonthReportPDF);
 
 //export report (pdf or word) - used by LeaveReport admin page
 router.post("/export-report", authenticate, authorize(["ADMIN"]), reportController.exportReport);
