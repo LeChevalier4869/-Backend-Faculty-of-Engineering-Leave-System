@@ -5,6 +5,40 @@ const createError = require("../utils/createError");
 const { sendNotification } = require("../utils/emailService");
 const AuditLogService = require("../services/auditLog-service");
 
+// ---------- ตัวช่วยทำข้อความ error ให้ผู้ import แก้ไฟล์ Excel ได้ง่าย ----------
+// ระยะแก้ไข (Levenshtein) — ใช้แนะนำชื่อที่ใกล้เคียง เช่น ชื่อสาขา/ประเภทบุคคลที่สะกดผิด
+function editDistance(a = "", b = "") {
+  a = String(a);
+  b = String(b);
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
+// คืนชื่อที่ใกล้เคียง target ที่สุด (ไม่เกิน max ชื่อ) เพื่อบอกผู้ใช้ว่า "น่าจะหมายถึง..."
+function suggestClosest(target, names, normalize = (s) => String(s ?? "").trim().toLowerCase(), max = 2) {
+  const t = normalize(target);
+  if (!t) return [];
+  const limit = Math.max(3, Math.ceil(t.length / 2)); // ยอมรับความต่างได้มากขึ้นเมื่อชื่อยาว
+  return names
+    .map((name) => ({ name, d: editDistance(t, normalize(name)) }))
+    .sort((a, b) => a.d - b.d)
+    .filter((c) => c.d <= limit)
+    .slice(0, max)
+    .map((c) => c.name);
+}
+
 // ส่งอีเมลต้อนรับให้ผู้ใช้ที่เพิ่งถูกสร้าง (ทำแบบ background ไม่บล็อกการตอบกลับ)
 async function sendWelcomeToCreatedUsers(createdUsers = []) {
   for (const u of createdUsers) {
@@ -346,6 +380,26 @@ exports.uploadUserExcel = async (req, res) => {
       return false;
     };
 
+    // คำเตือนคอลัมน์ balance ที่ไม่ใช่ตัวเลข — ไม่ทำให้ import ล้ม แต่แจ้งให้ผู้ import ทราบ
+    const collectBalanceWarnings = (row, index) => {
+      const cfg = getBalanceFieldConfig();
+      const warns = [];
+      for (const f of cfg) {
+        for (const a of f.aliases) {
+          if (Object.prototype.hasOwnProperty.call(row, a)) {
+            const v = row[a];
+            if (v !== null && v !== undefined && String(v).trim() !== "" && !isIntValue(v)) {
+              warns.push(
+                `แถวที่ ${index + 2}: คอลัมน์ "${a}" ควรเป็นตัวเลข (พบ "${v}") — ระบบจะข้ามค่านี้และใช้ค่าเริ่มต้นตามสิทธิ์`
+              );
+            }
+            break; // เจอ alias ของ field นี้แล้วพอ ไม่นับซ้ำ
+          }
+        }
+      }
+      return warns;
+    };
+
     const validateHeaderOrder = () => {
       if (!headerRow || !headerRow.length) return;
       const headerIndex = new Map();
@@ -394,11 +448,19 @@ exports.uploadUserExcel = async (req, res) => {
           ? hireDate.split("/").map(Number)
           : hireDate.split("-").map(Number);
 
-        if (parts.length === 3) {
-          if (hireDate.includes("/")) {
-            parsedDate = new Date(parts[2], parts[1] - 1, parts[0]);
-          } else {
-            parsedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+          // [day, month, year] สำหรับรูปแบบ "/"; [year, month, day] สำหรับ "-"
+          const [year, month, day] = hireDate.includes("/")
+            ? [parts[2], parts[1], parts[0]]
+            : [parts[0], parts[1], parts[2]];
+          const candidate = new Date(year, month - 1, day);
+          // ตรวจว่าไม่ถูก JS ปัดวันที่เกินช่วง (เช่น 31/31/2020 → กลายเป็นเดือนถัดไป)
+          if (
+            candidate.getFullYear() === year &&
+            candidate.getMonth() === month - 1 &&
+            candidate.getDate() === day
+          ) {
+            parsedDate = candidate;
           }
         }
       } else if (hireDate instanceof Date) {
@@ -411,7 +473,7 @@ exports.uploadUserExcel = async (req, res) => {
         console.log(`Row ${index + 2} invalid hireDate:`, hireDate);
         throw {
           email: normalizedEmail,
-          reason: "hireDate ไม่ถูกต้อง",
+          reason: `วันที่บรรจุไม่ถูกต้อง "${hireDate}" — ใช้รูปแบบ วัน/เดือน/ปี ค.ศ. เช่น 01/06/2015 หรือ 2015-06-01`,
           rowData,
         };
       }
@@ -421,6 +483,7 @@ exports.uploadUserExcel = async (req, res) => {
 
     const createdUsers = [];
     const failedUsers = [];
+    const importWarnings = [];
 
     const balanceMode = hasAnyBalanceColumnInFile() && hasAnyBalanceDataInFile();
 
@@ -465,20 +528,23 @@ exports.uploadUserExcel = async (req, res) => {
         }
       }
 
-      const hasRequiredUserFields = !!(prefixName || user["คำนำหน้า"]) &&
-        !!(firstName || user["ชื่อ"]) &&
-        !!(lastName || user["นามสกุล"]) &&
-        !!(normalizedEmail || user["อีเมล"]) &&
-        !!(position || user["ตำแหน่งงาน"]) &&
-        !!(phone || user["เบอร์ติดต่อ"]) &&
-        !!(hireDate || user["วันที่บรรจุ"]) &&
-        !!(departmentNameResolved) &&
-        !!(personnelTypeName || user["ประเภทบุคคล"])
-
-      if (!hasRequiredUserFields) {
+      // ตรวจฟิลด์จำเป็นทีละช่อง เพื่อบอกผู้ import ว่า "ขาดคอลัมน์ไหน" ได้ชัดเจน
+      const requiredChecks = [
+        ["คำนำหน้า", prefixName || user["คำนำหน้า"]],
+        ["ชื่อ", firstName || user["ชื่อ"]],
+        ["นามสกุล", lastName || user["นามสกุล"]],
+        ["อีเมล", normalizedEmail || user["อีเมล"]],
+        ["ตำแหน่งงาน", position || user["ตำแหน่งงาน"]],
+        ["เบอร์ติดต่อ", phone || user["เบอร์ติดต่อ"]],
+        ["วันที่บรรจุ", hireDate || user["วันที่บรรจุ"]],
+        ["สาขา/แผนก", departmentNameResolved],
+        ["ประเภทบุคคล", personnelTypeName || user["ประเภทบุคคล"]],
+      ];
+      const missingFields = requiredChecks.filter(([, v]) => !v).map(([k]) => k);
+      if (missingFields.length) {
         throw {
-          email: normalizedEmail || `Row ${index + 2}`,
-          reason: "มี field required ว่างหรือไม่ถูกต้อง",
+          email: normalizedEmail || `แถวที่ ${index + 2}`,
+          reason: `ข้อมูลจำเป็นว่าง: ${missingFields.join(", ")} — กรุณากรอกให้ครบทุกคอลัมน์`,
           rowData: user,
         };
       }
@@ -486,8 +552,8 @@ exports.uploadUserExcel = async (req, res) => {
       // เลขที่ตำแหน่งบังคับกรอก
       if (!positionNumber || String(positionNumber).trim() === "") {
         throw {
-          email: normalizedEmail || `Row ${index + 2}`,
-          reason: "ไม่ได้ระบุเลขที่ตำแหน่ง (เลขที่ตำแหน่ง)",
+          email: normalizedEmail || `แถวที่ ${index + 2}`,
+          reason: "ไม่ได้ระบุเลขที่ตำแหน่ง — คอลัมน์ \"เลขที่ตำแหน่ง\" จำเป็นต้องกรอกทุกคน",
           rowData: user,
         };
       }
@@ -497,7 +563,7 @@ exports.uploadUserExcel = async (req, res) => {
       if (!/@(rmuti\.ac\.th|gmail\.com)$/.test(normalizedEmail)) {
         throw {
           email: normalizedEmail,
-          reason: "โดเมนอีเมลล์ไม่ถูกต้อง",
+          reason: `โดเมนอีเมลไม่ถูกต้อง "${normalizedEmail}" — รองรับเฉพาะ @rmuti.ac.th หรือ @gmail.com`,
           rowData: user,
         };
       }
@@ -517,9 +583,15 @@ exports.uploadUserExcel = async (req, res) => {
         where: { name: personnelTypeName },
       });
       if (!personnelType) {
+        const allPts = await tx.personnelType.findMany({ select: { name: true } });
+        const ptNames = allPts.map((p) => p.name);
+        const near = suggestClosest(personnelTypeName, ptNames);
+        const hint = near.length
+          ? ` — น่าจะหมายถึง: ${near.map((n) => `"${n}"`).join(" หรือ ")}`
+          : ` — ค่าที่รองรับ: ${ptNames.map((n) => `"${n}"`).join(", ")}`;
         throw {
           email: normalizedEmail,
-          reason: "ประเภทบุคคลไม่ถูกต้อง",
+          reason: `ประเภทบุคคล "${personnelTypeName || "(ว่าง)"}" ไม่ตรงกับในระบบ${hint}`,
           rowData: user,
         };
       }
@@ -574,9 +646,16 @@ exports.uploadUserExcel = async (req, res) => {
       }
 
       if (!department) {
+        const allDeptsForHint = await tx.department.findMany({ select: { name: true } });
+        const deptNames = allDeptsForHint.map((d) => d.name);
+        // เทียบด้วยชื่อแบบตัดคำนำหน้า/ช่องว่าง (canonical) เพื่อจับที่สะกดใกล้เคียง
+        const near = suggestClosest(deptNameRaw, deptNames, canonical);
+        const hint = near.length
+          ? ` — น่าจะหมายถึง: ${near.map((n) => `"${n}"`).join(" หรือ ")} (ตรวจการสะกด/คำนำหน้า เช่น "สาขา")`
+          : " — ตรวจว่าชื่อสาขาตรงกับที่มีในระบบ";
         throw {
           email: normalizedEmail,
-          reason: `สาขา "${deptNameRaw}" ไม่ตรงกับสาขาในระบบ`,
+          reason: `สาขา "${deptNameRaw}" ไม่ตรงกับสาขาในระบบ${hint}`,
           rowData: user,
         };
       }
@@ -616,7 +695,13 @@ exports.uploadUserExcel = async (req, res) => {
         where: { name: { in: roleList } },
       });
       if (!roles || roles.length !== roleList.length) {
-        throw createError(400, "Invalid roles provided");
+        const foundNames = roles.map((r) => r.name);
+        const invalidRoles = roleList.filter((r) => !foundNames.includes(r));
+        throw {
+          email: normalizedEmail,
+          reason: `บทบาทไม่ถูกต้อง: ${invalidRoles.map((r) => `"${r}"`).join(", ")} — ค่าที่รองรับ: USER, VERIFIER, APPROVER_1, APPROVER_2, APPROVER_3, APPROVER_4, ADMIN`,
+          rowData: user,
+        };
       }
 
       await tx.userRole.createMany({
@@ -795,6 +880,7 @@ exports.uploadUserExcel = async (req, res) => {
           console.log(`✅ Created user: ${created.id} ${created.email}`);
           console.log(`Transaction committed successfully for user: ${created.email}`);
           createdUsers.push(created);
+          importWarnings.push(...collectBalanceWarnings(user, index));
         } catch (err) {
           console.error(`Error processing row ${index + 2}:`, err);
           console.error(`Transaction failed for user, rolling back...`);
@@ -825,6 +911,7 @@ exports.uploadUserExcel = async (req, res) => {
         failedCount: failedUsers.length,
         createdUsers,
         failedUsers,
+        warnings: importWarnings,
         balanceCreated: true,
       });
       return;
@@ -868,6 +955,7 @@ exports.uploadUserExcel = async (req, res) => {
       failedCount: failedUsers.length,
       createdUsers,
       failedUsers, // rowData จะช่วย debug Excel ได้ง่ายขึ้น
+      warnings: importWarnings,
       balanceCreated: true,
     });
   } catch (error) {
