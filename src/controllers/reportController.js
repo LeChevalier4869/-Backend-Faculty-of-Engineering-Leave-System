@@ -2126,6 +2126,32 @@ exports.exportFiscalYearReportWORD = async (req, res) => {
 };
 
 // ---------------------------------------ประจำเดือน---------------------------------------
+exports.getReportDataForMonth = async (req, res, next) => {
+  try {
+    const { organizationId, month, year } = req.query;
+
+    if (!organizationId || !month || !year) {
+      return res.status(400).json({
+        success: false,
+        message: "organizationId, month และ year เป็นข้อมูลที่จำเป็น",
+      });
+    }
+
+    const data = await ReportService.getReportDataForMonth(
+      Number(organizationId),
+      Number(month),
+      Number(year),
+    );
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.exportMonthReportPDF = async (req, res) => {
   try {
     const { organizationId, month, year } = req.body;

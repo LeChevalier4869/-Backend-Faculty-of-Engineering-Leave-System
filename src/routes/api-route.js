@@ -12,6 +12,7 @@ router.post("/report/data-month", authenticate, reportController.getReportDataFo
 //export to pdf
 router.post("/export-round-report-pdf", authenticate, reportController.exportRoundReportPDF);
 router.post("/export-year-report-pdf", authenticate, reportController.exportFiscalYearReportPDF);
+router.get("/data-month-report", authenticate, reportController.getReportDataForMonth);
 router.post("/export-month-report-pdf", authenticate, reportController.exportMonthReportPDF);
 
 //export to word
