@@ -460,6 +460,89 @@ exports.getReportDataForMonth = async (req, res) => {
   }
 };
 
+exports.getReportDataForFiscalYear = async (req, res) => {
+  try {
+    const { organizationId, fiscalYear } = req.query;
+
+    const organizationIdNumber = Number(organizationId);
+    const fiscalYearNumber = Number(fiscalYear);
+
+    // Validation organizationId
+    if (!organizationIdNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุ organizationId",
+      });
+    }
+
+    // Validation fiscalYear
+    if (!fiscalYearNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุปีงบประมาณ (ค.ศ.)",
+      });
+    }
+
+    // ตรวจสอบปี ค.ศ.
+    if (fiscalYearNumber < 1900 || fiscalYearNumber > 3000) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุปีงบประมาณเป็น ค.ศ. ที่ถูกต้อง",
+      });
+    }
+
+    // ปีงบประมาณเริ่มวันที่ 1 ตุลาคมของปีก่อนหน้า
+    // เช่น fiscalYear = 2026
+    // startDate = 2025-10-01
+    const startDate = new Date(fiscalYearNumber - 1, 9, 1);
+
+    // สิ้นสุดวันที่ 30 กันยายนของปีที่เลือก
+    // เช่น fiscalYear = 2026
+    // endDate = 2026-09-30
+    const endDate = new Date(fiscalYearNumber, 8, 30, 23, 59, 59, 999);
+
+    // เรียก Service
+    const reportData = await ReportService.getReportDataForFiscalYear(
+      organizationIdNumber,
+      startDate,
+      endDate,
+    );
+
+    // ตรวจสอบว่ามีข้อมูลหรือไม่
+    const hasData = Object.values(reportData.report).some(
+      (users) => users.length > 0,
+    );
+
+    if (!hasData) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในปีงบประมาณที่ระบุ",
+        fiscalYear: fiscalYearNumber,
+        startDate,
+        endDate,
+      });
+    }
+
+    // ส่งข้อมูลกลับ
+    return res.status(200).json({
+      success: true,
+      message: `ดึงข้อมูลรายงานปีงบประมาณ ${fiscalYearNumber} สำเร็จ`,
+      data: {
+        ...reportData,
+        fiscalYear: fiscalYearNumber,
+      },
+    });
+  } catch (err) {
+    console.error("Controller Error (getReportDataForFiscalYear):", err);
+
+    return res.status(500).json({
+      success: false,
+      error: "เกิดข้อผิดพลาดที่ Server",
+      message: err.message,
+    });
+  }
+};
+
 // 📍 Export PDF หรือ Word
 
 // ---------------------------------------ประจำรอบประเมิน---------------------------------------

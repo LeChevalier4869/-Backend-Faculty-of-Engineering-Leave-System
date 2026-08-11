@@ -139,6 +139,133 @@ class ReportService {
 
     return grouped;
   }
+  static async getReportDataForFiscalYear(organizationId, startDate, endDate) {
+  const personnelTypes = await prisma.personnelType.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  const users = await prisma.user.findMany({
+    where: {
+      department: {
+        organizationId: Number(organizationId),
+      },
+    },
+
+    select: {
+      id: true,
+      prefixName: true,
+      firstName: true,
+      lastName: true,
+
+      positionNumbers: {
+        where: {
+          isCurrent: true,
+        },
+        select: {
+          positionNumber: true,
+          effectiveFrom: true,
+        },
+      },
+
+      email: true,
+
+      personnelType: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+
+      LeaveRequest: {
+        where: {
+          status: "APPROVED",
+
+          // ใบลาที่ทับกับช่วงปีงบประมาณ
+          startDate: {
+            lte: end,
+          },
+          endDate: {
+            gte: start,
+          },
+        },
+
+        select: {
+          id: true,
+
+          leaveType: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+
+          totalDays: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+  });
+
+  const grouped = {};
+
+  personnelTypes.forEach((pt) => {
+    grouped[pt.name] = [];
+  });
+
+  users.forEach((user) => {
+    const typeName =
+      user.personnelType?.name || "ไม่ระบุประเภท";
+
+    const summary = {};
+
+    user.LeaveRequest.forEach((lr) => {
+      const leaveTypeName =
+        lr.leaveType?.name || "ไม่ระบุประเภทการลา";
+
+      if (!summary[leaveTypeName]) {
+        summary[leaveTypeName] = {
+          count: 0,
+          days: 0,
+        };
+      }
+
+      summary[leaveTypeName].count += 1;
+      summary[leaveTypeName].days += Number(lr.totalDays || 0);
+    });
+
+    if (!grouped[typeName]) {
+      grouped[typeName] = [];
+    }
+
+    grouped[typeName].push({
+      userId: user.id,
+      name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`,
+      email: user.email,
+
+      positionNumber:
+        user.positionNumbers?.[0]?.positionNumber ?? null,
+
+      leaveSummary: summary,
+    });
+  });
+
+  return {
+    organizationId: Number(organizationId),
+    startDate,
+    endDate,
+    report: grouped,
+  };
+}
 
   static async downloadReport(userId) {
     const user = await prisma.user.findUnique({
