@@ -7,13 +7,17 @@ const { authenticate , authorize } = require('../middlewares/auth');
 //report
 router.post('/download-report', authenticate, reportController.downloadReport);
 router.post("/report/data", authenticate, reportController.reportData);
+
+//report data
 router.get("/report/data-month", authenticate, reportController.getReportDataForMonth);
 router.get("/report/fiscal-data", authenticate, reportController.getFiscalReportData);
+// พรีวิวแยกของทีม (คงไว้เพื่อความเข้ากันได้)
+router.get("/report/data-fiscal", authenticate, reportController.getReportDataForFiscalYear);
+router.get("/report/data-round", authenticate, reportController.getReportDataForRound);
 
 //export to pdf
 router.post("/export-round-report-pdf", authenticate, reportController.exportRoundReportPDF);
 router.post("/export-year-report-pdf", authenticate, reportController.exportFiscalYearReportPDF);
-router.get("/data-month-report", authenticate, reportController.getReportDataForMonth);
 router.post("/export-month-report-pdf", authenticate, reportController.exportMonthReportPDF);
 
 //export to word

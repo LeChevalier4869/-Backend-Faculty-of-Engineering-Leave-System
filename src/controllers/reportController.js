@@ -630,3 +630,111 @@ exports.exportReport = async (req, res) => {
     return fail(res, err, "exportReport");
   }
 };
+
+// ============================================================================
+// พรีวิวข้อมูล (แยก endpoint ของทีม) — รอบประเมิน / รอบปีงบประมาณ
+// คงไว้เพื่อความเข้ากันได้ (คนละ endpoint กับของหน้า LeaveReport)
+// ============================================================================
+exports.getReportDataForRound = async (req, res) => {
+  try {
+    const { organizationId, startDate, endDate, countReport } = req.query;
+
+    const organizationIdNumber = Number(organizationId);
+    const countReportNumber = Number(countReport);
+
+    if (!organizationIdNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุ organizationId" });
+    }
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุ startDate และ endDate" });
+    }
+    if (!countReportNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุ countReport" });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ success: false, error: "รูปแบบวันที่ไม่ถูกต้อง" });
+    }
+    if (start > end) {
+      return res.status(400).json({ success: false, error: "startDate ต้องไม่มากกว่า endDate" });
+    }
+
+    const reportData = await ReportService.getReportDataForRound(
+      organizationIdNumber,
+      startDate,
+      endDate,
+      countReportNumber,
+    );
+
+    const hasRows = Object.values(reportData.report).some((users) => users.length > 0);
+    if (!hasRows) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในรอบประเมินที่ระบุ",
+        startDate,
+        endDate,
+        countReport: countReportNumber,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `ดึงข้อมูลรายงานรอบประเมินที่ ${countReportNumber} สำเร็จ`,
+      data: reportData,
+    });
+  } catch (err) {
+    console.error("Controller Error (getReportDataForRound):", err);
+    return res.status(500).json({ success: false, error: "เกิดข้อผิดพลาดที่ Server", message: err.message });
+  }
+};
+
+exports.getReportDataForFiscalYear = async (req, res) => {
+  try {
+    const { organizationId, fiscalYear } = req.query;
+
+    const organizationIdNumber = Number(organizationId);
+    const fiscalYearNumber = Number(fiscalYear);
+
+    if (!organizationIdNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุ organizationId" });
+    }
+    if (!fiscalYearNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุปีงบประมาณ (ค.ศ.)" });
+    }
+    if (fiscalYearNumber < 1900 || fiscalYearNumber > 3000) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุปีงบประมาณเป็น ค.ศ. ที่ถูกต้อง" });
+    }
+
+    // ปีงบประมาณ ค.ศ. N = 1 ต.ค. (N-1) ถึง 30 ก.ย. N
+    const startDate = new Date(fiscalYearNumber - 1, 9, 1);
+    const endDate = new Date(fiscalYearNumber, 8, 30, 23, 59, 59, 999);
+
+    const reportData = await ReportService.getReportDataForFiscalYear(
+      organizationIdNumber,
+      startDate,
+      endDate,
+    );
+
+    const hasRows = Object.values(reportData.report).some((users) => users.length > 0);
+    if (!hasRows) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในปีงบประมาณที่ระบุ",
+        fiscalYear: fiscalYearNumber,
+        startDate,
+        endDate,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `ดึงข้อมูลรายงานปีงบประมาณ ${fiscalYearNumber} สำเร็จ`,
+      data: { ...reportData, fiscalYear: fiscalYearNumber },
+    });
+  } catch (err) {
+    console.error("Controller Error (getReportDataForFiscalYear):", err);
+    return res.status(500).json({ success: false, error: "เกิดข้อผิดพลาดที่ Server", message: err.message });
+  }
+};
