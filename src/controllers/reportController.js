@@ -460,6 +460,105 @@ exports.getReportDataForMonth = async (req, res) => {
   }
 };
 
+exports.getReportDataForRound = async (req, res) => {
+  try {
+    const {
+      organizationId,
+      startDate,
+      endDate,
+      countReport,
+    } = req.query;
+
+    const organizationIdNumber = Number(organizationId);
+    const countReportNumber = Number(countReport);
+
+    // Validation organizationId
+    if (!organizationIdNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุ organizationId",
+      });
+    }
+
+    // Validation startDate / endDate
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุ startDate และ endDate",
+      });
+    }
+
+    // Validation countReport
+    if (!countReportNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุ countReport",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // ตรวจสอบวันที่
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: "รูปแบบวันที่ไม่ถูกต้อง",
+      });
+    }
+
+    // ตรวจสอบช่วงวันที่
+    if (start > end) {
+      return res.status(400).json({
+        success: false,
+        error: "startDate ต้องไม่มากกว่า endDate",
+      });
+    }
+
+    // เรียก Service
+    const reportData =
+      await ReportService.getReportDataForRound(
+        organizationIdNumber,
+        startDate,
+        endDate,
+        countReportNumber,
+      );
+
+    // ตรวจสอบข้อมูล
+    const hasData = Object.values(reportData.report).some(
+      (users) => users.length > 0,
+    );
+
+    if (!hasData) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในรอบประเมินที่ระบุ",
+        startDate,
+        endDate,
+        countReport: countReportNumber,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `ดึงข้อมูลรายงานรอบประเมินที่ ${countReportNumber} สำเร็จ`,
+      data: reportData,
+    });
+  } catch (err) {
+    console.error(
+      "Controller Error (getReportDataForEvaluation):",
+      err,
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: "เกิดข้อผิดพลาดที่ Server",
+      message: err.message,
+    });
+  }
+};
+
 exports.getReportDataForFiscalYear = async (req, res) => {
   try {
     const { organizationId, fiscalYear } = req.query;
