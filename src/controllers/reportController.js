@@ -393,44 +393,65 @@ exports.reportData = async (req, res) => {
 
 exports.getReportDataForMonth = async (req, res) => {
   try {
-    const { organizationId, month, year } = req.body;
+    const { organizationId, month, year } = req.query;
 
-    // 1. Validation: ตรวจสอบ Input
-    if (!organizationId) {
-      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!month || month < 1 || month > 12) {
-      return res.status(400).json({ error: "กรุณาระบุเดือนที่ถูกต้อง (1-12)" });
-    }
-    if (!year) {
-      return res.status(400).json({ error: "กรุณาระบุปี ค.ศ. (เช่น 2026)" });
-    }
+    // แปลงเป็นตัวเลข
+    const organizationIdNumber = Number(organizationId);
+    const monthNumber = Number(month);
+    const yearNumber = Number(year);
 
-    // 2. เรียกใช้ Service (ส่งค่าที่ Parse เป็น Number เพื่อความชัวร์)
-    const reportData = await ReportService.getReportDataForMonth(
-      Number(organizationId),
-      parseInt(month),
-      parseInt(year),
-    );
-
-    // 3. ตรวจสอบผลลัพธ์
-    if (!reportData || Object.keys(reportData.report).length === 0) {
-      return res.status(404).json({
+    // Validation
+    if (!organizationIdNumber) {
+      return res.status(400).json({
         success: false,
-        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในเงื่อนไขที่ระบุ",
-        month,
-        year,
+        error: "กรุณาระบุ organizationId",
       });
     }
 
-    // 4. ส่งข้อมูลกลับ
+    if (!monthNumber || monthNumber < 1 || monthNumber > 12) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุเดือนที่ถูกต้อง (1-12)",
+      });
+    }
+
+    if (!yearNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุปี ค.ศ. (เช่น 2026)",
+      });
+    }
+
+    // เรียก Service
+    const reportData = await ReportService.getReportDataForMonth(
+      organizationIdNumber,
+      monthNumber,
+      yearNumber,
+    );
+
+    // ตรวจสอบว่ามีข้อมูลจริงหรือไม่
+    const hasData = Object.values(reportData.report).some(
+      (users) => users.length > 0,
+    );
+
+    if (!hasData) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในเงื่อนไขที่ระบุ",
+        month: monthNumber,
+        year: yearNumber,
+      });
+    }
+
+    // ส่งข้อมูลกลับ
     return res.status(200).json({
       success: true,
-      message: `ดึงข้อมูลรายงานประจำเดือน ${month}/${year} สำเร็จ`,
+      message: `ดึงข้อมูลรายงานประจำเดือน ${monthNumber}/${yearNumber} สำเร็จ`,
       data: reportData,
     });
   } catch (err) {
     console.error("Controller Error (getReportDataForMonth):", err);
+
     return res.status(500).json({
       success: false,
       error: "เกิดข้อผิดพลาดที่ Server",
@@ -2126,31 +2147,31 @@ exports.exportFiscalYearReportWORD = async (req, res) => {
 };
 
 // ---------------------------------------ประจำเดือน---------------------------------------
-exports.getReportDataForMonth = async (req, res, next) => {
-  try {
-    const { organizationId, month, year } = req.query;
+// exports.getReportDataForMonth = async (req, res, next) => {
+//   try {
+//     const { organizationId, month, year } = req.query;
 
-    if (!organizationId || !month || !year) {
-      return res.status(400).json({
-        success: false,
-        message: "organizationId, month และ year เป็นข้อมูลที่จำเป็น",
-      });
-    }
+//     if (!organizationId || !month || !year) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "organizationId, month และ year เป็นข้อมูลที่จำเป็น",
+//       });
+//     }
 
-    const data = await ReportService.getReportDataForMonth(
-      Number(organizationId),
-      Number(month),
-      Number(year),
-    );
+//     const data = await ReportService.getReportDataForMonth(
+//       Number(organizationId),
+//       Number(month),
+//       Number(year),
+//     );
 
-    return res.status(200).json({
-      success: true,
-      data,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       data,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
 
 exports.exportMonthReportPDF = async (req, res) => {
   try {

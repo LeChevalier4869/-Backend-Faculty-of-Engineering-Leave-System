@@ -207,6 +207,22 @@ class ReportService {
       end: endDateMonth,
     });
 
+    const LEAVE_KEY = {
+      1: "SICK", // ลาป่วย
+      2: "MATERNITY", // ลาคลอดบุตร
+      3: "PERSONAL", // ลากิจส่วนตัว
+      4: "ANNUAL", // ลาพักผ่อน
+      5: "ORDINATION", // ลาอุปสมบท
+      6: "MILITARY", // ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล
+      7: "STUDY", // ลาไปศึกษา ฝึกอบรม วิจัย ดูงาน
+      8: "PATERNITY", // ลาไปช่วยเหลือภริยาที่คลอดบุตร
+      9: "REHABILITATION", // ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ
+      10: "DHARMA", // ลาไปถือศีล ปฏิบัติธรรม
+      11: "INTERNATIONAL_WORK", // ลาไปปฏิบัติงานในองค์การระหว่างประเทศ
+      12: "FOLLOW_SPOUSE", // ลาติดตามคู่สมรส
+      13: "HAJJ", // ลาไปประกอบพิธีฮัจย์
+    };
+
     users.forEach((user) => {
       const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
       const attendance = {};
@@ -224,20 +240,17 @@ class ReportService {
         );
 
         if (matchLeave) {
-          // ✅ เก็บเฉพาะวันที่ลาจริงลงใน Object
-          attendance[dayKey] = matchLeave.leaveTypeId;
+          attendance[dayKey] = LEAVE_KEY[matchLeave.leaveTypeId] ?? "UNKNOWN";
         } else if (!isDayWeekend) {
-          // ✅ ถ้าไม่ลา และไม่ใช่เสาร์-อาทิตย์ ให้บวกวันทำงาน
           actualWorkDaysCount++;
         }
-        // หมายเหตุ: วันหยุดเสาร์-อาทิตย์ที่ไม่ได้ลา จะไม่ถูกเก็บลง attendance และไม่ถูกนับใน actualWorkDaysCount
       });
 
       grouped[typeName].push({
         userId: user.id,
-        name: `${user.prefixName}${user.firstName} ${user.lastName}`,
-        attendance: attendance,
-        totalWorkDays: actualWorkDaysCount, // ตัวเลขวันทำงานจริง (จ-ศ ที่ไม่ลา)
+        name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`,
+        attendance,
+        totalWorkDays: actualWorkDaysCount,
       });
     });
 
