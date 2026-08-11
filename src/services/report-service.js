@@ -60,7 +60,27 @@ class ReportService {
   //   });
   // }
 
+  /**
+   * ช่วงวันที่ของรอบปีงบประมาณปัจจุบัน — อ่านจาก setting "fiscalYear" (เก็บเป็น ค.ศ.)
+   * ปีงบ ค.ศ. N = 1 ต.ค. (N-1) ถึง 30 ก.ย. N. คืน BE ไว้แสดงหัวรายงานด้วย
+   */
+  static async getFiscalRange() {
+    const setting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+    });
+    const fyCE = setting ? parseInt(setting.value, 10) : new Date().getFullYear();
+    return {
+      startDate: `${fyCE - 1}-10-01`,
+      endDate: `${fyCE}-09-30T23:59:59.999`,
+      fiscalYearCE: fyCE,
+      fiscalYearBE: fyCE + 543,
+    };
+  }
+
   static async getReportData(organizationId, startDate, endDate) {
+    const winStart = new Date(startDate);
+    const winEnd = new Date(endDate);
+
     // 1. ดึง personnel type ทั้งหมด
     const personnelTypes = await prisma.personnelType.findMany({
       select: { id: true, name: true },
@@ -91,8 +111,8 @@ class ReportService {
           where: {
             status: "APPROVED",
             // ✅ เงื่อนไขแบบ "ทับบางส่วน"
-            startDate: { lte: new Date(endDate) },
-            endDate: { gte: new Date(startDate) },
+            startDate: { lte: winEnd },
+            endDate: { gte: winStart },
           },
           select: {
             id: true,
@@ -117,12 +137,25 @@ class ReportService {
 
       const summary = {};
       user.LeaveRequest.forEach((lr) => {
-        const leaveTypeName = lr.leaveType.name;
+        const leaveTypeName = lr.leaveType?.name;
+        if (!leaveTypeName) return;
         if (!summary[leaveTypeName]) {
           summary[leaveTypeName] = { count: 0, days: 0 };
         }
+        // นับเฉพาะจำนวนวันที่คาบเกี่ยวอยู่ในช่วงรายงาน (prorate ตามสัดส่วนวันปฏิทิน)
         summary[leaveTypeName].count += 1;
-        summary[leaveTypeName].days += lr.totalDays;
+        summary[leaveTypeName].days += ReportService.daysWithinWindow(
+          lr.startDate,
+          lr.endDate,
+          lr.totalDays,
+          winStart,
+          winEnd,
+        );
+      });
+
+      // ปัดเศษ .days กันค่าทศนิยมลอย (floating point)
+      Object.values(summary).forEach((s) => {
+        s.days = Math.round(s.days * 100) / 100;
       });
 
       if (!grouped[typeName]) {
@@ -131,13 +164,42 @@ class ReportService {
 
       grouped[typeName].push({
         userId: user.id,
-        name: `${user.prefixName} ${user.firstName} ${user.lastName}`,
+        positionNo: user.positionNumbers?.[0]?.positionNumber || "",
+        name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`.trim(),
         email: user.email,
         leaveSummary: summary,
       });
     });
 
     return grouped;
+  }
+
+  /**
+   * จำนวนวันลาที่ตกอยู่ในช่วง [winStart, winEnd] — prorate totalDays ตามสัดส่วน
+   * วันปฏิทินที่คาบเกี่ยว (ถ้าใบลาอยู่ในช่วงทั้งหมด → คืน totalDays เต็ม)
+   */
+  static daysWithinWindow(start, end, totalDays, winStart, winEnd) {
+    const DAY = 86400000;
+    const atMidnight = (d) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x.getTime();
+    };
+    const ls = atMidnight(start);
+    const le = atMidnight(end);
+    const ws = atMidnight(winStart);
+    const we = atMidnight(winEnd);
+
+    const oStart = Math.max(ls, ws);
+    const oEnd = Math.min(le, we);
+    if (oEnd < oStart) return 0; // ไม่คาบเกี่ยว
+
+    const spanDays = Math.floor((le - ls) / DAY) + 1;
+    const overlapDays = Math.floor((oEnd - oStart) / DAY) + 1;
+    if (spanDays <= 0) return totalDays || 0;
+    if (overlapDays >= spanDays) return totalDays || 0; // อยู่ในช่วงทั้งหมด
+
+    return Math.round(((totalDays || 0) * overlapDays) / spanDays * 100) / 100;
   }
 
   static async downloadReport(userId) {

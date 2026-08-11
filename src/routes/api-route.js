@@ -8,6 +8,7 @@ const { authenticate , authorize } = require('../middlewares/auth');
 router.post('/download-report', authenticate, reportController.downloadReport);
 router.post("/report/data", authenticate, reportController.reportData);
 router.get("/report/data-month", authenticate, reportController.getReportDataForMonth);
+router.get("/report/fiscal-data", authenticate, reportController.getFiscalReportData);
 
 //export to pdf
 router.post("/export-round-report-pdf", authenticate, reportController.exportRoundReportPDF);
@@ -16,9 +17,9 @@ router.get("/data-month-report", authenticate, reportController.getReportDataFor
 router.post("/export-month-report-pdf", authenticate, reportController.exportMonthReportPDF);
 
 //export to word
-router.post("/export-round-report-word", authenticate, reportController.exportRoundReportPDF);
+router.post("/export-round-report-word", authenticate, reportController.exportRoundReportWORD);
 router.post("/export-year-report-word", authenticate, reportController.exportFiscalYearReportWORD);
-router.post("/export-month-report-word", authenticate, reportController.exportMonthReportPDF);
+router.post("/export-month-report-word", authenticate, reportController.exportMonthReportWORD);
 
 //export report (pdf or word) - used by LeaveReport admin page
 router.post("/export-report", authenticate, authorize(["ADMIN"]), reportController.exportReport);
