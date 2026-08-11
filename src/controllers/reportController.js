@@ -462,12 +462,7 @@ exports.getReportDataForMonth = async (req, res) => {
 
 exports.getReportDataForRound = async (req, res) => {
   try {
-    const {
-      organizationId,
-      startDate,
-      endDate,
-      countReport,
-    } = req.query;
+    const { organizationId, startDate, endDate, countReport } = req.query;
 
     const organizationIdNumber = Number(organizationId);
     const countReportNumber = Number(countReport);
@@ -516,13 +511,12 @@ exports.getReportDataForRound = async (req, res) => {
     }
 
     // เรียก Service
-    const reportData =
-      await ReportService.getReportDataForRound(
-        organizationIdNumber,
-        startDate,
-        endDate,
-        countReportNumber,
-      );
+    const reportData = await ReportService.getReportDataForRound(
+      organizationIdNumber,
+      startDate,
+      endDate,
+      countReportNumber,
+    );
 
     // ตรวจสอบข้อมูล
     const hasData = Object.values(reportData.report).some(
@@ -532,8 +526,7 @@ exports.getReportDataForRound = async (req, res) => {
     if (!hasData) {
       return res.status(404).json({
         success: false,
-        message:
-          "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในรอบประเมินที่ระบุ",
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในรอบประเมินที่ระบุ",
         startDate,
         endDate,
         countReport: countReportNumber,
@@ -546,10 +539,7 @@ exports.getReportDataForRound = async (req, res) => {
       data: reportData,
     });
   } catch (err) {
-    console.error(
-      "Controller Error (getReportDataForEvaluation):",
-      err,
-    );
+    console.error("Controller Error (getReportDataForEvaluation):", err);
 
     return res.status(500).json({
       success: false,
