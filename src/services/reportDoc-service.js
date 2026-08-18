@@ -65,6 +65,13 @@ const isWeekendDate = (y, m /* 1-12 */, day) => {
   return w === 0 || w === 6;
 };
 
+// วันในอนาคต (หลังวันนี้) — ใช้เว้นเครื่องหมายมาทำงาน "/" ในวันที่ยังไม่ถึง
+const isFutureDate = (y, m /* 1-12 */, day) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(Number(y), Number(m) - 1, Number(day)) > today;
+};
+
 /* ประเภทลาที่แสดงในตารางสรุป: key = ชื่อจริงใน DB, label = หัวคอลัมน์แบบสั้น */
 const SUMMARY_TYPES = [
   { key: "ลาป่วย", label: "ลาป่วย" },
@@ -379,8 +386,8 @@ function monthlyPdfTable(users, daysInMonth, month, year) {
         fill = info.c;
       } else if (weekend) {
         fill = "#d9d9d9";
-      } else {
-        text = DAY_PRESENT;
+      } else if (!isFutureDate(year, month, d)) {
+        text = DAY_PRESENT; // มาทำงาน — เฉพาะวันที่ถึงวันนี้ (อนาคตเว้นว่าง)
       }
       row.push({ text, alignment: "center", fillColor: fill, fontSize: 10, bold: !!info });
     }
@@ -509,7 +516,9 @@ function monthlyWordTables(users, daysInMonth, month, year) {
         const key = u.attendance?.[d];
         const info = key ? ATTENDANCE[key] : null;
         const weekend = isWeekendDate(year, month, d);
-        const text = info ? info.t : weekend ? "" : DAY_PRESENT;
+        // มาทำงาน "/" เฉพาะวันที่ถึงวันนี้ (เสาร์อาทิตย์/อนาคต = เว้นว่าง)
+        const present = !info && !weekend && !isFutureDate(year, month, d);
+        const text = info ? info.t : present ? DAY_PRESENT : "";
         const fill = info ? info.c.replace("#", "") : weekend ? "D9D9D9" : null;
         dayCells.push(
           wCell(text, { fillColor: fill, margins: { top: 10, bottom: 0, left: 10, right: 10 } }),
