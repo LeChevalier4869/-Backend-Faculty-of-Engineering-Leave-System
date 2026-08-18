@@ -184,6 +184,8 @@ npm run dev
 
 ระบบล็อกอินด้วย Google เท่านั้น จึงต้องสร้าง OAuth Client บน Google Cloud (ทำครั้งเดียว)
 
+> 📄 อ้างอิงแบบเจาะจง (redirect URIs ต่อ environment, callback อัตโนมัติ, แก้ปัญหา): [GOOGLE_OAUTH.md](GOOGLE_OAUTH.md)
+
 **6.1 สร้างโปรเจกต์ + OAuth Client**
 1. เข้า <https://console.cloud.google.com/> → สร้างโปรเจกต์ใหม่ (หรือใช้ที่มีอยู่)
 2. เมนู **APIs & Services → OAuth consent screen**
