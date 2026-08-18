@@ -1,0 +1,49 @@
+# eLeave — local stack (db + backend + frontend)
+# รันจากโฟลเดอร์ backend นี้ (อ้าง frontend ที่ ../frontend ซึ่งวางข้างกันอยู่แล้ว)
+# ขึ้น server จริง: เปลี่ยน build: → image: (ดึงจาก registry) โครงอื่นใช้ต่อได้
+
+services:
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: eleave_root
+      MYSQL_DATABASE: eleave
+    # DB คุยกับ backend ผ่าน network ภายในที่ db:3306 อยู่แล้ว ไม่ต้องเปิดออก host
+    # ต้องการต่อด้วยเครื่องมือ DB ในเครื่อง ค่อยเปิด (3307 กันชนกับ MySQL host)
+    # ports:
+    #   - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-peleave_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: .
+    env_file: .env # ใช้ secret เดิม (OAuth/JWT/cloudinary/email)
+    environment:
+      # override เพื่อชี้ DB ไป container ใหม่ (ไม่แตะ DB จริงใน .env)
+      DATABASE_URL: mysql://root:eleave_root@db:3306/eleave
+      NODE_ENV: development # เปิด CORS localhost + cookie ไม่ต้อง https
+      FRONTEND_URL: http://localhost:8080
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_uploads:/app/uploads # เก็บไฟล์อัปโหลดไม่ให้หายตอน rebuild
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ../frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  backend_uploads:
