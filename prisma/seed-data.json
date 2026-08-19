@@ -175,24 +175,6 @@
       "isAvailable": false,
       "isNonDeductible": true,
       "resetOnFiscalYear": false
-    },
-    {
-      "name": "ลาเข้ารับการตรวจเลือก",
-      "isAvailable": true,
-      "isNonDeductible": true,
-      "resetOnFiscalYear": false
-    },
-    {
-      "name": "ลาศึกษาต่อ",
-      "isAvailable": true,
-      "isNonDeductible": true,
-      "resetOnFiscalYear": false
-    },
-    {
-      "name": "ลาไปต่างประเทศ",
-      "isAvailable": true,
-      "isNonDeductible": true,
-      "resetOnFiscalYear": false
     }
   ],
   "ranks": [

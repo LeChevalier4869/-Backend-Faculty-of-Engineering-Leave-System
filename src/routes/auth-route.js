@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const router = express.Router();
@@ -8,8 +8,8 @@ const passport = require("../config/passport");
 const { authenticate, authorize } = require('../middlewares/auth');
 const uploadFile = require('../middlewares/fileUpload');
 const upload = require("../middlewares/upload");
-const authController = require('../controllers/auth-controller');
-const AuthService = require('../services/auth-service');
+const authController = require("../controllers/auth-controller");
+const AuthService = require("../services/auth-service");
 const prisma = require("../config/prisma");
 
 // ==============================
@@ -83,8 +83,6 @@ router.delete('/personnel-types/:id', authenticate, authorize(["ADMIN", "SUPER_A
 //   authController.googleLogin
 // );
 
-
-
 // Login via Google
 // prompt: "select_account" บังคับให้ Google แสดงหน้าเลือกบัญชีทุกครั้ง
 // ไม่ว่า browser จะ login ค้างด้วยบัญชีไหน ผู้ใช้จึงเลือกอีเมลองค์กร (@rmuti.ac.th) ได้เสมอ
@@ -105,10 +103,14 @@ router.get(
         const isDev = process.env.NODE_ENV !== "production";
         const allowedOrigins = isDev
           ? ["http://localhost:5173"]
-          : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+          : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(
+              Boolean,
+            );
 
         const targetOrigin = allowedOrigins[0];
-        const errorMessage = encodeURIComponent(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+        const errorMessage = encodeURIComponent(
+          err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+        );
 
         const failRedirectUrl = `${targetOrigin}/callback?error=${errorMessage}`;
         return res.redirect(failRedirectUrl);
@@ -127,13 +129,17 @@ router.get(
     try {
       const user = req.user;
 
-      const { accessToken, refreshToken } = await AuthService.generateTokens(user.id);
+      const { accessToken, refreshToken } = await AuthService.generateTokens(
+        user.id,
+      );
 
       // ✅ redirect ไป frontend (ใช้ env เก็บ URL frontend)
       const isDev = process.env.NODE_ENV !== "production";
       const allowedOrigins = isDev
         ? ["http://localhost:5173"]
-        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(
+            Boolean,
+          );
 
       if (!allowedOrigins.length) {
         return res.status(500).send("No allowed frontend URL configured.");
@@ -169,17 +175,21 @@ router.get(
       const isDev = process.env.NODE_ENV !== "production";
       const allowedOrigins = isDev
         ? ["http://localhost:5173"]
-        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(Boolean);
+        : [process.env.FRONTEND_URL?.trim().replace(/\/+$/, "")].filter(
+            Boolean,
+          );
 
       const targetOrigin = allowedOrigins[0];
-      const errorMessage = encodeURIComponent(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+      const errorMessage = encodeURIComponent(
+        err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+      );
 
       const failRedirectUrl = `${targetOrigin}/callback?error=${errorMessage}`;
       console.log("Error redirecting to:", failRedirectUrl);
 
       res.redirect(failRedirectUrl);
     }
-  }
+  },
 );
 
 router.get("/profile", authenticate, async (req, res) => {
@@ -196,7 +206,8 @@ router.get("/fail", (req, res) => {
 router.post("/refresh", async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    const { accessToken, refreshToken: newRefreshToken } = await AuthService.refreshToken(refreshToken);
+    const { accessToken, refreshToken: newRefreshToken } =
+      await AuthService.refreshToken(refreshToken);
     res.json({ accessToken, refreshToken: newRefreshToken });
   } catch (err) {
     res.status(401).json({ error: err.message });
@@ -239,5 +250,11 @@ router.post("/logout", async (req, res) => {
     res.status(500).json({ error: "Logout failed" });
   }
 });
+
+router.get(
+  "/users-department",
+  authenticate,
+  authController.getAllUsersInDepartment,
+);
 
 module.exports = router;

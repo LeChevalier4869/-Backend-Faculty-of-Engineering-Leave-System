@@ -934,3 +934,75 @@ exports.getApproversForLevel = async (req, res) => {
   }
 };
 
+exports.getAllUsersInDepartment = async (req, res) => {
+  try {
+    const { search } = req.query;
+
+    console.log(req.user);
+    
+    const where = {
+      departmentId: req.user.departmentId,
+    };
+
+    // เพิ่มการค้นหา
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        { email: { contains: search } },
+        { prefixName: { contains: search } },
+        {
+          positionNumbers: {
+            some: {
+              positionNumber: { contains: search },
+            },
+          },
+        },
+      ];
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        prefixName: true,
+        department: {
+          select: {
+            name: true,
+          },
+        },
+        positionNumbers: {
+          orderBy: { effectiveFrom: "desc" },
+          take: 1,
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
+      },
+      orderBy: { firstName: "asc" },
+    });
+
+    const data = users.map((u) => ({
+      id: u.id,
+      fullName: `${u.prefixName || ""}${u.prefixName ? " " : ""}${u.firstName} ${u.lastName}`,
+      email: u.email,
+      prefixName: u.prefixName,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      department: u.department,
+      positionNumbers: u.positionNumbers,
+    }));
+
+    return res.status(200).json({
+      message: "ดึงข้อมูลผู้ใช้ในสาขาสำเร็จ",
+      data,
+    });
+  } catch (error) {
+    console.error("[getAllUsersInDepartment]", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};

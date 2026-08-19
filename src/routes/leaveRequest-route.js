@@ -69,6 +69,12 @@ router.get("/user/:id", authenticate, leaveRequestController.getLeaveRequestsByU
 // ซึ่งใช้ getApproversForLevel() ที่นับผู้รับมอบอำนาจด้วย
 // -> อย่าเปิด authorize() กลับมา เพราะจะทำให้ระบบมอบอำนาจใช้ไม่ได้
 
+//get all request for department
+router.get(
+  "/department",
+  authenticate,
+  leaveRequestController.getAllLeaveRequestsInDepartment
+);
 // get request for head of department (step 1)
 router.get(
   "/for-approver1",

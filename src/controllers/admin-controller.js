@@ -343,7 +343,12 @@ exports.updateRole = async (req, res, next) => {
 
     const oldRole = await AdminService.getRoleById(parseInt(id));
 
-    // ป้องกัน system role: ห้ามเปลี่ยนชื่อ (แก้ description ได้)
+    // SUPER_ADMIN: อ่านอย่างเดียว แก้ไขไม่ได้เลย (ทั้งชื่อและคำอธิบาย)
+    if (oldRole?.name === "SUPER_ADMIN") {
+      throw createError(403, `ไม่สามารถแก้ไข Role "SUPER_ADMIN" ได้`);
+    }
+
+    // ป้องกัน system role อื่น: ห้ามเปลี่ยนชื่อ (แก้ description ได้)
     if (SYSTEM_ROLES.includes(oldRole.name) && name !== oldRole.name) {
       throw createError(400, `ไม่สามารถเปลี่ยนชื่อ Role "${oldRole.name}" ได้ เนื่องจากเป็น System Role ที่ระบบใช้งานอยู่`);
     }
@@ -1427,6 +1432,22 @@ exports.deleteLeaveBalanceByYear = async (req, res, next) => {
 
     const result = await LeaveBalanceService.deleteLeaveBalanceByYear(year);
 
+    // audit log — การลบข้อมูลอันตราย ต้องมีร่องรอย
+    try {
+      await AuditLogService.createLog(
+        req.user?.id || null,
+        "LEAVE_BALANCE_DELETE_BY_YEAR",
+        "SYSTEM",
+        null,
+        `ลบยอดวันลาปี ${result.year} (${result.deletedCount} รายการ)`,
+        null,
+        req.user?.email || "ADMIN_MANUAL",
+        { year: result.year, deletedCount: result.deletedCount }
+      );
+    } catch (logErr) {
+      console.error("audit log (delete leave balance) ล้มเหลว:", logErr.message);
+    }
+
     res.status(200).json({
       message: result.message,
       deletedCount: result.deletedCount,
@@ -1478,6 +1499,21 @@ exports.updateFiscalYear = async (req, res, next) => {
       });
     }
 
+    try {
+      await AuditLogService.createLog(
+        req.user?.id || null,
+        "FISCAL_YEAR_UPDATE",
+        "SETTING",
+        null,
+        `อัปเดตปีงบประมาณ = ${fiscalYear ?? "-"}, ปีปฏิทิน = ${currentYear ?? "-"}`,
+        null,
+        req.user?.email || "ADMIN_MANUAL",
+        { fiscalYear, currentYear }
+      );
+    } catch (logErr) {
+      console.error("audit log (update fiscal year) ล้มเหลว:", logErr.message);
+    }
+
     res.status(200).json({
       message: "อัปเดตข้อมูลปีงบประมาณสำเร็จ",
       data: { fiscalYear, currentYear }
@@ -1487,3 +1523,23 @@ exports.updateFiscalYear = async (req, res, next) => {
   }
 };
 
+
+//--------------------- Admin Dashboard Summary --------------------
+exports.getDashboardSummary = async (req, res) => {
+  try {
+    const summary =
+      await AdminService.getDashboardSummary();
+
+    res.status(200).json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    console.error("Dashboard Summary Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "เกิดข้อผิดพลาดในการดึงข้อมูล Dashboard",
+    });
+  }
+};

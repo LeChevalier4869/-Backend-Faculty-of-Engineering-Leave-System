@@ -6,6 +6,7 @@ const { title } = require("process");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 const prisma = require("../config/prisma");
 const ReportService = require("../services/report-service");
+const ReportDoc = require("../services/reportDoc-service");
 const { isWeekend } = require("date-fns");
 const {
   Document,
@@ -393,44 +394,65 @@ exports.reportData = async (req, res) => {
 
 exports.getReportDataForMonth = async (req, res) => {
   try {
-    const { organizationId, month, year } = req.body;
+    const { organizationId, month, year } = req.query;
 
-    // 1. Validation: ตรวจสอบ Input
-    if (!organizationId) {
-      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!month || month < 1 || month > 12) {
-      return res.status(400).json({ error: "กรุณาระบุเดือนที่ถูกต้อง (1-12)" });
-    }
-    if (!year) {
-      return res.status(400).json({ error: "กรุณาระบุปี ค.ศ. (เช่น 2026)" });
-    }
+    // แปลงเป็นตัวเลข
+    const organizationIdNumber = Number(organizationId);
+    const monthNumber = Number(month);
+    const yearNumber = Number(year);
 
-    // 2. เรียกใช้ Service (ส่งค่าที่ Parse เป็น Number เพื่อความชัวร์)
-    const reportData = await ReportService.getReportDataForMonth(
-      Number(organizationId),
-      parseInt(month),
-      parseInt(year),
-    );
-
-    // 3. ตรวจสอบผลลัพธ์
-    if (!reportData || Object.keys(reportData.report).length === 0) {
-      return res.status(404).json({
+    // Validation
+    if (!organizationIdNumber) {
+      return res.status(400).json({
         success: false,
-        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในเงื่อนไขที่ระบุ",
-        month,
-        year,
+        error: "กรุณาระบุ organizationId",
       });
     }
 
-    // 4. ส่งข้อมูลกลับ
+    if (!monthNumber || monthNumber < 1 || monthNumber > 12) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุเดือนที่ถูกต้อง (1-12)",
+      });
+    }
+
+    if (!yearNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "กรุณาระบุปี ค.ศ. (เช่น 2026)",
+      });
+    }
+
+    // เรียก Service
+    const reportData = await ReportService.getReportDataForMonth(
+      organizationIdNumber,
+      monthNumber,
+      yearNumber,
+    );
+
+    // ตรวจสอบว่ามีข้อมูลจริงหรือไม่
+    const hasData = Object.values(reportData.report).some(
+      (users) => users.length > 0,
+    );
+
+    if (!hasData) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในเงื่อนไขที่ระบุ",
+        month: monthNumber,
+        year: yearNumber,
+      });
+    }
+
+    // ส่งข้อมูลกลับ
     return res.status(200).json({
       success: true,
-      message: `ดึงข้อมูลรายงานประจำเดือน ${month}/${year} สำเร็จ`,
+      message: `ดึงข้อมูลรายงานประจำเดือน ${monthNumber}/${yearNumber} สำเร็จ`,
       data: reportData,
     });
   } catch (err) {
     console.error("Controller Error (getReportDataForMonth):", err);
+
     return res.status(500).json({
       success: false,
       error: "เกิดข้อผิดพลาดที่ Server",
@@ -439,2507 +461,290 @@ exports.getReportDataForMonth = async (req, res) => {
   }
 };
 
-// 📍 Export PDF หรือ Word
+// ============================================================================
+// Export รายงานสรุป (PDF/Word) — ใช้ตัวสร้างเอกสารกลางใน reportDoc-service
+// รอบประเมิน (round) และ รอบปีงบประมาณ (fiscal) ใช้ตารางสรุปแบบเดียวกัน
+// รอบเดือน (month) ใช้ตารางลงเวลารายวัน
+// ============================================================================
 
-// ---------------------------------------ประจำรอบประเมิน---------------------------------------
-exports.exportReport = async (req, res) => {
+const FACULTY = "คณะวิศวกรรมศาสตร์";
+const UNIVERSITY = "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น";
+const SUMMARY_TITLE = "รายงานสรุปการลาและการลงเวลาปฏิบัติราชการของบุคลากร";
+
+const hasData = (grouped) =>
+  grouped && Object.values(grouped).some((list) => Array.isArray(list) && list.length);
+
+const roundHeading = (countReport, s, e) => (typeName) =>
+  [
+    UNIVERSITY,
+    SUMMARY_TITLE,
+    `สังกัด ${FACULTY}`,
+    `ประจำรอบการประเมิน ครั้งที่ ${ReportDoc.toThaiNumber(countReport)} ระหว่างวันที่ ${ReportDoc.toThaiNumber(
+      ReportDoc.formatThaiDateFull(s),
+    )} - ${ReportDoc.toThaiNumber(ReportDoc.formatThaiDateFull(e))}`,
+    `ประเภทบุคลากร ${typeName}`,
+  ];
+
+const fiscalHeading = (s, e) => {
+  const fy = ReportDoc.fiscalYearBE(s);
+  return (typeName) => [
+    UNIVERSITY,
+    SUMMARY_TITLE,
+    `สังกัด ${FACULTY}`,
+    `ประจำปีงบประมาณ พ.ศ. ${ReportDoc.toThaiNumber(fy ?? "")} ระหว่างวันที่ ${ReportDoc.toThaiNumber(
+      ReportDoc.formatThaiDateFull(s),
+    )} - ${ReportDoc.toThaiNumber(ReportDoc.formatThaiDateFull(e))}`,
+    `ประเภทบุคลากร ${typeName}`,
+  ];
+};
+
+const monthHeading = (month, yearCE) => (typeName) =>
+  [
+    SUMMARY_TITLE,
+    `ประจำเดือน ${ReportDoc.formatThaiMonth(month)} พ.ศ. ${ReportDoc.toThaiNumber(Number(yearCE) + 543)}`,
+    `สังกัด ${FACULTY} มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน`,
+    `ประเภทบุคลากร ${typeName}`,
+  ];
+
+const fail = (res, err, where) => {
+  console.error(`${where}:`, err);
+  if (!res.headersSent) res.status(500).json({ error: err.message });
+};
+
+// สร้าง+ส่งเอกสารตารางสรุป (รอบประเมิน/ปีงบ) — รับช่วงวันที่มาตรง ๆ
+async function buildSummary(res, { organizationId, startDate, endDate, format, heading, fileName }) {
+  if (!organizationId) return res.status(400).json({ error: "กรุณาระบุ organizationId" });
+  if (!startDate || !endDate)
+    return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
+
+  const reportData = await ReportService.getReportData(organizationId, startDate, endDate);
+  if (!hasData(reportData)) return res.status(404).json({ error: "ไม่พบข้อมูล" });
+
+  if (format === "word") {
+    const doc = ReportDoc.summaryWordDoc(reportData, heading);
+    return ReportDoc.sendWord(res, doc, { en: `${fileName}.docx`, thai: `${fileName}.docx` });
+  }
+  const doc = ReportDoc.summaryPdfDoc(reportData, heading);
+  return ReportDoc.streamPdf(res, doc, { en: `${fileName}.pdf`, thai: `${fileName}.pdf` });
+}
+
+// ---------------------------------------- รอบประเมิน (round) ----------------
+async function handleRound(req, res, format, where) {
   try {
-    const { countReport, organizationId, startDate, endDate, format } =
-      req.body;
-    if (!organizationId) {
-      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!countReport) {
-      return res.status(400).json({ error: "กรุณาระบุ countReport" });
-    }
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
-    }
-    if (!format) {
-      return res.status(400).json({ error: "กรุณาระบุ format" });
-    }
-
-    const reportData = await ReportService.getReportData(
+    const { organizationId, countReport, startDate, endDate } = req.body;
+    if (!countReport) return res.status(400).json({ error: "กรุณาระบุ countReport" });
+    return await buildSummary(res, {
       organizationId,
       startDate,
       endDate,
-    );
-
-    if (!reportData || Object.keys(reportData).length === 0) {
-      return res.status(404).json({ error: "ไม่พบข้อมูล" });
-    }
-
-    // กรองช่องว่างออกก่อน
-    const filteredTypeOrder = TYPE_ORDER.filter(
-      (name) => name && name.trim() !== "",
-    ).map((name) => name.replace(/\s+/g, ""));
-
-    const td = (sum, name, f) => {
-      const s = sum?.[name];
-      if (!s) return "-";
-      const v = f === "times" ? s.count : s.days;
-      return v === 0 || v ? String(v) : "-";
-    };
-
-    // -------------------- PDF --------------------
-    if (format === "pdf") {
-      const fonts = {
-        THSarabunNew: {
-          normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-          bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-          italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
-          bolditalics: path.join(
-            __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf",
-          ),
-        },
-      };
-      const printer = new PdfPrinter(fonts);
-
-      const makePdfTable = (list) => {
-        const headerRow1 = [
-          {
-            text: "ลำดับ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "เลขที่ตำแหน่ง",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ชื่อ - สกุล",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: name,
-                colSpan: 2,
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {},
-            ];
-          }),
-          {
-            text: "มาสาย(ครั้ง)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ขาดราชการ(วัน)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "การลาประเภท อื่น ๆ (โปรดระบุ)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "หมายเหตุ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-        ];
-
-        const headerRow2 = [
-          {},
-          {},
-          {},
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: "ครั้ง",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {
-                text: "วัน",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-            ];
-          }),
-          {},
-          {},
-          {},
-        ];
-
-        const body = [headerRow1, headerRow2];
-
-        list.forEach((u, idx) => {
-          const row = [];
-          row.push({ text: String(idx + 1), alignment: "center" }); //ลำดับ
-          row.push({ text: "", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
-          row.push({ text: u.name, alignment: "left" }); //ชื่อ
-          TYPE_ORDER.forEach((name) => {
-            row.push({
-              text: td(u.leaveSummary, name, "times"),
-              alignment: "center",
-            });
-            row.push({
-              text: td(u.leaveSummary, name, "days"),
-              alignment: "center",
-            });
-          });
-          row.push({
-            text: u.lateTimes != null ? String(u.lateTimes) : "-",
-            alignment: "center",
-          });
-          row.push({ text: "" || "", alignment: "center" });
-          row.push({ text: "" || "", alignment: "center" });
-          row.push({ text: "" || "", alignment: "center" });
-          body.push(row);
-        });
-
-        return {
-          table: {
-            headerRows: 2,
-            widths: [
-              30, // ที่
-              60, // เลขที่ตำแหน่ง
-              130, // ชื่อ - สกุล
-              ...Array(TYPE_ORDER.length * 2).fill(25), // จำนวนวันลา
-              50, // สาย/ครั้ง
-              70, // สาย/ครั้ง
-              130, // สาย/ครั้ง
-              70, // หมายเหตุ
-            ],
-            body,
-          },
-          layout: {
-            paddingLeft: () => 1,
-            paddingRight: () => 1,
-            paddingTop: () => 1,
-            paddingBottom: () => 1,
-            hLineColor: "#000000",
-            vLineColor: "#000000",
-            hLineWidth: () => 1,
-            vLineWidth: () => 1,
-          },
-          margin: [0, 10, 0, 20],
-        };
-      };
-
-      const content = [];
-      const MAX_USERS_PER_PAGE = 15;
-
-      Object.entries(reportData).forEach(([typeName, users], index) => {
-        // แบ่ง users เป็น chunks
-        for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
-          const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
-          const isFirstChunk = i === 0;
-          console.log(chunk);
-
-          // ขึ้นหน้าใหม่ถ้าไม่ใช่ chunk แรกของ typeName หรือ index > 0
-          const pageBreakBefore =
-            !isFirstChunk || index > 0 ? "before" : undefined;
-
-          content.push({
-            stack: [
-              {
-                text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น",
-                alignment: "center",
-                margin: [0, 0, 0, 0],
-              },
-              {
-                text: "รายงานสรุปการลาและการลงเวลาปฏิบัติราชการของบุคคลากร",
-                alignment: "center",
-              },
-              { text: `สังกัด คณะวิศวกรรมศาสตร์`, alignment: "center" },
-              {
-                text: `ประจำรอบการประเมิน ครั้งที่ ${arabicToThaiNumber(
-                  countReport,
-                )} ระหว่างวันที่ ${arabicToThaiNumber(
-                  formatThaiDateFull(startDate),
-                )} - ${arabicToThaiNumber(formatThaiDateFull(endDate))}`,
-                alignment: "center",
-              },
-              {
-                text: `ประเภทบุคคลากร ${typeName}`,
-                alignment: "center",
-                margin: [0, 0, 0, -5],
-              },
-              makePdfTable(chunk),
-            ],
-            pageBreak: pageBreakBefore,
-          });
-        }
-      });
-
-      const docDefinition = {
-        pageSize: "A4",
-        pageOrientation: "landscape",
-        content,
-        styles: {
-          th: { bold: false }, // เอา fillColor ออกทั้งหมด
-        },
-        defaultStyle: { font: "THSarabunNew", fontSize: 14 },
-      };
-
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        `Content-Disposition`,
-        `attachment; filename=org-report-${organizationId}.pdf`,
-      );
-      pdfDoc.pipe(res);
-      pdfDoc.end();
-    }
-
-    // -------------------- Word --------------------
-    else if (format === "word") {
-      const makeCell = (txt, options = {}) => {
-        const {
-          alignment = "center",
-          fillColor = null,
-          bold = false,
-          columnSpan = 1,
-          verticalMerge,
-          textDirection,
-          width,
-          margins = { top: 20, bottom: 0, left: 40, right: 40 },
-        } = options;
-
-        return new TableCell({
-          columnSpan,
-          verticalMerge,
-          width: width ? { size: width, type: WidthType.DXA } : undefined,
-          margins,
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: String(txt ?? ""),
-                  font: "TH Sarabun New",
-                  bold,
-                  size: 28,
-                }),
-              ],
-              alignment: AlignmentType[alignment.toUpperCase()],
-            }),
-          ],
-          shading: fillColor
-            ? { type: ShadingType.CLEAR, fill: fillColor }
-            : undefined,
-          verticalAlign: VerticalAlign.CENTER,
-          textDirection,
-        });
-      };
-
-      const makeWordTable = (list) => {
-        // กำหนดความกว้างแต่ละประเภทลา (หน่วย twip)
-        const typeWidths = {
-          ขาดราชการ: 500,
-          ลากิจ: 500,
-          ลาคลอดบุตร: 500,
-          ลาพักผ่อน: 500,
-          ลาป่วย: 500,
-          ลาบวช: 500,
-        };
-
-        const makeHeaderRows = () => {
-          const rows = [];
-
-          // ✅ Row 1
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("ที่", { verticalMerge: "restart" }),
-                makeCell("เลขที่ตำแหน่ง", { verticalMerge: "restart" }),
-                makeCell("ชื่อ - สกุล", { verticalMerge: "restart" }),
-                makeCell("สาย/ครั้ง", {
-                  verticalMerge: "restart",
-                  textDirection: TextDirection.BOTTOM_TO_TOP_LEFT_TO_RIGHT, // ← หมุนข้อความ
-                }),
-                makeCell("จำนวนวันลา", {
-                  alignment: "center",
-                  bold: false,
-                  columnSpan: filteredTypeOrder.length * 2,
-                }),
-                makeCell("หมายเหตุ", { verticalMerge: "restart" }),
-              ],
-            }),
-          );
-
-          // ✅ Row 2 — ประเภทลา
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                ...filteredTypeOrder.map((type) => {
-                  const w = typeWidths[type] || 1134;
-                  return makeCell(type, {
-                    columnSpan: 2,
-                    width: w * 2,
-                    alignment: "center",
-                    bold: false,
-                  });
-                }),
-                makeCell("", { verticalMerge: "continue" }),
-              ],
-            }),
-          );
-
-          // ✅ Row 3 — ครั้ง / วัน
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                ...filteredTypeOrder.flatMap((type) => {
-                  const w = typeWidths[type] || 1134;
-                  return [
-                    makeCell("ครั้ง", { width: w }),
-                    makeCell("วัน", { width: w }),
-                  ];
-                }),
-                makeCell("", { verticalMerge: "continue" }),
-              ],
-            }),
-          );
-
-          return rows;
-        };
-
-        // ✅ แบ่งหน้า
-        const MAX_ROWS_PER_PAGE = 25;
-        const chunks = [];
-        for (let i = 0; i < list.length; i += MAX_ROWS_PER_PAGE) {
-          chunks.push(list.slice(i, i + MAX_ROWS_PER_PAGE));
-        }
-
-        const tables = [];
-
-        chunks.forEach((chunk, pageIdx) => {
-          const rows = [...makeHeaderRows()];
-
-          chunk.forEach((u, idx) => {
-            rows.push(
-              new TableRow({
-                children: [
-                  makeCell(pageIdx * MAX_ROWS_PER_PAGE + idx + 1),
-                  makeCell(u.name, { alignment: "left" }),
-                  makeCell(u.lateTimes != null ? u.lateTimes : "-"),
-                  ...filteredTypeOrder.flatMap((name) => {
-                    return [
-                      makeCell(td(u.leaveSummary, name, "times")),
-                      makeCell(td(u.leaveSummary, name, "days")),
-                    ];
-                  }),
-                  makeCell(u.note || "-"),
-                ],
-              }),
-            );
-          });
-
-          // ✅ คอลัมน์ทั้งหมด (รวมทุกประเภท)
-          const tableColumnWidths = [
-            500, // ที่
-            2800, // ชื่อ - สกุล
-            500, // สาย/ครั้ง
-            ...filteredTypeOrder.flatMap((name) => {
-              const w = typeWidths[name] || 600;
-              return [w, w];
-            }),
-            1200, // หมายเหตุ
-          ];
-
-          const table = new Table({
-            layout: TableLayoutType.FIXED, // ✅ บังคับความกว้างตายตัว
-            columnWidths: tableColumnWidths,
-            rows,
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              bottom: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              left: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              right: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              insideHorizontal: {
-                style: BorderStyle.SINGLE,
-                size: 12,
-                color: "000000",
-              },
-              insideVertical: {
-                style: BorderStyle.SINGLE,
-                size: 12,
-                color: "000000",
-              },
-            },
-          });
-
-          if (pageIdx > 0) {
-            tables.push(new Paragraph({ pageBreakBefore: true }));
-          }
-
-          tables.push(table);
-        });
-
-        return tables;
-      };
-
-      const doc = new Document({
-        styles: {
-          default: {
-            document: {
-              run: {
-                font: "TH Sarabun New",
-                size: 28,
-                lang: "th-TH",
-              },
-            },
-          },
-        },
-
-        sections: [
-          {
-            properties: {
-              page: {
-                margin: {
-                  top: 1440,
-                  bottom: 1440,
-                  left: 543,
-                  right: 1440,
-                },
-                size: {
-                  orientation: PageOrientation.LANDSCAPE,
-                  width: 16840,
-                  height: 11907,
-                },
-              },
-            },
-
-            children: Object.entries(reportData).flatMap(
-              ([typeName, users], index) => [
-                ...(index > 0
-                  ? [new Paragraph({ pageBreakBefore: true })]
-                  : []),
-
-                // 🔥 header (ย้ายมาเป็น content)
-                new Paragraph({
-                  text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น",
-                  alignment: AlignmentType.CENTER,
-                }),
-                new Paragraph({
-                  text: `${typeName} คณะวิศวกรรมศาสตร์`,
-                  alignment: AlignmentType.CENTER,
-                }),
-                new Paragraph({
-                  text: "รายนามผู้ลาหยุดประจำปี",
-                  alignment: AlignmentType.CENTER,
-                }),
-                new Paragraph({
-                  text: `ครั้งที่ ${countReport} ตั้งแต่วันที่ ${formatThaiDateFull(
-                    startDate,
-                  )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
-                  alignment: AlignmentType.CENTER,
-                }),
-
-                ...makeWordTable(users),
-              ],
-            ),
-          },
-        ],
-      });
-
-      const buffer = await Packer.toBuffer(doc);
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      );
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=org-report-${organizationId}.docx`,
-      );
-      res.send(buffer);
-    } else {
-      res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
-    }
-  } catch (err) {
-    console.error("Export Report Error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-exports.exportRoundReportPDF = async (req, res) => {
-  try {
-    const { countReport, organizationId, startDate, endDate } = req.body;
-    if (!organizationId) {
-      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!countReport) {
-      return res.status(400).json({ error: "กรุณาระบุ countReport" });
-    }
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
-    }
-
-    const reportData = await ReportService.getReportData(
-      organizationId,
-      startDate,
-      endDate,
-    );
-
-    if (!reportData || Object.keys(reportData).length === 0) {
-      return res.status(404).json({ error: "ไม่พบข้อมูล" });
-    }
-
-    const td = (sum, name, f) => {
-      const s = sum?.[name];
-      if (!s) return "-";
-      const v = f === "times" ? s.count : s.days;
-      return v === 0 || v ? String(v) : "-";
-    };
-
-    // -------------------- PDF --------------------
-    if (reportData) {
-      const fonts = {
-        THSarabunNew: {
-          normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-          bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-          italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
-          bolditalics: path.join(
-            __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf",
-          ),
-        },
-      };
-      const printer = new PdfPrinter(fonts);
-
-      const makePdfTable = (list) => {
-        const headerRow1 = [
-          {
-            text: "ลำดับ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "เลขที่ตำแหน่ง",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ชื่อ - สกุล",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: name,
-                colSpan: 2,
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {},
-            ];
-          }),
-          {
-            text: "มาสาย(ครั้ง)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ขาดราชการ(วัน)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "การลาประเภท อื่น ๆ (โปรดระบุ)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "หมายเหตุ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-        ];
-
-        const headerRow2 = [
-          {},
-          {},
-          {},
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: "ครั้ง",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {
-                text: "วัน",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-            ];
-          }),
-          {},
-          {},
-          {},
-        ];
-
-        const body = [headerRow1, headerRow2];
-
-        list.forEach((u, idx) => {
-          const row = [];
-          row.push({ text: String(idx + 1), alignment: "center" }); //ลำดับ
-          row.push({ text: "", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
-          row.push({ text: u.name, alignment: "left" }); //ชื่อ
-          TYPE_ORDER.forEach((name) => {
-            row.push({
-              text: td(u.leaveSummary, name, "times"),
-              alignment: "center",
-            });
-            row.push({
-              text: td(u.leaveSummary, name, "days"),
-              alignment: "center",
-            });
-          });
-          row.push({
-            text: u.lateTimes != null ? String(u.lateTimes) : "-",
-            alignment: "center",
-          });
-          row.push({ text: "" || "", alignment: "center" });
-          row.push({ text: "" || "", alignment: "center" });
-          row.push({ text: "" || "", alignment: "center" });
-          body.push(row);
-        });
-
-        return {
-          table: {
-            headerRows: 2,
-            widths: [
-              30, // ที่
-              60, // เลขที่ตำแหน่ง
-              130, // ชื่อ - สกุล
-              ...Array(TYPE_ORDER.length * 2).fill(25), // จำนวนวันลา
-              50, // สาย/ครั้ง
-              70, // สาย/ครั้ง
-              130, // สาย/ครั้ง
-              70, // หมายเหตุ
-            ],
-            body,
-          },
-          layout: {
-            paddingLeft: () => 1,
-            paddingRight: () => 1,
-            paddingTop: () => 1,
-            paddingBottom: () => 1,
-            hLineColor: "#000000",
-            vLineColor: "#000000",
-            hLineWidth: () => 1,
-            vLineWidth: () => 1,
-          },
-          margin: [0, 10, 0, 20],
-        };
-      };
-
-      const content = [];
-      const MAX_USERS_PER_PAGE = 15;
-
-      Object.entries(reportData).forEach(([typeName, users], index) => {
-        // แบ่ง users เป็น chunks
-        for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
-          const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
-          const isFirstChunk = i === 0;
-          console.log(chunk);
-
-          // ขึ้นหน้าใหม่ถ้าไม่ใช่ chunk แรกของ typeName หรือ index > 0
-          const pageBreakBefore =
-            !isFirstChunk || index > 0 ? "before" : undefined;
-
-          content.push({
-            stack: [
-              {
-                text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น",
-                alignment: "center",
-                margin: [0, 0, 0, 0],
-              },
-              {
-                text: "รายงานสรุปการลาและการลงเวลาปฏิบัติราชการของบุคคลากร",
-                alignment: "center",
-              },
-              { text: `สังกัด คณะวิศวกรรมศาสตร์`, alignment: "center" },
-              {
-                text: `ประจำรอบการประเมิน ครั้งที่ ${arabicToThaiNumber(
-                  countReport,
-                )} ระหว่างวันที่ ${arabicToThaiNumber(
-                  formatThaiDateFull(startDate),
-                )} - ${arabicToThaiNumber(formatThaiDateFull(endDate))}`,
-                alignment: "center",
-              },
-              {
-                text: `ประเภทบุคคลากร ${typeName}`,
-                alignment: "center",
-                margin: [0, 0, 0, -5],
-              },
-              makePdfTable(chunk),
-            ],
-            pageBreak: pageBreakBefore,
-          });
-        }
-      });
-
-      const docDefinition = {
-        pageSize: "A4",
-        pageOrientation: "landscape",
-        content,
-        styles: {
-          th: { bold: false },
-        },
-        defaultStyle: { font: "THSarabunNew", fontSize: 14 },
-      };
-
-      // กำหนดชื่อไฟล์
-      // ตรวจสอบว่ามีฟังก์ชัน arabicToThaiNumber หรือไม่ ถ้าไม่มีให้ใช้ countReport ปกติ
-      const thaiRound =
-        typeof arabicToThaiNumber === "function"
-          ? arabicToThaiNumber(countReport)
-          : countReport;
-      const fileNameThai = `รายงานสรุปการลาประจำรอบการประเมิน ครั้งที่ ${thaiRound}.pdf`;
-      const fileNameEn = `Report_Round_${countReport}.pdf`;
-
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${fileNameEn}"; filename*=UTF-8''${encodeURIComponent(fileNameThai)}`,
-      );
-
-      pdfDoc.pipe(res);
-      pdfDoc.end();
-    }
-  } catch (err) {
-    console.error("Export Report Error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// ---------------------------------------ประจำปี---------------------------------------
-exports.exportFiscalYearReportPDF = async (req, res) => {
-  try {
-    const { organizationId, startDate, endDate } = req.body;
-    if (!organizationId) {
-      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
-    }
-
-    const fiscalYearSetting = await prisma.setting.findUnique({
-      where: { key: "fiscalYear" },
+      format,
+      heading: roundHeading(countReport, startDate, endDate),
+      fileName: `Report_Round_${countReport}`,
     });
-
-    const fiscalYear = parseInt(fiscalYearSetting.value) + 543;
-
-    const reportData = await ReportService.getReportData(
-      organizationId,
-      startDate,
-      endDate,
-    );
-
-    if (!reportData || Object.keys(reportData).length === 0) {
-      return res.status(404).json({ error: "ไม่พบข้อมูล" });
-    }
-
-    const td = (sum, name, f) => {
-      const s = sum?.[name];
-      if (!s) return "-";
-      const v = f === "times" ? s.count : s.days;
-      return v === 0 || v ? String(v) : "-";
-    };
-
-    // -------------------- PDF --------------------
-    if (reportData) {
-      const fonts = {
-        THSarabunNew: {
-          normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-          bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-          italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
-          bolditalics: path.join(
-            __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf",
-          ),
-        },
-      };
-      const printer = new PdfPrinter(fonts);
-
-      const makePdfTable = (list) => {
-        const headerRow1 = [
-          {
-            text: "ลำดับ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "เลขที่ตำแหน่ง",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ชื่อ - สกุล",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: name,
-                colSpan: 2,
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {},
-            ];
-          }),
-          {
-            text: "มาสาย(ครั้ง)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ขาดราชการ(วัน)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "การลาประเภท อื่น ๆ (โปรดระบุ)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "หมายเหตุ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-        ];
-
-        const headerRow2 = [
-          {},
-          {},
-          {},
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: "ครั้ง",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {
-                text: "วัน",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-            ];
-          }),
-          {},
-          {},
-          {},
-        ];
-
-        const body = [headerRow1, headerRow2];
-
-        list.forEach((u, idx) => {
-          const row = [];
-          row.push({ text: String(idx + 1), alignment: "center" }); //ลำดับ
-          row.push({ text: "", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
-          row.push({ text: u.name, alignment: "left" }); //ชื่อ
-          TYPE_ORDER.forEach((name) => {
-            row.push({
-              text: td(u.leaveSummary, name, "times"),
-              alignment: "center",
-            });
-            row.push({
-              text: td(u.leaveSummary, name, "days"),
-              alignment: "center",
-            });
-          });
-          row.push({
-            text: u.lateTimes != null ? String(u.lateTimes) : "-",
-            alignment: "center",
-          });
-          row.push({ text: "" || "", alignment: "center" });
-          row.push({ text: "" || "", alignment: "center" });
-          row.push({ text: "" || "", alignment: "center" });
-          body.push(row);
-        });
-
-        return {
-          table: {
-            headerRows: 2,
-            widths: [
-              30, // ที่
-              60, // เลขที่ตำแหน่ง
-              130, // ชื่อ - สกุล
-              ...Array(TYPE_ORDER.length * 2).fill(25), // จำนวนวันลา
-              50, // สาย/ครั้ง
-              70, // สาย/ครั้ง
-              130, // สาย/ครั้ง
-              70, // หมายเหตุ
-            ],
-            body,
-          },
-          layout: {
-            paddingLeft: () => 1,
-            paddingRight: () => 1,
-            paddingTop: () => 1,
-            paddingBottom: () => 1,
-            hLineColor: "#000000",
-            vLineColor: "#000000",
-            hLineWidth: () => 1,
-            vLineWidth: () => 1,
-          },
-          margin: [0, 10, 0, 20],
-        };
-      };
-
-      const content = [];
-      const MAX_USERS_PER_PAGE = 15;
-
-      Object.entries(reportData).forEach(([typeName, users], index) => {
-        // แบ่ง users เป็น chunks
-        for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
-          const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
-          const isFirstChunk = i === 0;
-          console.log(chunk);
-
-          // ขึ้นหน้าใหม่ถ้าไม่ใช่ chunk แรกของ typeName หรือ index > 0
-          const pageBreakBefore =
-            !isFirstChunk || index > 0 ? "before" : undefined;
-
-          content.push({
-            stack: [
-              {
-                text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น",
-                alignment: "center",
-                margin: [0, 0, 0, 0],
-              },
-              {
-                text: "รายงานสรุปการลาและการลงเวลาปฏิบัติราชการของบุคคลากร",
-                alignment: "center",
-              },
-              { text: `สังกัด คณะวิศวกรรมศาสตร์`, alignment: "center" },
-              {
-                text: `ประจำปีงบประมาณ พ.ศ. ${arabicToThaiNumber(
-                  fiscalYear,
-                )} ระหว่างวันที่ ${arabicToThaiNumber(
-                  formatThaiDateFull(startDate),
-                )} - ${arabicToThaiNumber(formatThaiDateFull(endDate))}`,
-                alignment: "center",
-              },
-              {
-                text: `ประเภทบุคคลากร ${typeName}`,
-                alignment: "center",
-                margin: [0, 0, 0, -5],
-              },
-              makePdfTable(chunk),
-            ],
-            pageBreak: pageBreakBefore,
-          });
-        }
-      });
-
-      const docDefinition = {
-        pageSize: "A4",
-        pageOrientation: "landscape",
-        content,
-        styles: {
-          th: { bold: false },
-        },
-        defaultStyle: { font: "THSarabunNew", fontSize: 14 },
-      };
-
-      const fileNameThai = `รายงานสรุปการลาประจำปีการศึกษา ${arabicToThaiNumber(fiscalYear)}.pdf`;
-      const fileNameEn = `Report_year_${fiscalYear}.pdf`;
-
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${fileNameEn}"; filename*=UTF-8''${encodeURIComponent(fileNameThai)}`,
-      );
-
-      pdfDoc.pipe(res);
-      pdfDoc.end();
-    }
   } catch (err) {
-    console.error("Export Report Error:", err);
-    res.status(500).json({ error: err.message });
+    return fail(res, err, where);
   }
-};
-exports.exportFiscalYearReportWORD = async (req, res) => {
+}
+exports.exportRoundReportPDF = (req, res) => handleRound(req, res, "pdf", "exportRoundReportPDF");
+exports.exportRoundReportWORD = (req, res) => handleRound(req, res, "word", "exportRoundReportWORD");
+
+// ---------------------------------------- รอบปีงบประมาณ (fiscal) ------------
+// ช่วงวันที่ derive จาก setting "fiscalYear" ในระบบ — client ส่งแค่ organizationId
+async function handleFiscal(req, res, format, where) {
   try {
-    const { organizationId, startDate, endDate, format } = req.body;
-    if (!organizationId) {
-      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    }
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
-    }
-    if (!format) {
-      return res.status(400).json({ error: "กรุณาระบุ format" });
-    }
-
-    const reportData = await ReportService.getReportData(
+    const { organizationId, fiscalYear } = req.body;
+    const { startDate, endDate, fiscalYearBE } = await ReportService.getFiscalRange(fiscalYear);
+    return await buildSummary(res, {
       organizationId,
       startDate,
       endDate,
-    );
-
-    if (!reportData || Object.keys(reportData).length === 0) {
-      return res.status(404).json({ error: "ไม่พบข้อมูล" });
-    }
-
-    // กรองช่องว่างออกก่อน
-    const filteredTypeOrder = TYPE_ORDER.filter(
-      (name) => name && name.trim() !== "",
-    ).map((name) => name.replace(/\s+/g, ""));
-
-    const td = (sum, name, f) => {
-      const s = sum?.[name];
-      if (!s) return "-";
-      const v = f === "times" ? s.count : s.days;
-      return v === 0 || v ? String(v) : "-";
-    };
-
-    // -------------------- PDF --------------------
-    if (format === "pdf") {
-      const fonts = {
-        THSarabunNew: {
-          normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-          bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-          italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
-          bolditalics: path.join(
-            __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf",
-          ),
-        },
-      };
-      const printer = new PdfPrinter(fonts);
-
-      const makePdfTable = (list) => {
-        const headerRow1 = [
-          {
-            text: "ลำดับ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "เลขที่ตำแหน่ง",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ชื่อ - สกุล",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: name,
-                colSpan: 2,
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {},
-            ];
-          }),
-          {
-            text: "มาสาย ครั้ง",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "ขาดราชการ วัน",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "การลาประเภท อื่น ๆ (โปรดระบุ)",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-          {
-            text: "หมายเหตุ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-            margin: [0, 15, 0, 15],
-          },
-        ];
-
-        const headerRow2 = [
-          {},
-          {},
-          {},
-          ...TYPE_ORDER.flatMap((name) => {
-            return [
-              {
-                text: "ครั้ง",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-              {
-                text: "วัน",
-                style: "th",
-                alignment: "center",
-                margin: [0, 1, 0, 1],
-              },
-            ];
-          }),
-          {},
-          {},
-          {},
-        ];
-
-        const body = [headerRow1, headerRow2];
-
-        list.forEach((u, idx) => {
-          const row = [];
-          row.push({ text: String(idx + 1), alignment: "center" }); //ลำดับ
-          row.push({ text: "test", alignment: "left" }); //เลขที่ตำแหน่ง(ใช้ชื่อแทนไปก่อน)
-          row.push({ text: u.name, alignment: "left" }); //ชื่อ
-          TYPE_ORDER.forEach((name) => {
-            row.push({
-              text: td(u.leaveSummary, name, "times"),
-              alignment: "center",
-            });
-            row.push({
-              text: td(u.leaveSummary, name, "days"),
-              alignment: "center",
-            });
-          });
-          row.push({
-            text: u.lateTimes != null ? String(u.lateTimes) : "-",
-            alignment: "center",
-          });
-          row.push({ text: "-" || "", alignment: "center" });
-          row.push({ text: u.note || "", alignment: "center" });
-          row.push({ text: u.note || "", alignment: "center" });
-          body.push(row);
-        });
-
-        return {
-          table: {
-            headerRows: 2,
-            widths: [
-              30, // ที่
-              60, // เลขที่ตำแหน่ง
-              130, // ชื่อ - สกุล
-              ...Array(TYPE_ORDER.length * 2).fill(25), // จำนวนวันลา
-              50, // สาย/ครั้ง
-              70, // สาย/ครั้ง
-              130, // สาย/ครั้ง
-              70, // หมายเหตุ
-            ],
-            body,
-          },
-          layout: {
-            paddingLeft: () => 1,
-            paddingRight: () => 1,
-            paddingTop: () => 1,
-            paddingBottom: () => 1,
-            hLineColor: "#000000",
-            vLineColor: "#000000",
-            hLineWidth: () => 1,
-            vLineWidth: () => 1,
-          },
-          margin: [0, 10, 0, 20],
-        };
-      };
-
-      const content = [];
-      const MAX_USERS_PER_PAGE = 15;
-
-      Object.entries(reportData).forEach(([typeName, users], index) => {
-        // แบ่ง users เป็น chunks
-        for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
-          const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
-          const isFirstChunk = i === 0;
-          console.log(chunk);
-
-          // ขึ้นหน้าใหม่ถ้าไม่ใช่ chunk แรกของ typeName หรือ index > 0
-          const pageBreakBefore =
-            !isFirstChunk || index > 0 ? "before" : undefined;
-
-          content.push({
-            stack: [
-              {
-                text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน  วิทยาเขตขอนแก่น",
-                alignment: "center",
-                margin: [0, 0, 0, 0],
-              },
-              {
-                text: "รายงานสรุปการลาและการลงเวลาปฏิบัติราชการของบุคคลากร",
-                alignment: "center",
-              },
-              { text: `สังกัด คณะวิศวกรรมศาสตร์`, alignment: "center" },
-              {
-                text: `ประจำปีงบประมาณ พ.ศ. ${arabicToThaiNumber(
-                  2568,
-                )} ระหว่างวันที่ ${arabicToThaiNumber(
-                  formatThaiDateFull(startDate),
-                )} - ${arabicToThaiNumber(formatThaiDateFull(endDate))}`,
-                alignment: "center",
-              },
-              {
-                text: `ประเภทบุคคลากร ${typeName}`,
-                alignment: "center",
-                margin: [0, 0, 0, -5],
-              },
-              makePdfTable(chunk),
-            ],
-            pageBreak: pageBreakBefore,
-          });
-        }
-      });
-
-      const docDefinition = {
-        pageSize: "A4",
-        pageOrientation: "landscape",
-        content,
-        styles: {
-          th: { bold: false }, // เอา fillColor ออกทั้งหมด
-        },
-        defaultStyle: { font: "THSarabunNew", fontSize: 14 },
-      };
-
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        `Content-Disposition`,
-        `attachment; filename=org-report-${organizationId}.pdf`,
-      );
-      pdfDoc.pipe(res);
-      pdfDoc.end();
-    }
-
-    // -------------------- Word --------------------
-    else if (format === "word") {
-      const makeCell = (txt, options = {}) => {
-        const {
-          alignment = "center",
-          fillColor = null,
-          bold = false,
-          columnSpan = 1,
-          verticalMerge,
-          textDirection,
-          width,
-          margins = { top: 20, bottom: 0, left: 40, right: 40 },
-        } = options;
-
-        return new TableCell({
-          columnSpan,
-          verticalMerge,
-          width: width ? { size: width, type: WidthType.DXA } : undefined,
-          margins,
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: String(txt ?? ""),
-                  font: "TH Sarabun New",
-                  bold,
-                  size: 28,
-                }),
-              ],
-              alignment: AlignmentType[alignment.toUpperCase()],
-            }),
-          ],
-          shading: fillColor
-            ? { type: ShadingType.CLEAR, fill: fillColor }
-            : undefined,
-          verticalAlign: "center",
-          textDirection,
-        });
-      };
-
-      const makeWordTable = (list) => {
-        // กำหนดความกว้างแต่ละประเภทลา (หน่วย twip)
-        const typeWidths = {
-          ขาดราชการ: 500,
-          ลากิจ: 500,
-          ลาคลอดบุตร: 500,
-          ลาพักผ่อน: 500,
-          ลาป่วย: 500,
-          ลาบวช: 500,
-        };
-
-        const makeHeaderRows = () => {
-          const rows = [];
-
-          // ✅ Row 1
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("ที่", { verticalMerge: "restart" }),
-                makeCell("ชื่อ - สกุล", { verticalMerge: "restart" }),
-                makeCell("สาย/ครั้ง", {
-                  verticalMerge: "restart",
-                  textDirection: TextDirection.BOTTOM_TO_TOP_LEFT_TO_RIGHT, // ← หมุนข้อความ
-                }),
-                makeCell("จำนวนวันลา", {
-                  alignment: "center",
-                  bold: false,
-                  columnSpan: filteredTypeOrder.length * 2,
-                }),
-                makeCell("หมายเหตุ", { verticalMerge: "restart" }),
-              ],
-            }),
-          );
-
-          // ✅ Row 2 — ประเภทลา
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                ...filteredTypeOrder.map((type) => {
-                  const w = typeWidths[type] || 1134;
-                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type,
-                  );
-                  return makeCell(type, {
-                    columnSpan: 2,
-                    width: w * 2, // รวม 2 ช่อง
-                    fillColor: isGray ? "D9D9D9" : null,
-                    alignment: "center",
-                    bold: false,
-                  });
-                }),
-                makeCell("", { verticalMerge: "continue" }),
-              ],
-            }),
-          );
-
-          // ✅ Row 3 — ครั้ง / วัน
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                ...filteredTypeOrder.flatMap((type) => {
-                  const w = typeWidths[type] || 1134;
-                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type,
-                  );
-                  return [
-                    makeCell("ครั้ง", {
-                      width: w,
-                      fillColor: isGray ? "D9D9D9" : null,
-                    }),
-                    makeCell("วัน", {
-                      width: w,
-                      fillColor: isGray ? "D9D9D9" : null,
-                    }),
-                  ];
-                }),
-                makeCell("", { verticalMerge: "continue" }),
-              ],
-            }),
-          );
-
-          return rows;
-        };
-
-        // ✅ แบ่งหน้า
-        const MAX_ROWS_PER_PAGE = 25;
-        const chunks = [];
-        for (let i = 0; i < list.length; i += MAX_ROWS_PER_PAGE) {
-          chunks.push(list.slice(i, i + MAX_ROWS_PER_PAGE));
-        }
-
-        const tables = [];
-
-        chunks.forEach((chunk, pageIdx) => {
-          const rows = [...makeHeaderRows()];
-
-          chunk.forEach((u, idx) => {
-            rows.push(
-              new TableRow({
-                children: [
-                  makeCell(pageIdx * MAX_ROWS_PER_PAGE + idx + 1),
-                  makeCell(u.name, { alignment: "left" }),
-                  makeCell(u.lateTimes != null ? u.lateTimes : "-"),
-                  ...filteredTypeOrder.flatMap((name) => {
-                    const isGray = [
-                      "ขาดราชการ",
-                      "ลากิจ",
-                      "ลาคลอดบุตร",
-                    ].includes(name);
-                    return [
-                      makeCell(td(u.leaveSummary, name, "times"), {
-                        fillColor: isGray ? "D9D9D9" : null,
-                      }),
-                      makeCell(td(u.leaveSummary, name, "days"), {
-                        fillColor: isGray ? "D9D9D9" : null,
-                      }),
-                    ];
-                  }),
-                  makeCell(u.note || "-"),
-                ],
-              }),
-            );
-          });
-
-          // ✅ คอลัมน์ทั้งหมด (รวมทุกประเภท)
-          const tableColumnWidths = [
-            500, // ที่
-            2800, // ชื่อ - สกุล
-            500, // สาย/ครั้ง
-            ...filteredTypeOrder.flatMap((name) => {
-              const w = typeWidths[name] || 600;
-              return [w, w];
-            }),
-            1200, // หมายเหตุ
-          ];
-
-          const table = new Table({
-            layout: TableLayoutType.FIXED, // ✅ บังคับความกว้างตายตัว
-            columnWidths: tableColumnWidths,
-            rows,
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              bottom: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              left: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              right: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              insideHorizontal: {
-                style: BorderStyle.SINGLE,
-                size: 12,
-                color: "000000",
-              },
-              insideVertical: {
-                style: BorderStyle.SINGLE,
-                size: 12,
-                color: "000000",
-              },
-            },
-          });
-
-          if (pageIdx > 0) {
-            tables.push(new Paragraph({ pageBreakBefore: true }));
-          }
-
-          tables.push(table);
-        });
-
-        return tables;
-      };
-
-      const sections = Object.entries(reportData).map(([typeName, users]) => ({
-        headers: {
-          default: new Header({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น",
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `${typeName} คณะวิศวกรรมศาสตร์`,
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "รายนามผู้ลาหยุดประจำปี",
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `ครั้งที่ ตั้งแต่วันที่ ${formatThaiDateFull(
-                      startDate,
-                    )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 0 },
-              }),
-            ],
-          }),
-        },
-        children: [
-          ...makeWordTable(users), // ตารางอยู่ใน body ปกติ
-          new Paragraph({ text: "" }),
-        ],
-      }));
-
-      const doc = new Document({
-        styles: {
-          default: {
-            document: {
-              run: {
-                font: "TH Sarabun New",
-                size: 28,
-                lang: "th-TH",
-              },
-              paragraph: {
-                run: {
-                  font: "TH Sarabun New",
-                  size: 28,
-                },
-              },
-            },
-          },
-        },
-        sections: sections.map((section) => ({
-          ...section,
-          properties: {
-            page: {
-              margin: {
-                top: 1440, // 1 inch = 1440 twip
-                bottom: 1440,
-                left: 543,
-                right: 1440,
-              },
-              size: {
-                orientation: "portrait", // หรือ "landscape"
-                width: 11906, // หน้ากว้างสำหรับ A4 portrait = 11906 twip
-                height: 16838, // หน้ายาว A4 = 16838 twip
-              },
-            },
-          },
-        })),
-      });
-
-      const buffer = await Packer.toBuffer(doc);
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      );
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=org-report-${organizationId}.docx`,
-      );
-      res.send(buffer);
-    } else {
-      res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
-    }
+      format,
+      heading: fiscalHeading(startDate, endDate),
+      fileName: `Report_Fiscal_${fiscalYearBE}`,
+    });
   } catch (err) {
-    console.error("Export Report Error:", err);
-    res.status(500).json({ error: err.message });
+    return fail(res, err, where);
+  }
+}
+exports.exportFiscalYearReportPDF = (req, res) => handleFiscal(req, res, "pdf", "exportFiscalYearReportPDF");
+exports.exportFiscalYearReportWORD = (req, res) => handleFiscal(req, res, "word", "exportFiscalYearReportWORD");
+
+// พรีวิวรอบปีงบ — คืน rows + ช่วงวันที่ที่ derive ไว้ (ให้ frontend แสดงหัวรายงาน)
+exports.getFiscalReportData = async (req, res) => {
+  try {
+    const organizationId = Number(req.query.organizationId);
+    if (!organizationId) return res.status(400).json({ error: "กรุณาระบุ organizationId" });
+    const { startDate, endDate, fiscalYearBE } = await ReportService.getFiscalRange(req.query.fiscalYear);
+    const rows = await ReportService.getReportData(organizationId, startDate, endDate);
+    return res.json({ organizationId, startDate, endDate, fiscalYearBE, rows });
+  } catch (err) {
+    return fail(res, err, "getFiscalReportData");
   }
 };
 
-// ---------------------------------------ประจำเดือน---------------------------------------
-exports.exportMonthReportPDF = async (req, res) => {
+// ปีงบที่มีข้อมูลจริง (+ ปีปัจจุบัน) เป็น พ.ศ. — ให้ frontend ทำ dropdown filter
+exports.getFiscalYears = async (req, res) => {
+  try {
+    const years = await ReportService.getAvailableFiscalYears();
+    return res.json({ years });
+  } catch (err) {
+    return fail(res, err, "getFiscalYears");
+  }
+};
+
+// ---------------------------------------- รอบเดือน (month) ------------------
+async function buildMonth(req, res, format, where) {
   try {
     const { organizationId, month, year } = req.body;
+    if (!organizationId || !month || !year)
+      return res.status(400).json({ error: "กรุณาระบุ organizationId, month และ year" });
 
-    if (!organizationId || !month || !year) {
-      return res
-        .status(400)
-        .json({ error: "กรุณาระบุ organizationId, month และ year" });
-    }
-
-    // 1. ดึงข้อมูลรายวันจาก Service
     const result = await ReportService.getReportDataForMonth(
       Number(organizationId),
-      parseInt(month),
-      parseInt(year),
+      parseInt(month, 10),
+      parseInt(year, 10),
     );
+    if (!hasData(result.report)) return res.status(404).json({ error: "ไม่พบข้อมูล" });
 
-    const { daysInMonth, report: reportData } = result;
-
-    // 2. ตั้งค่า Mapping การลา
-    const leaveMapping = {
-      1: { text: "ป", color: "#FFC000" }, // ลาป่วย - เหลือง
-      2: { text: "ก", color: "#92D050" }, // ลากิจ - เขียว
-      3: { text: "พ", color: "#00B0F0" }, // ลาพักผ่อน - ฟ้า
-    };
-
-    // 3. ตั้งค่า Font
-    const fonts = {
-      THSarabunNew: {
-        normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-        bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-      },
-    };
-    const printer = new PdfPrinter(fonts);
-
-    // 4. ฟังก์ชันสร้างตาราง
-    const makePdfTable = (users) => {
-      const headerRow1 = [
-        {
-          text: "ลำดับ",
-          rowSpan: 2,
-          style: "th",
-          alignment: "center",
-          margin: [0, 5, 0, 0],
-        },
-        {
-          text: "ชื่อ - สกุล",
-          rowSpan: 2,
-          style: "th",
-          alignment: "center",
-          margin: [0, 5, 0, 0],
-        },
-        {
-          text: "ประจำวันที่",
-          colSpan: daysInMonth,
-          style: "th",
-          alignment: "center",
-        },
-        ...Array(daysInMonth - 1).fill({}),
-        { text: "รวมวัน\nทำงาน", rowSpan: 2, style: "th", alignment: "center" },
-        {
-          text: "หมายเหตุ",
-          rowSpan: 2,
-          style: "th",
-          alignment: "center",
-          margin: [0, 5, 0, 0],
-        },
-      ];
-
-      const headerRow2 = [
-        {},
-        {},
-        ...Array.from({ length: daysInMonth }, (_, i) => {
-          const day = i + 1;
-          const dateCheck = new Date(Number(year), Number(month) - 1, day);
-          const weekend = dateCheck.getDay() === 0 || dateCheck.getDay() === 6;
-          return {
-            text: String(day),
-            style: "th",
-            alignment: "center",
-            fillColor: weekend ? "#d9d9d9" : null,
-            fontSize: 9,
-          };
-        }),
-        {},
-        {},
-      ];
-
-      const body = [headerRow1, headerRow2];
-
-      users.forEach((u, idx) => {
-        const row = [
-          { text: String(idx + 1), alignment: "center" },
-          { text: u.name, alignment: "left", noWrap: false },
-        ];
-
-        for (let d = 1; d <= daysInMonth; d++) {
-          const leaveId = u.attendance[d];
-          const dateCheck = new Date(Number(year), Number(month) - 1, d);
-          const isWeekendDay =
-            dateCheck.getDay() === 0 || dateCheck.getDay() === 6;
-          const leaveInfo = leaveMapping[leaveId];
-
-          let cellText = "";
-          let cellColor = null;
-
-          if (leaveInfo) {
-            cellText = leaveInfo.text;
-            cellColor = leaveInfo.color;
-          } else if (isWeekendDay) {
-            cellText = "";
-            cellColor = "#d9d9d9";
-          } else {
-            cellText = "/";
-            cellColor = null;
-          }
-
-          row.push({
-            text: cellText,
-            alignment: "center",
-            fillColor: cellColor,
-            fontSize: 10,
-            bold: !!leaveInfo,
-          });
-        }
-
-        row.push({ text: String(u.totalWorkDays), alignment: "center" });
-        row.push({ text: "", alignment: "left" });
-        body.push(row);
-      });
-
-      return {
-        table: {
-          headerRows: 2,
-          widths: [18, 100, ...Array(daysInMonth).fill(11.5), 25, 35],
-          body,
-        },
-        layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5 },
-      };
-    };
-
-    const content = [];
-    const MAX_USERS_PER_PAGE = 22;
-
-    Object.entries(reportData).forEach(([typeName, users], index) => {
-      for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
-        const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
-        const isFirstPage = i === 0 && index === 0;
-
-        content.push({
-          stack: [
-            {
-              text: "รายงานสรุปการลาและการลงเวลาปฏิบัติราชการของบุคคลากร",
-              alignment: "center",
-              margin: [0, 0, 0, 0],
-            },
-            {
-              text: `ประจำเดือน ${formatThaiMonth(month)} พ.ศ. ${arabicToThaiNumber(parseInt(year) + 543)}`,
-              alignment: "center",
-            },
-            {
-              text: `สังกัด คณะวิศวกรรมศาสตร์ มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน`,
-              alignment: "center",
-            },
-            {
-              text: `ประเภทบุคคลากร ${typeName}`,
-              alignment: "center",
-              margin: [0, 0, 0, 4],
-            },
-            makePdfTable(chunk),
-          ],
-          pageBreak: isFirstPage ? undefined : "before",
-        });
-      }
-    });
-
-    // --- ส่วนปิดท้าย (หมายเหตุ + ลงนาม) ---
-    content.push({
-      stack: [
-        { text: "หมายเหตุ", bold: true, fontSize: 12, margin: [0, 20, 0, 5] },
-        {
-          text: [
-            { text: "โปรดกรอกข้อมูลการมาปฏิบัติราชการ ดังนี้ ", fontSize: 10 },
-            {
-              text: "/ = มาปฏิบัติราชการ, ส = สาย, ก = ลากิจส่วนตัว, ป = ลาป่วย, พ = ลาพักผ่อน, ค = ลาคลอดบุตร\n",
-              fontSize: 10,
-            },
-            {
-              text: "ช = ลาช่วยภริยาคลอดบุตร, บ = ลาอุปสมบท/พิธีฮัจญ์, ศ = ลาศึกษาต่อ, ว = ไปปฏิบัติการวิจัย, ร = ไปราชการ, ข = ไม่มีข้อมูลการลงเวลา",
-              fontSize: 10,
-            },
-          ],
-          margin: [0, 0, 0, 40],
-        },
-        {
-          table: {
-            widths: ["*", "*", "*"],
-            body: [
-              [
-                {
-                  stack: [
-                    {
-                      text: "ลงชื่อ..........................................................",
-                      margin: [0, 0, 0, 5],
-                    },
-                    {
-                      text: "(..........................................................)",
-                      margin: [0, 0, 0, 15],
-                    },
-                    {
-                      text: "........../........../..........",
-                      margin: [0, 0, 0, 5],
-                    },
-                    { text: "(เจ้าหน้าที่ผู้รับผิดชอบ)", fontSize: 10 },
-                  ],
-                  alignment: "center",
-                },
-                {
-                  stack: [
-                    {
-                      text: "ลงชื่อ..........................................................",
-                      margin: [0, 0, 0, 5],
-                    },
-                    {
-                      text: "(..........................................................)",
-                      margin: [0, 0, 0, 15],
-                    },
-                    {
-                      text: "........../........../..........",
-                      margin: [0, 0, 0, 5],
-                    },
-                    { text: "(หัวหน้าเจ้าหน้าที่)", fontSize: 10 },
-                  ],
-                  alignment: "center",
-                },
-                {
-                  stack: [
-                    {
-                      text: "ลงชื่อ..........................................................",
-                      margin: [0, 0, 0, 5],
-                    },
-                    {
-                      text: "(..........................................................)",
-                      margin: [0, 0, 0, 15],
-                    },
-                    {
-                      text: "........../........../..........",
-                      margin: [0, 0, 0, 5],
-                    },
-                    { text: "(หัวหน้าหน่วยงาน)", fontSize: 10 },
-                  ],
-                  alignment: "center",
-                },
-              ],
-            ],
-          },
-          layout: "noBorders",
-        },
-      ],
-      unbreakable: true,
-    });
-
-    const docDefinition = {
-      pageSize: "A4",
-      pageOrientation: "landscape",
-      content,
-      defaultStyle: { font: "THSarabunNew", fontSize: 11 },
-      pageMargins: [20, 20, 20, 20],
-    };
-
-    const pdfDoc = printer.createPdfKitDocument(docDefinition);
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="Report_${month}_${year}.pdf"`,
-    );
-    pdfDoc.pipe(res);
-    pdfDoc.end();
+    const heading = monthHeading(month, year);
+    const fileName = `Report_Month_${month}_${year}`;
+    if (format === "word") {
+      const doc = ReportDoc.monthlyWordDoc(result, heading);
+      return await ReportDoc.sendWord(res, doc, { en: `${fileName}.docx`, thai: `${fileName}.docx` });
+    }
+    const doc = ReportDoc.monthlyPdfDoc(result, heading);
+    return ReportDoc.streamPdf(res, doc, { en: `${fileName}.pdf`, thai: `${fileName}.pdf` });
   } catch (err) {
-    console.error("Export Error:", err);
-    res.status(500).json({ error: err.message });
+    return fail(res, err, where);
+  }
+}
+exports.exportMonthReportPDF = (req, res) => buildMonth(req, res, "pdf", "exportMonthReportPDF");
+exports.exportMonthReportWORD = (req, res) => buildMonth(req, res, "word", "exportMonthReportWORD");
+
+// ---------------------------------------- legacy /export-report (ADMIN) -----
+// รับ format ทาง body — ใช้โครงรอบประเมิน (คงไว้เพื่อความเข้ากันได้ย้อนหลัง)
+exports.exportReport = async (req, res) => {
+  try {
+    const { organizationId, countReport, startDate, endDate, format } = req.body;
+    if (!countReport) return res.status(400).json({ error: "กรุณาระบุ countReport" });
+    if (!format) return res.status(400).json({ error: "กรุณาระบุ format" });
+    return await buildSummary(res, {
+      organizationId,
+      startDate,
+      endDate,
+      format: format === "word" ? "word" : "pdf",
+      heading: roundHeading(countReport, startDate, endDate),
+      fileName: `Report_Round_${countReport}`,
+    });
+  } catch (err) {
+    return fail(res, err, "exportReport");
   }
 };
 
-exports.exportMonthReport = async (req, res) => {
+// ============================================================================
+// พรีวิวข้อมูล (แยก endpoint ของทีม) — รอบประเมิน / รอบปีงบประมาณ
+// คงไว้เพื่อความเข้ากันได้ (คนละ endpoint กับของหน้า LeaveReport)
+// ============================================================================
+exports.getReportDataForRound = async (req, res) => {
   try {
-    const { organizationId, startDate, endDate, format } = req.body;
-    if (!organizationId) {
-      return res.status(400).json({ error: "กรุณาระบุ organizationId" });
+    const { organizationId, startDate, endDate, countReport } = req.query;
+
+    const organizationIdNumber = Number(organizationId);
+    const countReportNumber = Number(countReport);
+
+    if (!organizationIdNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุ organizationId" });
     }
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: "กรุณาระบุ startDate และ endDate" });
+      return res.status(400).json({ success: false, error: "กรุณาระบุ startDate และ endDate" });
     }
-    if (!format) {
-      return res.status(400).json({ error: "กรุณาระบุ format" });
+    if (!countReportNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุ countReport" });
     }
 
-    const reportData = await ReportService.getReportData(
-      organizationId,
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ success: false, error: "รูปแบบวันที่ไม่ถูกต้อง" });
+    }
+    if (start > end) {
+      return res.status(400).json({ success: false, error: "startDate ต้องไม่มากกว่า endDate" });
+    }
+
+    const reportData = await ReportService.getReportDataForRound(
+      organizationIdNumber,
+      startDate,
+      endDate,
+      countReportNumber,
+    );
+
+    const hasRows = Object.values(reportData.report).some((users) => users.length > 0);
+    if (!hasRows) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในรอบประเมินที่ระบุ",
+        startDate,
+        endDate,
+        countReport: countReportNumber,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `ดึงข้อมูลรายงานรอบประเมินที่ ${countReportNumber} สำเร็จ`,
+      data: reportData,
+    });
+  } catch (err) {
+    console.error("Controller Error (getReportDataForRound):", err);
+    return res.status(500).json({ success: false, error: "เกิดข้อผิดพลาดที่ Server", message: err.message });
+  }
+};
+
+exports.getReportDataForFiscalYear = async (req, res) => {
+  try {
+    const { organizationId, fiscalYear } = req.query;
+
+    const organizationIdNumber = Number(organizationId);
+    const fiscalYearNumber = Number(fiscalYear);
+
+    if (!organizationIdNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุ organizationId" });
+    }
+    if (!fiscalYearNumber) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุปีงบประมาณ (ค.ศ.)" });
+    }
+    if (fiscalYearNumber < 1900 || fiscalYearNumber > 3000) {
+      return res.status(400).json({ success: false, error: "กรุณาระบุปีงบประมาณเป็น ค.ศ. ที่ถูกต้อง" });
+    }
+
+    // ปีงบประมาณ ค.ศ. N = 1 ต.ค. (N-1) ถึง 30 ก.ย. N
+    const startDate = new Date(fiscalYearNumber - 1, 9, 1);
+    const endDate = new Date(fiscalYearNumber, 8, 30, 23, 59, 59, 999);
+
+    const reportData = await ReportService.getReportDataForFiscalYear(
+      organizationIdNumber,
       startDate,
       endDate,
     );
 
-    if (!reportData || Object.keys(reportData).length === 0) {
-      return res.status(404).json({ error: "ไม่พบข้อมูล" });
-    }
-
-    // กรองช่องว่างออกก่อน
-    const filteredTypeOrder = TYPE_ORDER.filter(
-      (name) => name && name.trim() !== "",
-    ).map((name) => name.replace(/\s+/g, ""));
-
-    const td = (sum, name, f) => {
-      const s = sum?.[name];
-      if (!s) return "-";
-      const v = f === "times" ? s.count : s.days;
-      return v === 0 || v ? String(v) : "-";
-    };
-
-    // -------------------- PDF --------------------
-    if (format === "pdf") {
-      const fonts = {
-        THSarabunNew: {
-          normal: path.join(__dirname, "../fonts/THSarabunNew.ttf"),
-          bold: path.join(__dirname, "../fonts/THSarabunNew-Bold.ttf"),
-          italics: path.join(__dirname, "../fonts/THSarabunNew-Italic.ttf"),
-          bolditalics: path.join(
-            __dirname,
-            "../fonts/THSarabunNew-BoldItalic.ttf",
-          ),
-        },
-      };
-      const printer = new PdfPrinter(fonts);
-
-      const makePdfTable = (list) => {
-        const headerRow1 = [
-          {
-            text: "ประจำวันที่",
-            colSpan: DAY_ORDER.length + 2, // ลำดับ + ชื่อ + วัน
-            style: "th",
-            alignment: "center",
-          },
-          ...Array(DAY_ORDER.length + 1).fill({}),
-          {
-            text: "รวมวันทำงาน",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-          },
-          {
-            text: "หมายเหตุ",
-            rowSpan: 2,
-            style: "th",
-            alignment: "center",
-          },
-        ];
-
-        const headerRow2 = [
-          {
-            text: "ลำดับ",
-            style: "th",
-            alignment: "center",
-          },
-          {
-            text: "ชื่อ - สกุล",
-            style: "th",
-            alignment: "center",
-          },
-          ...DAY_ORDER.map((d) => ({
-            text: d,
-            style: "th",
-            alignment: "center",
-            fillColor: isWeekend(d) ? "#d9d9d9" : null,
-          })),
-
-          {},
-          {},
-        ];
-
-        const body = [headerRow1, headerRow2];
-
-        list.forEach((u, idx) => {
-          const row = [];
-          row.push({ text: String(idx + 1), alignment: "center" });
-          row.push({ text: u.name, alignment: "left" });
-
-          DAY_ORDER.forEach((day) => {
-            row.push({
-              text: td(u.note, day),
-              alignment: "center",
-              fillColor: checkIsWeekend(day) ? "#d9d9d9" : null,
-            });
-          });
-
-          row.push({ text: u.totalWorkDay ?? "", alignment: "center" });
-          row.push({ text: u.note ?? "", alignment: "center" });
-          body.push(row);
-        });
-
-        return {
-          table: {
-            headerRows: 2,
-            widths: [
-              20, // ลำดับ
-              90, // ชื่อ
-              ...Array(31).fill(8), // วันที่ 1–31
-              20, // รวมวัน
-              50, // หมายเหตุ
-            ],
-
-            body,
-          },
-          layout: {
-            paddingLeft: () => 1,
-            paddingRight: () => 1,
-            paddingTop: () => 1,
-            paddingBottom: () => 1,
-            hLineColor: "#000000",
-            vLineColor: "#000000",
-            hLineWidth: () => 1,
-            vLineWidth: () => 1,
-          },
-          margin: [0, 10, 0, 20],
-        };
-      };
-
-      const content = [];
-      const MAX_USERS_PER_PAGE = 35;
-
-      Object.entries(reportData).forEach(([typeName, users], index) => {
-        // แบ่ง users เป็น chunks
-        for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
-          const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
-          const isFirstChunk = i === 0;
-          console.log(chunk);
-
-          // ขึ้นหน้าใหม่ถ้าไม่ใช่ chunk แรกของ typeName หรือ index > 0
-          const pageBreakBefore =
-            !isFirstChunk || index > 0 ? "before" : undefined;
-
-          content.push({
-            stack: [
-              {
-                text: "รายงานสรุปการลาและการลงเวลาปฏิบัติราชการของบุคคลากร",
-                alignment: "center",
-                margin: [0, 0, 0, 0],
-              },
-              {
-                text: `ประจำเดือน พ.ศ. ${arabicToThaiNumber(2568)}`,
-                alignment: "center",
-              },
-              {
-                text: `สังกัด คณะวิศวกรรมศาสตร์ มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน`,
-                alignment: "center",
-              },
-              {
-                text: `ประเภทบุคคลากร ${typeName}`,
-                alignment: "center",
-                margin: [0, 0, 0, -5],
-              },
-              makePdfTable(chunk),
-            ],
-            pageBreak: pageBreakBefore,
-          });
-        }
+    const hasRows = Object.values(reportData.report).some((users) => users.length > 0);
+    if (!hasRows) {
+      return res.status(404).json({
+        success: false,
+        message: "ไม่พบข้อมูลบุคลากรหรือข้อมูลการลาในปีงบประมาณที่ระบุ",
+        fiscalYear: fiscalYearNumber,
+        startDate,
+        endDate,
       });
-
-      const docDefinition = {
-        pageSize: "A4",
-        pageOrientation: "portrait",
-        content,
-        styles: {
-          th: { bold: false }, // เอา fillColor ออกทั้งหมด
-        },
-        defaultStyle: { font: "THSarabunNew", fontSize: 11 },
-      };
-
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        `Content-Disposition`,
-        `attachment; filename=org-report-${organizationId}.pdf`,
-      );
-      pdfDoc.pipe(res);
-      pdfDoc.end();
     }
 
-    // -------------------- Word --------------------
-    else if (format === "word") {
-      const makeCell = (txt, options = {}) => {
-        const {
-          alignment = "center",
-          fillColor = null,
-          bold = false,
-          columnSpan = 1,
-          verticalMerge,
-          textDirection,
-          width,
-          margins = { top: 20, bottom: 0, left: 40, right: 40 },
-        } = options;
-
-        return new TableCell({
-          columnSpan,
-          verticalMerge,
-          width: width ? { size: width, type: WidthType.DXA } : undefined,
-          margins,
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: String(txt ?? ""),
-                  font: "TH Sarabun New",
-                  bold,
-                  size: 28,
-                }),
-              ],
-              alignment: AlignmentType[alignment.toUpperCase()],
-            }),
-          ],
-          shading: fillColor
-            ? { type: ShadingType.CLEAR, fill: fillColor }
-            : undefined,
-          verticalAlign: "center",
-          textDirection,
-        });
-      };
-
-      const makeWordTable = (list) => {
-        // กำหนดความกว้างแต่ละประเภทลา (หน่วย twip)
-        const typeWidths = {
-          ขาดราชการ: 500,
-          ลากิจ: 500,
-          ลาคลอดบุตร: 500,
-          ลาพักผ่อน: 500,
-          ลาป่วย: 500,
-          ลาบวช: 500,
-        };
-
-        const makeHeaderRows = () => {
-          const rows = [];
-
-          // ✅ Row 1
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("ที่", { verticalMerge: "restart" }),
-                makeCell("ชื่อ - สกุล", { verticalMerge: "restart" }),
-                makeCell("สาย/ครั้ง", {
-                  verticalMerge: "restart",
-                  textDirection: TextDirection.BOTTOM_TO_TOP_LEFT_TO_RIGHT, // ← หมุนข้อความ
-                }),
-                makeCell("จำนวนวันลา", {
-                  alignment: "center",
-                  bold: false,
-                  columnSpan: filteredTypeOrder.length * 2,
-                }),
-                makeCell("หมายเหตุ", { verticalMerge: "restart" }),
-              ],
-            }),
-          );
-
-          // ✅ Row 2 — ประเภทลา
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                ...filteredTypeOrder.map((type) => {
-                  const w = typeWidths[type] || 1134;
-                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type,
-                  );
-                  return makeCell(type, {
-                    columnSpan: 2,
-                    width: w * 2, // รวม 2 ช่อง
-                    fillColor: isGray ? "D9D9D9" : null,
-                    alignment: "center",
-                    bold: false,
-                  });
-                }),
-                makeCell("", { verticalMerge: "continue" }),
-              ],
-            }),
-          );
-
-          // ✅ Row 3 — ครั้ง / วัน
-          rows.push(
-            new TableRow({
-              tableHeader: true,
-              children: [
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                makeCell("", { verticalMerge: "continue" }),
-                ...filteredTypeOrder.flatMap((type) => {
-                  const w = typeWidths[type] || 1134;
-                  const isGray = ["ขาดราชการ", "ลากิจ", "ลาคลอดบุตร"].includes(
-                    type,
-                  );
-                  return [
-                    makeCell("ครั้ง", {
-                      width: w,
-                      fillColor: isGray ? "D9D9D9" : null,
-                    }),
-                    makeCell("วัน", {
-                      width: w,
-                      fillColor: isGray ? "D9D9D9" : null,
-                    }),
-                  ];
-                }),
-                makeCell("", { verticalMerge: "continue" }),
-              ],
-            }),
-          );
-
-          return rows;
-        };
-
-        // ✅ แบ่งหน้า
-        const MAX_ROWS_PER_PAGE = 25;
-        const chunks = [];
-        for (let i = 0; i < list.length; i += MAX_ROWS_PER_PAGE) {
-          chunks.push(list.slice(i, i + MAX_ROWS_PER_PAGE));
-        }
-
-        const tables = [];
-
-        chunks.forEach((chunk, pageIdx) => {
-          const rows = [...makeHeaderRows()];
-
-          chunk.forEach((u, idx) => {
-            rows.push(
-              new TableRow({
-                children: [
-                  makeCell(pageIdx * MAX_ROWS_PER_PAGE + idx + 1),
-                  makeCell(u.name, { alignment: "left" }),
-                  makeCell(u.lateTimes != null ? u.lateTimes : "-"),
-                  ...filteredTypeOrder.flatMap((name) => {
-                    const isGray = [
-                      "ขาดราชการ",
-                      "ลากิจ",
-                      "ลาคลอดบุตร",
-                    ].includes(name);
-                    return [
-                      makeCell(td(u.leaveSummary, name, "times"), {
-                        fillColor: isGray ? "D9D9D9" : null,
-                      }),
-                      makeCell(td(u.leaveSummary, name, "days"), {
-                        fillColor: isGray ? "D9D9D9" : null,
-                      }),
-                    ];
-                  }),
-                  makeCell(u.note || "-"),
-                ],
-              }),
-            );
-          });
-
-          // ✅ คอลัมน์ทั้งหมด (รวมทุกประเภท)
-          const tableColumnWidths = [
-            500, // ที่
-            2800, // ชื่อ - สกุล
-            500, // สาย/ครั้ง
-            ...filteredTypeOrder.flatMap((name) => {
-              const w = typeWidths[name] || 600;
-              return [w, w];
-            }),
-            1200, // หมายเหตุ
-          ];
-
-          const table = new Table({
-            layout: TableLayoutType.FIXED, // ✅ บังคับความกว้างตายตัว
-            columnWidths: tableColumnWidths,
-            rows,
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              bottom: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              left: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              right: { style: BorderStyle.SINGLE, size: 12, color: "000000" },
-              insideHorizontal: {
-                style: BorderStyle.SINGLE,
-                size: 12,
-                color: "000000",
-              },
-              insideVertical: {
-                style: BorderStyle.SINGLE,
-                size: 12,
-                color: "000000",
-              },
-            },
-          });
-
-          if (pageIdx > 0) {
-            tables.push(new Paragraph({ pageBreakBefore: true }));
-          }
-
-          tables.push(table);
-        });
-
-        return tables;
-      };
-
-      const sections = Object.entries(reportData).map(([typeName, users]) => ({
-        headers: {
-          default: new Header({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "มหาวิทยาลัยเทคโนโลยีราชมงคลอีสาน วิทยาเขตขอนแก่น",
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `${typeName} คณะวิศวกรรมศาสตร์`,
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "รายนามผู้ลาหยุดประจำปี",
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `ครั้งที่ ${countReport} ตั้งแต่วันที่ ${formatThaiDateFull(
-                      startDate,
-                    )} ถึงวันที่ ${formatThaiDateFull(endDate)}`,
-                    font: "TH Sarabun New",
-                    size: 28,
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 0 },
-              }),
-            ],
-          }),
-        },
-        children: [
-          ...makeWordTable(users), // ตารางอยู่ใน body ปกติ
-          new Paragraph({ text: "" }),
-        ],
-      }));
-
-      const doc = new Document({
-        styles: {
-          default: {
-            document: {
-              run: {
-                font: "TH Sarabun New",
-                size: 28,
-                lang: "th-TH",
-              },
-              paragraph: {
-                run: {
-                  font: "TH Sarabun New",
-                  size: 28,
-                },
-              },
-            },
-          },
-        },
-        sections: sections.map((section) => ({
-          ...section,
-          properties: {
-            page: {
-              margin: {
-                top: 1440, // 1 inch = 1440 twip
-                bottom: 1440,
-                left: 543,
-                right: 1440,
-              },
-              size: {
-                orientation: "portrait", // หรือ "landscape"
-                width: 11906, // หน้ากว้างสำหรับ A4 portrait = 11906 twip
-                height: 16838, // หน้ายาว A4 = 16838 twip
-              },
-            },
-          },
-        })),
-      });
-
-      const buffer = await Packer.toBuffer(doc);
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      );
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=org-report-${organizationId}.docx`,
-      );
-      res.send(buffer);
-    } else {
-      res.status(400).json({ error: "Invalid format, use 'pdf' or 'word'" });
-    }
+    return res.status(200).json({
+      success: true,
+      message: `ดึงข้อมูลรายงานปีงบประมาณ ${fiscalYearNumber} สำเร็จ`,
+      data: { ...reportData, fiscalYear: fiscalYearNumber },
+    });
   } catch (err) {
-    console.error("Export Report Error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Controller Error (getReportDataForFiscalYear):", err);
+    return res.status(500).json({ success: false, error: "เกิดข้อผิดพลาดที่ Server", message: err.message });
   }
 };
