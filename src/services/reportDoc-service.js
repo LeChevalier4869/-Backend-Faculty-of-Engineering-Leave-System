@@ -321,7 +321,7 @@ const WORD_BORDERS = {
   insideVertical: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
 };
 
-function summaryWordTables(list) {
+function summaryWordTables(list, startIndex = 0) {
   const TYPE_W = 760;
 
   const colWidths = [
@@ -354,9 +354,7 @@ function summaryWordTables(list) {
     tableHeader: true,
 
     children: [
-      // -----------------------------------------------------
       // ที่
-      // -----------------------------------------------------
       new TableCell({
         verticalMerge: "restart",
         margins: compactMargins,
@@ -370,15 +368,12 @@ function summaryWordTables(list) {
                 size: 27,
               }),
             ],
-
             alignment: AlignmentType.CENTER,
           }),
         ],
       }),
 
-      // -----------------------------------------------------
       // เลขที่ตำแหน่ง
-      // -----------------------------------------------------
       new TableCell({
         verticalMerge: "restart",
         margins: compactMargins,
@@ -392,15 +387,12 @@ function summaryWordTables(list) {
                 size: 27,
               }),
             ],
-
             alignment: AlignmentType.CENTER,
           }),
         ],
       }),
 
-      // -----------------------------------------------------
       // ชื่อ - สกุล
-      // -----------------------------------------------------
       new TableCell({
         verticalMerge: "restart",
         margins: compactMargins,
@@ -414,15 +406,12 @@ function summaryWordTables(list) {
                 size: 27,
               }),
             ],
-
             alignment: AlignmentType.CENTER,
           }),
         ],
       }),
 
-      // -----------------------------------------------------
       // ประเภทการลา
-      // -----------------------------------------------------
       ...SUMMARY_TYPES.map((t) =>
         wCell(t.label, {
           columnSpan: 2,
@@ -430,9 +419,7 @@ function summaryWordTables(list) {
         }),
       ),
 
-      // -----------------------------------------------------
       // มาสาย
-      // -----------------------------------------------------
       new TableCell({
         verticalMerge: "restart",
         margins: compactMargins,
@@ -446,15 +433,12 @@ function summaryWordTables(list) {
                 size: 27,
               }),
             ],
-
             alignment: AlignmentType.CENTER,
           }),
         ],
       }),
 
-      // -----------------------------------------------------
       // ขาดราชการ
-      // -----------------------------------------------------
       new TableCell({
         verticalMerge: "restart",
         margins: compactMargins,
@@ -468,15 +452,12 @@ function summaryWordTables(list) {
                 size: 27,
               }),
             ],
-
             alignment: AlignmentType.CENTER,
           }),
         ],
       }),
 
-      // -----------------------------------------------------
       // อื่น ๆ
-      // -----------------------------------------------------
       new TableCell({
         verticalMerge: "restart",
         margins: compactMargins,
@@ -490,15 +471,12 @@ function summaryWordTables(list) {
                 size: 27,
               }),
             ],
-
             alignment: AlignmentType.CENTER,
           }),
         ],
       }),
 
-      // -----------------------------------------------------
       // หมายเหตุ
-      // -----------------------------------------------------
       new TableCell({
         verticalMerge: "restart",
         margins: compactMargins,
@@ -512,7 +490,6 @@ function summaryWordTables(list) {
                 size: 27,
               }),
             ],
-
             alignment: AlignmentType.CENTER,
           }),
         ],
@@ -614,7 +591,8 @@ function summaryWordTables(list) {
 
       children: [
         // ที่
-        wCell(idx + 1, {
+        // ใช้ startIndex เพื่อให้เลขลำดับต่อเนื่องเมื่อขึ้นหน้าใหม่
+        wCell(startIndex + idx + 1, {
           margins: compactMargins,
         }),
 
@@ -678,6 +656,7 @@ function summaryWordTables(list) {
     }),
   ];
 }
+
 function summaryWordDoc(reportData, headingLines) {
   const MAX_USERS_PER_PAGE = 15;
 
@@ -707,9 +686,6 @@ function summaryWordDoc(reportData, headingLines) {
             },
           },
 
-          // =================================================
-          // WORD HEADER
-          // =================================================
           headers: {
             default: new Header({
               children: headingLines(typeName).map(
@@ -734,10 +710,8 @@ function summaryWordDoc(reportData, headingLines) {
             }),
           },
 
-          // =================================================
-          // TABLE
-          // =================================================
-          children: [...summaryWordTables(chunk)],
+          // สำคัญ: ส่ง i เป็น startIndex
+          children: [...summaryWordTables(chunk, i)],
         });
       }
     });
@@ -799,6 +773,7 @@ function summaryWordDoc(reportData, headingLines) {
         ],
   });
 }
+
 /* ============================================================== MONTHLY PDF */
 function monthlyPdfTable(users, daysInMonth, month, year) {
   const headerRow1 = [
