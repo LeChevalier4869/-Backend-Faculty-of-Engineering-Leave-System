@@ -34,8 +34,18 @@ const {
 /* ---------------------------------------------------------------- helpers */
 const THAI_DIGITS = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
 const THAI_MONTHS = [
-  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
 ];
 
 const toThaiNumber = (input) =>
@@ -121,38 +131,65 @@ const pdfFonts = {
 const printer = new PdfPrinter(pdfFonts);
 
 /* ============================================================== SUMMARY PDF */
-function summaryPdfTable(list) {
+function summaryPdfTable(list, startIndex = 0) {
   const headerRow1 = [
-    thCell("ลำดับ", 2), thCell("เลขที่ตำแหน่ง", 2), thCell("ชื่อ - สกุล", 2),
+    thCell("ลำดับ", 2),
+    thCell("เลขที่ตำแหน่ง", 2),
+    thCell("ชื่อ - สกุล", 2),
     ...SUMMARY_TYPES.flatMap((t) => [
-      { text: t.label, colSpan: 2, style: "th", alignment: "center", margin: [0, 1, 0, 1] },
+      {
+        text: t.label,
+        colSpan: 2,
+        style: "th",
+        alignment: "center",
+        margin: [0, 1, 0, 1],
+      },
       {},
     ]),
-    thCell("มาสาย(ครั้ง)", 2), thCell("ขาดราชการ(วัน)", 2),
-    thCell("การลาประเภท อื่น ๆ (โปรดระบุ)", 2), thCell("หมายเหตุ", 2),
+    thCell("มาสาย(ครั้ง)", 2),
+    thCell("ขาดราชการ(วัน)", 2),
+    thCell("การลาประเภท อื่น ๆ (โปรดระบุ)", 2),
+    thCell("หมายเหตุ", 2),
   ];
   const headerRow2 = [
-    {}, {}, {},
+    {},
+    {},
+    {},
     ...SUMMARY_TYPES.flatMap(() => [
       { text: "ครั้ง", style: "th", alignment: "center", margin: [0, 1, 0, 1] },
       { text: "วัน", style: "th", alignment: "center", margin: [0, 1, 0, 1] },
     ]),
-    {}, {}, {}, {},
+    {},
+    {},
+    {},
+    {},
   ];
 
   const body = [headerRow1, headerRow2];
   list.forEach((u, idx) => {
     const row = [
-      { text: String(idx + 1), alignment: "center" },
+      { text: String(startIndex + idx + 1), alignment: "center" },
       { text: u.positionNo || "", alignment: "center" },
       { text: u.name, alignment: "left" },
     ];
     SUMMARY_TYPES.forEach((t) => {
-      row.push({ text: td(u.leaveSummary, t.key, "times"), alignment: "center" });
-      row.push({ text: td(u.leaveSummary, t.key, "days"), alignment: "center" });
+      row.push({
+        text: td(u.leaveSummary, t.key, "times"),
+        alignment: "center",
+      });
+      row.push({
+        text: td(u.leaveSummary, t.key, "days"),
+        alignment: "center",
+      });
     });
-    row.push({ text: u.lateTimes != null ? String(u.lateTimes) : "-", alignment: "center" });
-    row.push({ text: u.absentDays != null ? String(u.absentDays) : "-", alignment: "center" });
+    row.push({
+      text: u.lateTimes != null ? String(u.lateTimes) : "-",
+      alignment: "center",
+    });
+    row.push({
+      text: u.absentDays != null ? String(u.absentDays) : "-",
+      alignment: "center",
+    });
     row.push({ text: u.otherLeave || "", alignment: "center" });
     row.push({ text: u.note || "", alignment: "center" });
     body.push(row);
@@ -161,19 +198,38 @@ function summaryPdfTable(list) {
   return {
     table: {
       headerRows: 2,
-      widths: [30, 60, 130, ...Array(SUMMARY_TYPES.length * 2).fill(25), 50, 70, 130, 70],
+      widths: [
+        30,
+        60,
+        130,
+        ...Array(SUMMARY_TYPES.length * 2).fill(25),
+        50,
+        70,
+        130,
+        70,
+      ],
       body,
     },
     layout: {
-      paddingLeft: () => 1, paddingRight: () => 1, paddingTop: () => 1, paddingBottom: () => 1,
-      hLineColor: "#000000", vLineColor: "#000000", hLineWidth: () => 1, vLineWidth: () => 1,
+      paddingLeft: () => 1,
+      paddingRight: () => 1,
+      paddingTop: () => 1,
+      paddingBottom: () => 1,
+      hLineColor: "#000000",
+      vLineColor: "#000000",
+      hLineWidth: () => 1,
+      vLineWidth: () => 1,
     },
     margin: [0, 10, 0, 20],
   };
 }
 
 const thCell = (text, rowSpan) => ({
-  text, rowSpan, style: "th", alignment: "center", margin: [0, 15, 0, 15],
+  text,
+  rowSpan,
+  style: "th",
+  alignment: "center",
+  margin: [0, 15, 0, 15],
 });
 
 // แปลงบรรทัดหัวรายงาน → stack ของ pdfmake (คำนวณ lines ครั้งเดียวแล้วส่งเข้ามา)
@@ -198,8 +254,12 @@ function summaryPdfDoc(reportData, headingLines) {
     for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
       const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
       const first = i === 0 && index === 0;
+
       content.push({
-        stack: [...headingStack(lines, [0, 0, 0, -5]), summaryPdfTable(chunk)],
+        stack: [
+          ...headingStack(lines, [0, 0, 0, -5]),
+          summaryPdfTable(chunk, i),
+        ],
         pageBreak: first ? undefined : "before",
       });
     }
@@ -217,21 +277,35 @@ function summaryPdfDoc(reportData, headingLines) {
 /* ============================================================= SUMMARY WORD */
 const wCell = (txt, opts = {}) => {
   const {
-    alignment = "center", fillColor = null, bold = false, columnSpan = 1,
-    verticalMerge, width,
+    alignment = "center",
+    fillColor = null,
+    bold = false,
+    columnSpan = 1,
+    verticalMerge,
+    width,
     margins = { top: 20, bottom: 0, left: 40, right: 40 },
   } = opts;
   return new TableCell({
-    columnSpan, verticalMerge,
+    columnSpan,
+    verticalMerge,
     width: width ? { size: width, type: WidthType.DXA } : undefined,
     margins,
     children: [
       new Paragraph({
-        children: [new TextRun({ text: String(txt ?? ""), font: "TH Sarabun New", bold, size: 28 })],
+        children: [
+          new TextRun({
+            text: String(txt ?? ""),
+            font: "TH Sarabun New",
+            bold,
+            size: 28,
+          }),
+        ],
         alignment: AlignmentType[alignment.toUpperCase()],
       }),
     ],
-    shading: fillColor ? { type: ShadingType.CLEAR, fill: fillColor } : undefined,
+    shading: fillColor
+      ? { type: ShadingType.CLEAR, fill: fillColor }
+      : undefined,
     verticalAlign: VerticalAlign.CENTER,
   });
 };
@@ -248,9 +322,14 @@ const WORD_BORDERS = {
 function summaryWordTables(list) {
   const TYPE_W = 760;
   const colWidths = [
-    600, 1300, 2800,
+    600,
+    1300,
+    2800,
     ...SUMMARY_TYPES.flatMap(() => [TYPE_W, TYPE_W]),
-    1000, 1200, 1400, 1300,
+    1000,
+    1200,
+    1400,
+    1300,
   ];
 
   const headerRows = () => {
@@ -286,7 +365,10 @@ function summaryWordTables(list) {
   const MAX_ROWS_PER_PAGE = 22;
   const out = [];
   for (let p = 0; p * MAX_ROWS_PER_PAGE < list.length; p++) {
-    const chunk = list.slice(p * MAX_ROWS_PER_PAGE, (p + 1) * MAX_ROWS_PER_PAGE);
+    const chunk = list.slice(
+      p * MAX_ROWS_PER_PAGE,
+      (p + 1) * MAX_ROWS_PER_PAGE,
+    );
     const rows = [...headerRows()];
     chunk.forEach((u, idx) => {
       rows.push(
@@ -309,7 +391,12 @@ function summaryWordTables(list) {
     });
     if (p > 0) out.push(new Paragraph({ pageBreakBefore: true }));
     out.push(
-      new Table({ layout: TableLayoutType.FIXED, columnWidths: colWidths, rows, borders: WORD_BORDERS }),
+      new Table({
+        layout: TableLayoutType.FIXED,
+        columnWidths: colWidths,
+        rows,
+        borders: WORD_BORDERS,
+      }),
     );
   }
   return out;
@@ -329,7 +416,9 @@ function summaryWordDoc(reportData, headingLines) {
         children: headingLines(typeName).map(
           (text) =>
             new Paragraph({
-              children: [new TextRun({ text, font: "TH Sarabun New", size: 28 })],
+              children: [
+                new TextRun({ text, font: "TH Sarabun New", size: 28 }),
+              ],
               alignment: AlignmentType.CENTER,
             }),
         ),
@@ -353,20 +442,48 @@ function summaryWordDoc(reportData, headingLines) {
 /* ============================================================== MONTHLY PDF */
 function monthlyPdfTable(users, daysInMonth, month, year) {
   const headerRow1 = [
-    { text: "ลำดับ", rowSpan: 2, style: "th", alignment: "center", margin: [0, 5, 0, 0] },
-    { text: "ชื่อ - สกุล", rowSpan: 2, style: "th", alignment: "center", margin: [0, 5, 0, 0] },
-    { text: "ประจำวันที่", colSpan: daysInMonth, style: "th", alignment: "center" },
+    {
+      text: "ลำดับ",
+      rowSpan: 2,
+      style: "th",
+      alignment: "center",
+      margin: [0, 5, 0, 0],
+    },
+    {
+      text: "ชื่อ - สกุล",
+      rowSpan: 2,
+      style: "th",
+      alignment: "center",
+      margin: [0, 5, 0, 0],
+    },
+    {
+      text: "ประจำวันที่",
+      colSpan: daysInMonth,
+      style: "th",
+      alignment: "center",
+    },
     ...Array(daysInMonth - 1).fill({}),
     { text: "รวมวัน\nทำงาน", rowSpan: 2, style: "th", alignment: "center" },
-    { text: "หมายเหตุ", rowSpan: 2, style: "th", alignment: "center", margin: [0, 5, 0, 0] },
+    {
+      text: "หมายเหตุ",
+      rowSpan: 2,
+      style: "th",
+      alignment: "center",
+      margin: [0, 5, 0, 0],
+    },
   ];
   const headerRow2 = [
-    {}, {},
+    {},
+    {},
     ...Array.from({ length: daysInMonth }, (_, i) => ({
-      text: String(i + 1), style: "th", alignment: "center",
-      fillColor: isWeekendDate(year, month, i + 1) ? "#d9d9d9" : null, fontSize: 9,
+      text: String(i + 1),
+      style: "th",
+      alignment: "center",
+      fillColor: isWeekendDate(year, month, i + 1) ? "#d9d9d9" : null,
+      fontSize: 9,
     })),
-    {}, {},
+    {},
+    {},
   ];
 
   const body = [headerRow1, headerRow2];
@@ -389,7 +506,13 @@ function monthlyPdfTable(users, daysInMonth, month, year) {
       } else if (!isFutureDate(year, month, d)) {
         text = DAY_PRESENT; // มาทำงาน — เฉพาะวันที่ถึงวันนี้ (อนาคตเว้นว่าง)
       }
-      row.push({ text, alignment: "center", fillColor: fill, fontSize: 10, bold: !!info });
+      row.push({
+        text,
+        alignment: "center",
+        fillColor: fill,
+        fontSize: 10,
+        bold: !!info,
+      });
     }
     row.push({ text: String(u.totalWorkDays ?? ""), alignment: "center" });
     row.push({ text: "", alignment: "left" });
@@ -399,10 +522,13 @@ function monthlyPdfTable(users, daysInMonth, month, year) {
   return {
     table: {
       headerRows: 2,
-      widths: [18, 100, ...Array(daysInMonth).fill(11.5), 25, 35],
+      widths: [18, 100, ...Array(daysInMonth).fill(10), 25, 35],
       body,
     },
-    layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5 },
+    layout: {
+      hLineWidth: () => 0.5,
+      vLineWidth: () => 0.5,
+    },
   };
 }
 
@@ -415,8 +541,14 @@ const MONTH_LEGEND = [
 const signatureBlock = () => {
   const col = (role) => ({
     stack: [
-      { text: "ลงชื่อ..........................................................", margin: [0, 0, 0, 5] },
-      { text: "(..........................................................)", margin: [0, 0, 0, 15] },
+      {
+        text: "ลงชื่อ..........................................................",
+        margin: [0, 0, 0, 5],
+      },
+      {
+        text: "(..........................................................)",
+        margin: [0, 0, 0, 15],
+      },
       { text: "........../........../..........", margin: [0, 0, 0, 5] },
       { text: role, fontSize: 10 },
     ],
@@ -429,7 +561,13 @@ const signatureBlock = () => {
       {
         table: {
           widths: ["*", "*", "*"],
-          body: [[col("(เจ้าหน้าที่ผู้รับผิดชอบ)"), col("(หัวหน้าเจ้าหน้าที่)"), col("(หัวหน้าหน่วยงาน)")]],
+          body: [
+            [
+              col("(เจ้าหน้าที่ผู้รับผิดชอบ)"),
+              col("(หัวหน้าเจ้าหน้าที่)"),
+              col("(หัวหน้าหน่วยงาน)"),
+            ],
+          ],
         },
         layout: "noBorders",
       },
@@ -454,7 +592,10 @@ function monthlyPdfDoc(result, headingLines) {
       const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
       const first = i === 0 && index === 0;
       content.push({
-        stack: [...headingStack(lines, [0, 0, 0, 4]), monthlyPdfTable(chunk, daysInMonth, month, year)],
+        stack: [
+          ...headingStack(lines, [0, 0, 0, 4]),
+          monthlyPdfTable(chunk, daysInMonth, month, year),
+        ],
         pageBreak: first ? undefined : "before",
       });
     }
@@ -508,7 +649,10 @@ function monthlyWordTables(users, daysInMonth, month, year) {
   const MAX_ROWS_PER_PAGE = 20;
   const out = [];
   for (let p = 0; p * MAX_ROWS_PER_PAGE < users.length; p++) {
-    const chunk = users.slice(p * MAX_ROWS_PER_PAGE, (p + 1) * MAX_ROWS_PER_PAGE);
+    const chunk = users.slice(
+      p * MAX_ROWS_PER_PAGE,
+      (p + 1) * MAX_ROWS_PER_PAGE,
+    );
     const rows = [...headerRows()];
     chunk.forEach((u, idx) => {
       const dayCells = [];
@@ -521,7 +665,10 @@ function monthlyWordTables(users, daysInMonth, month, year) {
         const text = info ? info.t : present ? DAY_PRESENT : "";
         const fill = info ? info.c.replace("#", "") : weekend ? "D9D9D9" : null;
         dayCells.push(
-          wCell(text, { fillColor: fill, margins: { top: 10, bottom: 0, left: 10, right: 10 } }),
+          wCell(text, {
+            fillColor: fill,
+            margins: { top: 10, bottom: 0, left: 10, right: 10 },
+          }),
         );
       }
       rows.push(
@@ -538,7 +685,12 @@ function monthlyWordTables(users, daysInMonth, month, year) {
     });
     if (p > 0) out.push(new Paragraph({ pageBreakBefore: true }));
     out.push(
-      new Table({ layout: TableLayoutType.FIXED, columnWidths: colWidths, rows, borders: WORD_BORDERS }),
+      new Table({
+        layout: TableLayoutType.FIXED,
+        columnWidths: colWidths,
+        rows,
+        borders: WORD_BORDERS,
+      }),
     );
   }
   return out;
@@ -560,7 +712,9 @@ function monthlyWordDoc(result, headingLines) {
         children: headingLines(typeName).map(
           (text) =>
             new Paragraph({
-              children: [new TextRun({ text, font: "TH Sarabun New", size: 28 })],
+              children: [
+                new TextRun({ text, font: "TH Sarabun New", size: 28 }),
+              ],
               alignment: AlignmentType.CENTER,
             }),
         ),
@@ -570,14 +724,26 @@ function monthlyWordDoc(result, headingLines) {
       ...monthlyWordTables(users, daysInMonth, month, year),
       new Paragraph({ text: "" }),
       new Paragraph({
-        children: [new TextRun({ text: MONTH_LEGEND.join(" "), font: "TH Sarabun New", size: 24 })],
+        children: [
+          new TextRun({
+            text: MONTH_LEGEND.join(" "),
+            font: "TH Sarabun New",
+            size: 24,
+          }),
+        ],
       }),
     ],
   }));
 
   return new Document({
-    styles: { default: { document: { run: { font: "TH Sarabun New", size: 28, lang: "th-TH" } } } },
-    sections: sections.length ? sections : [{ children: [new Paragraph({ text: "ไม่พบข้อมูล" })] }],
+    styles: {
+      default: {
+        document: { run: { font: "TH Sarabun New", size: 28, lang: "th-TH" } },
+      },
+    },
+    sections: sections.length
+      ? sections
+      : [{ children: [new Paragraph({ text: "ไม่พบข้อมูล" })] }],
   });
 }
 
