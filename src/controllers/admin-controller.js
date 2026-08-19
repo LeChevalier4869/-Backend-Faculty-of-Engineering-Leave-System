@@ -1432,6 +1432,22 @@ exports.deleteLeaveBalanceByYear = async (req, res, next) => {
 
     const result = await LeaveBalanceService.deleteLeaveBalanceByYear(year);
 
+    // audit log — การลบข้อมูลอันตราย ต้องมีร่องรอย
+    try {
+      await AuditLogService.createLog(
+        req.user?.id || null,
+        "LEAVE_BALANCE_DELETE_BY_YEAR",
+        "SYSTEM",
+        null,
+        `ลบยอดวันลาปี ${result.year} (${result.deletedCount} รายการ)`,
+        null,
+        req.user?.email || "ADMIN_MANUAL",
+        { year: result.year, deletedCount: result.deletedCount }
+      );
+    } catch (logErr) {
+      console.error("audit log (delete leave balance) ล้มเหลว:", logErr.message);
+    }
+
     res.status(200).json({
       message: result.message,
       deletedCount: result.deletedCount,
@@ -1481,6 +1497,21 @@ exports.updateFiscalYear = async (req, res, next) => {
         where: { key: "currentYear" },
         data: { value: String(currentYear) },
       });
+    }
+
+    try {
+      await AuditLogService.createLog(
+        req.user?.id || null,
+        "FISCAL_YEAR_UPDATE",
+        "SETTING",
+        null,
+        `อัปเดตปีงบประมาณ = ${fiscalYear ?? "-"}, ปีปฏิทิน = ${currentYear ?? "-"}`,
+        null,
+        req.user?.email || "ADMIN_MANUAL",
+        { fiscalYear, currentYear }
+      );
+    } catch (logErr) {
+      console.error("audit log (update fiscal year) ล้มเหลว:", logErr.message);
     }
 
     res.status(200).json({

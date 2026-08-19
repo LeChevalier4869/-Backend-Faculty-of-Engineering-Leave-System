@@ -61,20 +61,55 @@ class ReportService {
   // }
 
   /**
-   * ช่วงวันที่ของรอบปีงบประมาณปัจจุบัน — อ่านจาก setting "fiscalYear" (เก็บเป็น ค.ศ.)
-   * ปีงบ ค.ศ. N = 1 ต.ค. (N-1) ถึง 30 ก.ย. N. คืน BE ไว้แสดงหัวรายงานด้วย
+   * ช่วงวันที่ของรอบปีงบประมาณ — ปีงบ ค.ศ. N = 1 ต.ค. (N-1) ถึง 30 ก.ย. N
+   * ระบุ fiscalYearCE เพื่อดูย้อนหลังได้ / เว้นว่าง = ใช้ปีงบปัจจุบันจาก setting "fiscalYear"
+   * คืน BE ไว้แสดงหัวรายงานด้วย
    */
-  static async getFiscalRange() {
-    const setting = await prisma.setting.findUnique({
-      where: { key: "fiscalYear" },
-    });
-    const fyCE = setting ? parseInt(setting.value, 10) : new Date().getFullYear();
+  static async getFiscalRange(fiscalYearCE) {
+    let fyCE = Number(fiscalYearCE);
+    if (!Number.isInteger(fyCE) || fyCE < 1900 || fyCE > 3000) {
+      const setting = await prisma.setting.findUnique({
+        where: { key: "fiscalYear" },
+      });
+      fyCE = setting ? parseInt(setting.value, 10) : new Date().getFullYear();
+    }
     return {
       startDate: `${fyCE - 1}-10-01`,
       endDate: `${fyCE}-09-30T23:59:59.999`,
       fiscalYearCE: fyCE,
       fiscalYearBE: fyCE + 543,
     };
+  }
+
+  /**
+   * ปีงบประมาณที่ "มีข้อมูลจริง" (จากใบลาที่อนุมัติ) + ปีงบปัจจุบันเสมอ
+   * คืนเป็น พ.ศ. เรียงมากไปน้อย — ให้ frontend ใช้เป็นตัวเลือก filter
+   */
+  static async getAvailableFiscalYears() {
+    const fyCE = (d) => {
+      const x = new Date(d);
+      return x.getMonth() >= 9 ? x.getFullYear() + 1 : x.getFullYear();
+    };
+
+    const setting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+    });
+    const currentCE = setting ? parseInt(setting.value, 10) : new Date().getFullYear();
+
+    const years = new Set([currentCE]); // ปีงบปัจจุบันเลือกได้เสมอ แม้ยังไม่มีข้อมูล
+
+    const agg = await prisma.leaveRequest.aggregate({
+      where: { status: "APPROVED" },
+      _min: { startDate: true },
+      _max: { startDate: true },
+    });
+    if (agg._min.startDate && agg._max.startDate) {
+      for (let y = fyCE(agg._min.startDate); y <= fyCE(agg._max.startDate); y++) {
+        years.add(y);
+      }
+    }
+
+    return [...years].sort((a, b) => b - a).map((ce) => ce + 543);
   }
 
   static async getReportData(organizationId, startDate, endDate) {

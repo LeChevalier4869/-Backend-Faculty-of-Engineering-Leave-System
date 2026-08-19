@@ -552,8 +552,8 @@ exports.exportRoundReportWORD = (req, res) => handleRound(req, res, "word", "exp
 // ช่วงวันที่ derive จาก setting "fiscalYear" ในระบบ — client ส่งแค่ organizationId
 async function handleFiscal(req, res, format, where) {
   try {
-    const { organizationId } = req.body;
-    const { startDate, endDate, fiscalYearBE } = await ReportService.getFiscalRange();
+    const { organizationId, fiscalYear } = req.body;
+    const { startDate, endDate, fiscalYearBE } = await ReportService.getFiscalRange(fiscalYear);
     return await buildSummary(res, {
       organizationId,
       startDate,
@@ -574,11 +574,21 @@ exports.getFiscalReportData = async (req, res) => {
   try {
     const organizationId = Number(req.query.organizationId);
     if (!organizationId) return res.status(400).json({ error: "กรุณาระบุ organizationId" });
-    const { startDate, endDate, fiscalYearBE } = await ReportService.getFiscalRange();
+    const { startDate, endDate, fiscalYearBE } = await ReportService.getFiscalRange(req.query.fiscalYear);
     const rows = await ReportService.getReportData(organizationId, startDate, endDate);
     return res.json({ organizationId, startDate, endDate, fiscalYearBE, rows });
   } catch (err) {
     return fail(res, err, "getFiscalReportData");
+  }
+};
+
+// ปีงบที่มีข้อมูลจริง (+ ปีปัจจุบัน) เป็น พ.ศ. — ให้ frontend ทำ dropdown filter
+exports.getFiscalYears = async (req, res) => {
+  try {
+    const years = await ReportService.getAvailableFiscalYears();
+    return res.json({ years });
+  } catch (err) {
+    return fail(res, err, "getFiscalYears");
   }
 };
 

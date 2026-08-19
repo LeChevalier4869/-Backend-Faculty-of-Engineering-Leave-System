@@ -11,6 +11,7 @@ router.post("/report/data", authenticate, reportController.reportData);
 //report data
 router.get("/report/data-month", authenticate, reportController.getReportDataForMonth);
 router.get("/report/fiscal-data", authenticate, reportController.getFiscalReportData);
+router.get("/report/fiscal-years", authenticate, reportController.getFiscalYears);
 // พรีวิวแยกของทีม (คงไว้เพื่อความเข้ากันได้)
 router.get("/report/data-fiscal", authenticate, reportController.getReportDataForFiscalYear);
 router.get("/report/data-round", authenticate, reportController.getReportDataForRound);

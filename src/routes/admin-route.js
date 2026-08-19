@@ -139,9 +139,11 @@ router.delete('/setting/:id', authorize(["ADMIN"]), adminController.deleteSettin
 router.post('/send-pending-reminders', authorize(["ADMIN"]), adminController.sendPendingReminders);
 
 //---------------------------------- Leave Balance Reset -----------------------
-router.post('/reset-leave-balance', authorize(["ADMIN"]), adminController.resetLeaveBalance);
+// รีเซ็ต/ลบยอดวันลา = อันตราย → SUPER_ADMIN เท่านั้น
+router.post('/reset-leave-balance', authorize(["SUPER_ADMIN"]), adminController.resetLeaveBalance);
+router.delete('/leave-balance/:year', authorize(["SUPER_ADMIN"]), adminController.deleteLeaveBalanceByYear);
+// ดูข้อมูล/อัปเดตปีงบ = ADMIN ทำได้
 router.get('/leave-balance/years', authorize(["ADMIN"]), adminController.getAvailableYears);
-router.delete('/leave-balance/:year', authorize(["ADMIN"]), adminController.deleteLeaveBalanceByYear);
 router.get('/fiscal-year', authorize(["ADMIN"]), adminController.getFiscalYearInfo);
 router.put('/fiscal-year', authorize(["ADMIN"]), adminController.updateFiscalYear);
 
