@@ -28,7 +28,9 @@ const {
   TextRun,
   TableLayoutType,
   VerticalAlign,
+  VerticalMerge,
   Header,
+  PageOrientation,
 } = require("docx");
 
 /* ---------------------------------------------------------------- helpers */
@@ -283,7 +285,7 @@ const wCell = (txt, opts = {}) => {
     columnSpan = 1,
     verticalMerge,
     width,
-    margins = { top: 20, bottom: 0, left: 40, right: 40 },
+    margins = { top: 10, bottom: 0, left: 40, right: 40 },
   } = opts;
   return new TableCell({
     columnSpan,
@@ -297,7 +299,7 @@ const wCell = (txt, opts = {}) => {
             text: String(txt ?? ""),
             font: "TH Sarabun New",
             bold,
-            size: 28,
+            size: 27,
           }),
         ],
         alignment: AlignmentType[alignment.toUpperCase()],
@@ -321,124 +323,482 @@ const WORD_BORDERS = {
 
 function summaryWordTables(list) {
   const TYPE_W = 760;
+
   const colWidths = [
-    600,
-    1300,
-    2800,
-    ...SUMMARY_TYPES.flatMap(() => [TYPE_W, TYPE_W]),
-    1000,
-    1200,
-    1400,
-    1300,
+    600, // ที่
+    1300, // เลขที่ตำแหน่ง
+    2800, // ชื่อ - สกุล
+
+    ...SUMMARY_TYPES.flatMap(() => [
+      TYPE_W, // ครั้ง
+      TYPE_W, // วัน
+    ]),
+
+    1000, // มาสาย
+    1400, // ขาดราชการ
+    1400, // อื่น ๆ
+    1800, // หมายเหตุ
   ];
 
-  const headerRows = () => {
-    const row1 = new TableRow({
-      tableHeader: true,
-      children: [
-        wCell("ที่", { verticalMerge: "restart" }),
-        wCell("เลขที่ตำแหน่ง", { verticalMerge: "restart" }),
-        wCell("ชื่อ - สกุล", { verticalMerge: "restart" }),
-        ...SUMMARY_TYPES.map((t) => wCell(t.label, { columnSpan: 2 })),
-        wCell("มาสาย(ครั้ง)", { verticalMerge: "restart" }),
-        wCell("ขาดราชการ(วัน)", { verticalMerge: "restart" }),
-        wCell("อื่น ๆ", { verticalMerge: "restart" }),
-        wCell("หมายเหตุ", { verticalMerge: "restart" }),
-      ],
-    });
-    const row2 = new TableRow({
-      tableHeader: true,
-      children: [
-        wCell("", { verticalMerge: "continue" }),
-        wCell("", { verticalMerge: "continue" }),
-        wCell("", { verticalMerge: "continue" }),
-        ...SUMMARY_TYPES.flatMap(() => [wCell("ครั้ง"), wCell("วัน")]),
-        wCell("", { verticalMerge: "continue" }),
-        wCell("", { verticalMerge: "continue" }),
-        wCell("", { verticalMerge: "continue" }),
-        wCell("", { verticalMerge: "continue" }),
-      ],
-    });
-    return [row1, row2];
+  const compactMargins = {
+    top: 0,
+    bottom: 0,
+    left: 40,
+    right: 40,
   };
 
-  const MAX_ROWS_PER_PAGE = 22;
-  const out = [];
-  for (let p = 0; p * MAX_ROWS_PER_PAGE < list.length; p++) {
-    const chunk = list.slice(
-      p * MAX_ROWS_PER_PAGE,
-      (p + 1) * MAX_ROWS_PER_PAGE,
-    );
-    const rows = [...headerRows()];
-    chunk.forEach((u, idx) => {
-      rows.push(
-        new TableRow({
-          children: [
-            wCell(p * MAX_ROWS_PER_PAGE + idx + 1),
-            wCell(u.positionNo || ""),
-            wCell(u.name, { alignment: "left" }),
-            ...SUMMARY_TYPES.flatMap((t) => [
-              wCell(td(u.leaveSummary, t.key, "times")),
-              wCell(td(u.leaveSummary, t.key, "days")),
-            ]),
-            wCell(u.lateTimes != null ? u.lateTimes : "-"),
-            wCell(u.absentDays != null ? u.absentDays : "-"),
-            wCell(u.otherLeave || ""),
-            wCell(u.note || ""),
-          ],
-        }),
-      );
-    });
-    if (p > 0) out.push(new Paragraph({ pageBreakBefore: true }));
-    out.push(
-      new Table({
-        layout: TableLayoutType.FIXED,
-        columnWidths: colWidths,
-        rows,
-        borders: WORD_BORDERS,
-      }),
-    );
-  }
-  return out;
-}
+  // =========================================================
+  // HEADER ROW 1
+  // =========================================================
+  const row1 = new TableRow({
+    tableHeader: true,
 
-function summaryWordDoc(reportData, headingLines) {
-  const entries = Object.entries(reportData).filter(([, u]) => u.length);
-  const sections = entries.map(([typeName, users]) => ({
-    properties: {
-      page: {
-        margin: { top: 1000, bottom: 1000, left: 543, right: 543 },
-        size: { orientation: "landscape", width: 16838, height: 11906 },
-      },
-    },
-    headers: {
-      default: new Header({
-        children: headingLines(typeName).map(
-          (text) =>
-            new Paragraph({
-              children: [
-                new TextRun({ text, font: "TH Sarabun New", size: 28 }),
-              ],
-              alignment: AlignmentType.CENTER,
-            }),
-        ),
+    children: [
+      // -----------------------------------------------------
+      // ที่
+      // -----------------------------------------------------
+      new TableCell({
+        verticalMerge: "restart",
+        margins: compactMargins,
+
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "ที่",
+                font: "TH Sarabun New",
+                size: 27,
+              }),
+            ],
+
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
       }),
-    },
-    children: [...summaryWordTables(users), new Paragraph({ text: "" })],
-  }));
+
+      // -----------------------------------------------------
+      // เลขที่ตำแหน่ง
+      // -----------------------------------------------------
+      new TableCell({
+        verticalMerge: "restart",
+        margins: compactMargins,
+
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "เลขที่ตำแหน่ง",
+                font: "TH Sarabun New",
+                size: 27,
+              }),
+            ],
+
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
+      }),
+
+      // -----------------------------------------------------
+      // ชื่อ - สกุล
+      // -----------------------------------------------------
+      new TableCell({
+        verticalMerge: "restart",
+        margins: compactMargins,
+
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "ชื่อ - สกุล",
+                font: "TH Sarabun New",
+                size: 27,
+              }),
+            ],
+
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
+      }),
+
+      // -----------------------------------------------------
+      // ประเภทการลา
+      // -----------------------------------------------------
+      ...SUMMARY_TYPES.map((t) =>
+        wCell(t.label, {
+          columnSpan: 2,
+          margins: compactMargins,
+        }),
+      ),
+
+      // -----------------------------------------------------
+      // มาสาย
+      // -----------------------------------------------------
+      new TableCell({
+        verticalMerge: "restart",
+        margins: compactMargins,
+
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "มาสาย(ครั้ง)",
+                font: "TH Sarabun New",
+                size: 27,
+              }),
+            ],
+
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
+      }),
+
+      // -----------------------------------------------------
+      // ขาดราชการ
+      // -----------------------------------------------------
+      new TableCell({
+        verticalMerge: "restart",
+        margins: compactMargins,
+
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "ขาดราชการ(วัน)",
+                font: "TH Sarabun New",
+                size: 27,
+              }),
+            ],
+
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
+      }),
+
+      // -----------------------------------------------------
+      // อื่น ๆ
+      // -----------------------------------------------------
+      new TableCell({
+        verticalMerge: "restart",
+        margins: compactMargins,
+
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "อื่น ๆ",
+                font: "TH Sarabun New",
+                size: 27,
+              }),
+            ],
+
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
+      }),
+
+      // -----------------------------------------------------
+      // หมายเหตุ
+      // -----------------------------------------------------
+      new TableCell({
+        verticalMerge: "restart",
+        margins: compactMargins,
+
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "หมายเหตุ",
+                font: "TH Sarabun New",
+                size: 27,
+              }),
+            ],
+
+            alignment: AlignmentType.CENTER,
+          }),
+        ],
+      }),
+    ],
+  });
+
+  // =========================================================
+  // HEADER ROW 2
+  // =========================================================
+  const row2 = new TableRow({
+    tableHeader: true,
+
+    children: [
+      // ที่
+      new TableCell({
+        verticalMerge: "continue",
+        margins: compactMargins,
+        children: [],
+      }),
+
+      // เลขที่ตำแหน่ง
+      new TableCell({
+        verticalMerge: "continue",
+        margins: compactMargins,
+        children: [],
+      }),
+
+      // ชื่อ - สกุล
+      new TableCell({
+        verticalMerge: "continue",
+        margins: compactMargins,
+        children: [],
+      }),
+
+      // ลาป่วย
+      wCell("ครั้ง", {
+        margins: compactMargins,
+      }),
+
+      wCell("วัน", {
+        margins: compactMargins,
+      }),
+
+      // ลากิจ
+      wCell("ครั้ง", {
+        margins: compactMargins,
+      }),
+
+      wCell("วัน", {
+        margins: compactMargins,
+      }),
+
+      // ลาพักผ่อน
+      wCell("ครั้ง", {
+        margins: compactMargins,
+      }),
+
+      wCell("วัน", {
+        margins: compactMargins,
+      }),
+
+      // มาสาย
+      new TableCell({
+        verticalMerge: "continue",
+        margins: compactMargins,
+        children: [],
+      }),
+
+      // ขาดราชการ
+      new TableCell({
+        verticalMerge: "continue",
+        margins: compactMargins,
+        children: [],
+      }),
+
+      // อื่น ๆ
+      new TableCell({
+        verticalMerge: "continue",
+        margins: compactMargins,
+        children: [],
+      }),
+
+      // หมายเหตุ
+      new TableCell({
+        verticalMerge: "continue",
+        margins: compactMargins,
+        children: [],
+      }),
+    ],
+  });
+
+  // =========================================================
+  // DATA ROWS
+  // =========================================================
+  const dataRows = list.map((u, idx) => {
+    return new TableRow({
+      cantSplit: true,
+
+      children: [
+        // ที่
+        wCell(idx + 1, {
+          margins: compactMargins,
+        }),
+
+        // เลขที่ตำแหน่ง
+        wCell(u.positionNo || "", {
+          margins: compactMargins,
+        }),
+
+        // ชื่อ - สกุล
+        wCell(u.name || "", {
+          alignment: "left",
+          margins: compactMargins,
+        }),
+
+        // ประเภทการลา
+        ...SUMMARY_TYPES.flatMap((t) => [
+          wCell(td(u.leaveSummary, t.key, "times"), {
+            margins: compactMargins,
+          }),
+
+          wCell(td(u.leaveSummary, t.key, "days"), {
+            margins: compactMargins,
+          }),
+        ]),
+
+        // มาสาย
+        wCell(u.lateTimes != null ? u.lateTimes : "-", {
+          margins: compactMargins,
+        }),
+
+        // ขาดราชการ
+        wCell(u.absentDays != null ? u.absentDays : "-", {
+          margins: compactMargins,
+        }),
+
+        // อื่น ๆ
+        wCell(u.otherLeave || "", {
+          margins: compactMargins,
+        }),
+
+        // หมายเหตุ
+        wCell(u.note || "", {
+          margins: compactMargins,
+        }),
+      ],
+    });
+  });
+
+  // =========================================================
+  // TABLE
+  // =========================================================
+  return [
+    new Table({
+      layout: TableLayoutType.FIXED,
+
+      columnWidths: colWidths,
+
+      rows: [row1, row2, ...dataRows],
+
+      borders: WORD_BORDERS,
+    }),
+  ];
+}
+function summaryWordDoc(reportData, headingLines) {
+  const MAX_USERS_PER_PAGE = 15;
+
+  const sections = [];
+
+  Object.entries(reportData)
+    .filter(([, users]) => users.length)
+    .forEach(([typeName, users]) => {
+      for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
+        const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
+
+        sections.push({
+          properties: {
+            page: {
+              margin: {
+                top: 900,
+                bottom: 900,
+                left: 543,
+                right: 543,
+              },
+
+              size: {
+                width: 11906,
+                height: 16838,
+                orientation: PageOrientation.LANDSCAPE,
+              },
+            },
+          },
+
+          // =================================================
+          // WORD HEADER
+          // =================================================
+          headers: {
+            default: new Header({
+              children: headingLines(typeName).map(
+                (text) =>
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text,
+                        font: "TH Sarabun New",
+                        size: 32,
+                      }),
+                    ],
+
+                    alignment: AlignmentType.CENTER,
+
+                    spacing: {
+                      before: 0,
+                      after: 0,
+                    },
+                  }),
+              ),
+            }),
+          },
+
+          // =================================================
+          // TABLE
+          // =================================================
+          children: [...summaryWordTables(chunk)],
+        });
+      }
+    });
 
   return new Document({
     styles: {
       default: {
-        document: { run: { font: "TH Sarabun New", size: 28, lang: "th-TH" } },
+        document: {
+          run: {
+            font: "TH Sarabun New",
+            size: 32,
+            lang: "th-TH",
+          },
+        },
       },
     },
+
     sections: sections.length
       ? sections
-      : [{ children: [new Paragraph({ text: "ไม่พบข้อมูล" })] }],
+      : [
+          {
+            properties: {
+              page: {
+                margin: {
+                  top: 900,
+                  bottom: 900,
+                  left: 543,
+                  right: 543,
+                },
+
+                size: {
+                  width: 11906,
+                  height: 16838,
+                  orientation: PageOrientation.LANDSCAPE,
+                },
+              },
+            },
+
+            headers: {
+              default: new Header({
+                children: [
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: "ไม่พบข้อมูล",
+                        font: "TH Sarabun New",
+                        size: 32,
+                      }),
+                    ],
+
+                    alignment: AlignmentType.CENTER,
+                  }),
+                ],
+              }),
+            },
+
+            children: [],
+          },
+        ],
   });
 }
-
 /* ============================================================== MONTHLY PDF */
 function monthlyPdfTable(users, daysInMonth, month, year) {
   const headerRow1 = [
@@ -583,14 +943,19 @@ const signatureBlock = () => {
 function monthlyPdfDoc(result, headingLines) {
   const { daysInMonth, month, year, report } = result;
   const content = [];
-  const MAX_USERS_PER_PAGE = 22;
+
+  // สูงสุด 20 รายชื่อ / หน้า
+  const MAX_USERS_PER_PAGE = 20;
 
   Object.entries(report).forEach(([typeName, users], index) => {
     if (!users.length) return;
+
     const lines = headingLines(typeName);
+
     for (let i = 0; i < users.length; i += MAX_USERS_PER_PAGE) {
       const chunk = users.slice(i, i + MAX_USERS_PER_PAGE);
       const first = i === 0 && index === 0;
+
       content.push({
         stack: [
           ...headingStack(lines, [0, 0, 0, 4]),
@@ -600,14 +965,20 @@ function monthlyPdfDoc(result, headingLines) {
       });
     }
   });
+
   content.push(signatureBlock());
 
   return {
     pageSize: "A4",
     pageOrientation: "landscape",
     content,
-    styles: { th: { bold: false } },
-    defaultStyle: { font: "THSarabunNew", fontSize: 11 },
+    styles: {
+      th: { bold: false },
+    },
+    defaultStyle: {
+      font: "THSarabunNew",
+      fontSize: 11,
+    },
     pageMargins: [20, 20, 20, 20],
   };
 }
@@ -615,75 +986,153 @@ function monthlyPdfDoc(result, headingLines) {
 /* ============================================================= MONTHLY WORD */
 function monthlyWordTables(users, daysInMonth, month, year) {
   const dayW = 300;
+
   const colWidths = [500, 2400, ...Array(daysInMonth).fill(dayW), 900, 1100];
+
+  const compactMargins = {
+    top: 0,
+    bottom: 0,
+    left: 40,
+    right: 40,
+  };
+
+  const dayMargins = {
+    top: 0,
+    bottom: 0,
+    left: 10,
+    right: 10,
+  };
 
   const headerRows = () => {
     const row1 = new TableRow({
       tableHeader: true,
       children: [
-        wCell("ลำดับ", { verticalMerge: "restart" }),
-        wCell("ชื่อ - สกุล", { verticalMerge: "restart" }),
-        wCell("ประจำวันที่", { columnSpan: daysInMonth }),
-        wCell("รวมวันทำงาน", { verticalMerge: "restart" }),
-        wCell("หมายเหตุ", { verticalMerge: "restart" }),
+        wCell("ลำดับ", {
+          verticalMerge: "restart",
+          margins: compactMargins,
+        }),
+        wCell("ชื่อ - สกุล", {
+          verticalMerge: "restart",
+          margins: compactMargins,
+        }),
+        wCell("ประจำวันที่", {
+          columnSpan: daysInMonth,
+          margins: compactMargins,
+        }),
+        wCell("รวมวันทำงาน", {
+          verticalMerge: "restart",
+          margins: compactMargins,
+        }),
+        wCell("หมายเหตุ", {
+          verticalMerge: "restart",
+          margins: compactMargins,
+        }),
       ],
     });
+
     const row2 = new TableRow({
       tableHeader: true,
       children: [
-        wCell("", { verticalMerge: "continue" }),
-        wCell("", { verticalMerge: "continue" }),
+        wCell("", {
+          verticalMerge: "continue",
+          margins: compactMargins,
+        }),
+        wCell("", {
+          verticalMerge: "continue",
+          margins: compactMargins,
+        }),
+
         ...Array.from({ length: daysInMonth }, (_, i) =>
           wCell(String(i + 1), {
             fillColor: isWeekendDate(year, month, i + 1) ? "D9D9D9" : null,
-            margins: { top: 10, bottom: 0, left: 10, right: 10 },
+            margins: dayMargins,
           }),
         ),
-        wCell("", { verticalMerge: "continue" }),
-        wCell("", { verticalMerge: "continue" }),
+
+        wCell("", {
+          verticalMerge: "continue",
+          margins: compactMargins,
+        }),
+        wCell("", {
+          verticalMerge: "continue",
+          margins: compactMargins,
+        }),
       ],
     });
+
     return [row1, row2];
   };
 
+  // ไม่เกิน 20 รายชื่อ / หน้า
   const MAX_ROWS_PER_PAGE = 20;
+
   const out = [];
+
   for (let p = 0; p * MAX_ROWS_PER_PAGE < users.length; p++) {
     const chunk = users.slice(
       p * MAX_ROWS_PER_PAGE,
       (p + 1) * MAX_ROWS_PER_PAGE,
     );
+
     const rows = [...headerRows()];
+
     chunk.forEach((u, idx) => {
       const dayCells = [];
+
       for (let d = 1; d <= daysInMonth; d++) {
         const key = u.attendance?.[d];
         const info = key ? ATTENDANCE[key] : null;
+
         const weekend = isWeekendDate(year, month, d);
-        // มาทำงาน "/" เฉพาะวันที่ถึงวันนี้ (เสาร์อาทิตย์/อนาคต = เว้นว่าง)
+
         const present = !info && !weekend && !isFutureDate(year, month, d);
+
         const text = info ? info.t : present ? DAY_PRESENT : "";
+
         const fill = info ? info.c.replace("#", "") : weekend ? "D9D9D9" : null;
+
         dayCells.push(
           wCell(text, {
             fillColor: fill,
-            margins: { top: 10, bottom: 0, left: 10, right: 10 },
+            margins: dayMargins,
           }),
         );
       }
+
       rows.push(
         new TableRow({
           children: [
-            wCell(p * MAX_ROWS_PER_PAGE + idx + 1),
-            wCell(u.name, { alignment: "left" }),
+            wCell(p * MAX_ROWS_PER_PAGE + idx + 1, {
+              margins: compactMargins,
+            }),
+
+            wCell(u.name, {
+              alignment: "left",
+              margins: compactMargins,
+            }),
+
             ...dayCells,
-            wCell(String(u.totalWorkDays ?? "")),
-            wCell(""),
+
+            wCell(String(u.totalWorkDays ?? ""), {
+              margins: compactMargins,
+            }),
+
+            wCell("", {
+              margins: compactMargins,
+            }),
           ],
         }),
       );
     });
-    if (p > 0) out.push(new Paragraph({ pageBreakBefore: true }));
+
+    if (p > 0) {
+      out.push(
+        new Paragraph({
+          pageBreakBefore: true,
+        }),
+      );
+    }
+
     out.push(
       new Table({
         layout: TableLayoutType.FIXED,
@@ -693,6 +1142,7 @@ function monthlyWordTables(users, daysInMonth, month, year) {
       }),
     );
   }
+
   return out;
 }
 
@@ -703,47 +1153,111 @@ function monthlyWordDoc(result, headingLines) {
   const sections = entries.map(([typeName, users]) => ({
     properties: {
       page: {
-        margin: { top: 900, bottom: 900, left: 543, right: 543 },
-        size: { orientation: "landscape", width: 16838, height: 11906 },
+        margin: {
+          top: 900,
+          bottom: 900,
+          left: 543,
+          right: 543,
+        },
+        size: {
+          width: 11906,
+          height: 16838,
+          orientation: PageOrientation.LANDSCAPE,
+        },
       },
     },
+
     headers: {
       default: new Header({
         children: headingLines(typeName).map(
           (text) =>
             new Paragraph({
               children: [
-                new TextRun({ text, font: "TH Sarabun New", size: 28 }),
+                new TextRun({
+                  text,
+                  font: "TH Sarabun New",
+                  size: 28,
+                }),
               ],
               alignment: AlignmentType.CENTER,
             }),
         ),
       }),
     },
-    children: [
-      ...monthlyWordTables(users, daysInMonth, month, year),
-      new Paragraph({ text: "" }),
+
+    // ไม่มี LEGEND ตรงนี้แล้ว
+    children: [...monthlyWordTables(users, daysInMonth, month, year)],
+  }));
+
+  // ---------------------------------------------------------
+  // เพิ่ม Legend แค่ครั้งเดียวท้ายสุด
+  // ---------------------------------------------------------
+
+  if (sections.length > 0) {
+    sections[sections.length - 1].children.push(
+      new Paragraph({
+        text: "",
+        spacing: {
+          before: 300,
+        },
+      }),
+
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "หมายเหตุ",
+            font: "TH Sarabun New",
+            size: 22,
+            bold: true,
+          }),
+        ],
+      }),
+
       new Paragraph({
         children: [
           new TextRun({
             text: MONTH_LEGEND.join(" "),
             font: "TH Sarabun New",
-            size: 24,
+            size: 22,
           }),
         ],
       }),
-    ],
-  }));
+    );
+  }
 
   return new Document({
     styles: {
       default: {
-        document: { run: { font: "TH Sarabun New", size: 28, lang: "th-TH" } },
+        document: {
+          run: {
+            font: "TH Sarabun New",
+            size: 22,
+            lang: "th-TH",
+          },
+        },
       },
     },
+
     sections: sections.length
       ? sections
-      : [{ children: [new Paragraph({ text: "ไม่พบข้อมูล" })] }],
+      : [
+          {
+            properties: {
+              page: {
+                size: {
+                  width: 11906,
+                  height: 16838,
+                  orientation: PageOrientation.LANDSCAPE,
+                },
+              },
+            },
+            children: [
+              new Paragraph({
+                text: "ไม่พบข้อมูล",
+              }),
+            ],
+          },
+        ],
   });
 }
 
