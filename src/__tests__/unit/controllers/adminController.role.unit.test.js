@@ -305,7 +305,9 @@ describe("admin-controller role endpoints", () => {
         5,
         "ลบ Role: OLD_ROLE (ID: 5)",
         "127.0.0.1",
-        "jest-test-agent"
+        "jest-test-agent",
+        // เก็บ snapshot ของ role ก่อนลบ เพื่อกู้ข้อมูลย้อนหลังได้
+        expect.objectContaining({ name: "OLD" })
       );
     });
 

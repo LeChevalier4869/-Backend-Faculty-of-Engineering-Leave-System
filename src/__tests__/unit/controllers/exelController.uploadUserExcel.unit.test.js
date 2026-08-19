@@ -16,6 +16,9 @@ const makeReq = () => ({
   file: {
     buffer: Buffer.from("fake"),
   },
+  user: { id: 1 },
+  ip: "127.0.0.1",
+  get: jest.fn().mockReturnValue("jest-test-agent"),
 });
 
 describe("exel-controller.uploadUserExcel", () => {

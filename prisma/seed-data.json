@@ -3,7 +3,7 @@
     "note": "สร้างอัตโนมัติจาก DB จริงด้วย scripts/generate-seed-data.js — แก้ไขได้ตามต้องการ",
     "generatedFromCounts": {
       "organizations": 1,
-      "departments": 14,
+      "departments": 16,
       "personnelTypes": 5,
       "leaveTypes": 16,
       "ranks": 75
@@ -69,6 +69,14 @@
     },
     {
       "name": "สถิติประยุกต์",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "วิศวกรรมไฟฟ้า",
+      "organization": "คณะวิศวกรรมศาสตร์"
+    },
+    {
+      "name": "สำนักงานคณบดี",
       "organization": "คณะวิศวกรรมศาสตร์"
     }
   ],
@@ -165,24 +173,6 @@
     {
       "name": "ลาไปประกอบพิธีฮัจย์",
       "isAvailable": false,
-      "isNonDeductible": true,
-      "resetOnFiscalYear": false
-    },
-    {
-      "name": "ลาเข้ารับการตรวจเลือก",
-      "isAvailable": true,
-      "isNonDeductible": true,
-      "resetOnFiscalYear": false
-    },
-    {
-      "name": "ลาศึกษาต่อ",
-      "isAvailable": true,
-      "isNonDeductible": true,
-      "resetOnFiscalYear": false
-    },
-    {
-      "name": "ลาไปต่างประเทศ",
-      "isAvailable": true,
       "isNonDeductible": true,
       "resetOnFiscalYear": false
     }

@@ -61,13 +61,6 @@ router.get(
   proxyApprovalController.getHistoryProxyApprovals
 );
 
-// ดึงข้อมูลการมอบอำนาจตาม ID
-router.get(
-  "/:id",
-  authMiddleware.authenticate,
-  proxyApprovalController.getProxyApprovalById
-);
-
 // ดึงข้อมูลการมอบอำนาจที่ผู้ใช้เป็นผู้อนุมัติต้นฉบับ
 router.get(
   "/my/original",
@@ -124,6 +117,15 @@ router.get(
   authMiddleware.authenticate,
   authMiddleware.authorize(["ADMIN"]),
   proxyApprovalController.getProxyApprovalStats
+);
+
+// ดึงข้อมูลการมอบอำนาจตาม ID — ต้องอยู่ "ท้ายสุด" ของ GET
+// ไม่งั้น "/:id" จะจับ path เฉพาะที่เป็น segment เดียว (เช่น /potential-approvers, /stats)
+// ไปเป็น id แล้ว parseInt ได้ NaN ทำให้ findUnique พัง (500)
+router.get(
+  "/:id",
+  authMiddleware.authenticate,
+  proxyApprovalController.getProxyApprovalById
 );
 
 // ────────────────────────────────

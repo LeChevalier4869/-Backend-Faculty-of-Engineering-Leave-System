@@ -74,12 +74,22 @@ class OrgAndDeptService {
   }
 
   static async createDepartment(data) {
+    // กันสร้างสาขาชื่อซ้ำในหน่วยงานเดียวกัน (ให้สอดคล้องกับ createOrganization)
+    const cleanName = String(data.name || "").trim();
+    if (!cleanName) throw createError(400, "กรุณาระบุชื่อแผนก");
+    const duplicate = await prisma.department.findFirst({
+      where: { name: cleanName, organizationId: data.organizationId },
+    });
+    if (duplicate) throw createError(409, `มีแผนกชื่อ "${cleanName}" อยู่แล้ว`);
+
     return await prisma.department.create({
-      data,
+      data: { ...data, name: cleanName },
     });
   }
 
   static async updateDepartment(id, data) {
+    const departmentId = parseInt(id);
+
     if (data.headId) {
       const headExists = await prisma.user.findUnique({
         where: { id: data.headId },
@@ -88,9 +98,66 @@ class OrgAndDeptService {
         throw createError(400, "ไม่พบผู้ใช้งานที่เป็นหัวหน้าของแผนก");
       }
     }
-    return await prisma.department.update({
-      where: { id: parseInt(id) }, // ตรวจสอบให้แน่ใจว่า id เป็น Int
-      data,
+
+    // เส้นทางนี้เคยเปลี่ยนหัวหน้าแผนกโดยไม่ sync บทบาท APPROVER_1
+    // ทำให้ข้อมูลเพี้ยนเมื่อมีการแก้ผ่าน endpoint นี้แทน /admin/departments/:id
+    return await prisma.$transaction(async (tx) => {
+      const current = await tx.department.findUnique({
+        where: { id: departmentId },
+        select: { headId: true },
+      });
+      if (!current) throw createError(404, "ไม่พบแผนก");
+
+      const updated = await tx.department.update({
+        where: { id: departmentId },
+        data,
+      });
+
+      // sync เฉพาะเมื่อส่ง headId มาจริง และค่าเปลี่ยนไปจากเดิม
+      if (data.headId !== undefined && current.headId !== data.headId) {
+        const approver1Role = await tx.role.findFirst({
+          where: { name: "APPROVER_1" },
+        });
+
+        if (approver1Role) {
+          // ถอดจากหัวหน้าเดิม ถ้าไม่ได้เป็นหัวหน้าแผนกอื่นอยู่ด้วย
+          if (current.headId) {
+            const stillHeadElsewhere = await tx.department.count({
+              where: { headId: current.headId, id: { not: departmentId } },
+            });
+            if (stillHeadElsewhere === 0) {
+              await tx.userRole.deleteMany({
+                where: { userId: current.headId, roleId: approver1Role.id },
+              });
+            }
+          }
+
+          if (data.headId) {
+            await tx.userRole.createMany({
+              data: [{ userId: data.headId, roleId: approver1Role.id }],
+              skipDuplicates: true,
+            });
+          }
+        }
+
+        // โอนคำขอที่ยังรออนุมัติขั้นหัวหน้าสาขาไปให้หัวหน้าคนใหม่ (กันคำขอค้างถาวร)
+        if (data.headId) {
+          await tx.leaveRequestDetail.updateMany({
+            where: {
+              stepOrder: 1,
+              status: "PENDING",
+              leaveRequest: {
+                status: "PENDING",
+                user: { departmentId },
+                userId: { not: data.headId },
+              },
+            },
+            data: { approverId: data.headId },
+          });
+        }
+      }
+
+      return updated;
     });
   }
 

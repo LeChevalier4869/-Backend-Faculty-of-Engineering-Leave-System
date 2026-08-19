@@ -1,0 +1,24 @@
+# ไฟล์/โฟลเดอร์ที่ "ห้าม" เข้าไปใน image (ลดขนาด + กัน secret หลุด)
+node_modules
+npm-debug.log*
+
+# ⚠️ ห้ามฝัง secret ลง image — ส่ง env ผ่าน docker compose ตอน runtime แทน
+.env
+.env.*
+
+# ข้อมูล/ผลลัพธ์ที่ควรอยู่ใน volume ไม่ใช่ใน image
+uploads
+public/reports
+backups
+*.sql
+*.sql.bak
+
+# ของ dev / ไม่จำเป็นตอน runtime
+.git
+.gitignore
+.vscode
+coverage
+src/__tests__
+*.md
+Dockerfile
+.dockerignore

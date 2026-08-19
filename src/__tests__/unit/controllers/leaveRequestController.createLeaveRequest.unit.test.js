@@ -64,7 +64,7 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
     expect(LeaveBalanceService.updatePendingLeaveBalance).toHaveBeenCalledWith(10, 1, 2);
     expect(AuditLogService.createLog).toHaveBeenCalledWith(
       10,
-      "Create Request",
+      "CREATE",
       "LeaveRequest",
       123,
       expect.stringContaining("สร้างคำขอลา: 123 (ลา 2 วัน)"),

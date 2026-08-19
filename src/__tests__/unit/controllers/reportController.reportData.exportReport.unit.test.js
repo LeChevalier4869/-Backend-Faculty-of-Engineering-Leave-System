@@ -211,7 +211,7 @@ describe("reportController.reportData / exportReport", () => {
       expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/pdf");
       expect(res.setHeader).toHaveBeenCalledWith(
         "Content-Disposition",
-        "attachment; filename=org-report-10.pdf"
+        `attachment; filename="Report_Round_1.pdf"; filename*=UTF-8''Report_Round_1.pdf`
       );
     });
 
@@ -239,14 +239,17 @@ describe("reportController.reportData / exportReport", () => {
       );
       expect(res.setHeader).toHaveBeenCalledWith(
         "Content-Disposition",
-        "attachment; filename=org-report-10.docx"
+        `attachment; filename="Report_Round_1.docx"; filename*=UTF-8''Report_Round_1.docx`
       );
       expect(res.send).toHaveBeenCalledWith(Buffer.from("docx"));
     });
 
-    it("returns 400 for invalid format", async () => {
+    // controller ใหม่: format ที่ไม่ใช่ "word" จะ fallback เป็น pdf (ไม่ error)
+    it("unknown format falls back to pdf", async () => {
       ReportService.getReportData.mockResolvedValue({
-        "ลาป่วย": [],
+        "ลาป่วย": [
+          { name: "A", leaveSummary: { "ลาป่วย": { count: 1, days: 2 } } },
+        ],
       });
 
       const req = { body: { ...baseReqBody, format: "xlsx" } };
@@ -254,10 +257,8 @@ describe("reportController.reportData / exportReport", () => {
 
       await reportController.exportReport(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: "Invalid format, use 'pdf' or 'word'",
-      });
+      expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/pdf");
+      expect(Packer.toBuffer).not.toHaveBeenCalled();
     });
 
     it("returns 500 when ReportService throws", async () => {

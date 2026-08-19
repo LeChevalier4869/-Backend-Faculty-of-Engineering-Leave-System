@@ -27,6 +27,7 @@ const apiRoute = require("./routes/api-route");
 const lookupRoute = require("./routes/lookup-routes");
 const adminUserRoute = require("./routes/admin-user-route");
 const proxyApprovalRoute = require("./routes/proxyApproval-route");
+const approverRoute = require("./routes/approver-route");
 const auditLogRoute = require("./routes/auditLog-route");
 const rankRoute = require("./routes/rank-route");
 //const reportRouter         = require('./routes/report-router');
@@ -137,6 +138,9 @@ app.use("/ranks", rankRoute);
 
 // Proxy approval routes
 app.use("/proxy-approval", authenticate, proxyApprovalRoute);
+
+// Approver oversight (dashboard data scoped by approver role: faculty vs department)
+app.use("/approver", authenticate, approverRoute);
 
 // Excel upload route (ADMIN only)
 app.use("/excel", authenticate, authorize(["ADMIN"]), exelRoute);

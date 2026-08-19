@@ -217,6 +217,36 @@ class AuditLogService {
           });
           break;
 
+        case 'Role':
+          entity = await prisma.role.findUnique({
+            where: { id: parseInt(entityId) },
+            select: { id: true, name: true, description: true }
+          });
+          break;
+
+        case 'Rank':
+          entity = await prisma.rank.findUnique({
+            where: { id: parseInt(entityId) },
+          });
+          break;
+
+        case 'Setting':
+          entity = await prisma.setting.findUnique({
+            where: { id: parseInt(entityId) },
+            select: { id: true, key: true, value: true, type: true, description: true }
+          });
+          break;
+
+        case 'ApproverPosition':
+          entity = await prisma.approverPosition.findUnique({
+            where: { id: parseInt(entityId) },
+            include: {
+              user: { select: { id: true, prefixName: true, firstName: true, lastName: true } },
+              organization: { select: { id: true, name: true } }
+            }
+          });
+          break;
+
         default:
           console.log(`Unsupported entity type for snapshot: ${entityType}`);
           break;

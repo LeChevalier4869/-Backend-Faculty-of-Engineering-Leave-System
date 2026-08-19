@@ -76,8 +76,36 @@ describe("leaveRequest-controller flow", () => {
       expect(err.statusCode).toBe(404);
     });
 
-    it("calls next with 400 when user has no department", async () => {
-      LeaveRequestService.getRequestsById.mockResolvedValue([{ id: 5, verifierId: 99 }]);
+    it("calls next with 404 when request id matches nothing", async () => {
+      // getRequestsById คืน array — ไม่พบจะได้ [] ซึ่งเป็น truthy
+      // เดิมหลุดไปพังที่ leaveRequests[0].user (500) แทนที่จะเป็น 404
+      LeaveRequestService.getRequestsById.mockResolvedValue([]);
+
+      const req = {
+        params: { id: "5" },
+        user: { id: 10, department: { id: 1 } },
+      };
+      const res = makeRes();
+      const next = jest.fn();
+
+      await leaveRequestController.getLeaveRequest(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      const err = next.mock.calls[0][0];
+      expect(err.statusCode).toBe(404);
+    });
+
+    it("does not require the viewer to have a department", async () => {
+      // ผู้ดูอาจไม่ใช่คนในสาขาเดียวกับผู้ยื่น การเช็คแผนกของ "ผู้ดู" จึงผิด
+      LeaveRequestService.getRequestsById.mockResolvedValue([
+        {
+          id: 5,
+          verifierId: 99,
+          user: { id: 7, department: { id: 1 } },
+          leaveRequestDetails: [],
+        },
+      ]);
+      UserService.getHeadOfDepartment.mockResolvedValue(null);
 
       const req = {
         params: { id: "5" },
@@ -88,9 +116,8 @@ describe("leaveRequest-controller flow", () => {
 
       await leaveRequestController.getLeaveRequest(req, res, next);
 
-      expect(next).toHaveBeenCalledTimes(1);
-      const err = next.mock.calls[0][0];
-      expect(err.statusCode).toBe(400);
+      const badRequest = next.mock.calls.find((c) => c[0]?.statusCode === 400);
+      expect(badRequest).toBeUndefined();
     });
 
     it("returns detail with head/verifier/steps", async () => {

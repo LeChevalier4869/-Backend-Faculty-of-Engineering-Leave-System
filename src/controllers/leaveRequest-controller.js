@@ -25,23 +25,27 @@ exports.createLeaveRequest = async (req, res, next) => {
       contact,
     );
 
-    if (!leaveRequest || !leaveRequest.id) throw createError(500, "สร้างคำขอลาไม่สำเร็จ");
+    if (!leaveRequest || !leaveRequest.id)
+      throw createError(500, "สร้างคำขอลาไม่สำเร็จ");
 
     // อัปเดต pending leave balance
-    if (typeof leaveRequest.thisTimeDays !== "number" || isNaN(leaveRequest.thisTimeDays)) {
+    if (
+      typeof leaveRequest.thisTimeDays !== "number" ||
+      isNaN(leaveRequest.thisTimeDays)
+    ) {
       throw createError(500, "จำนวนวันลาทีผิดพลาด");
     }
 
     await LeaveBalanceService.updatePendingLeaveBalance(
       req.user.id,
       leaveTypeId,
-      leaveRequest.thisTimeDays
+      leaveRequest.thisTimeDays,
     );
 
     // create log
     await AuditLogService.createLog(
       req.user.id,
-      "Create Request",
+      "CREATE",
       "LeaveRequest",
       leaveRequest.id,
       `สร้างคำขอลา: ${leaveRequest.id} (ลา ${leaveRequest.thisTimeDays} วัน)`,
@@ -50,8 +54,8 @@ exports.createLeaveRequest = async (req, res, next) => {
       {
         leaveTypeId: leaveRequest.leaveTypeId,
         requestedDays: leaveRequest.thisTimeDays,
-        action: 'CREATE'
-      }
+        action: "CREATE",
+      },
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
@@ -86,19 +90,19 @@ exports.createLeaveRequest = async (req, res, next) => {
       await LeaveRequestService.attachImages(attachImages);
     }
 
-    res.status(201).json({ message: "คำขอลาได้ถูกสร้าง", requestId: leaveRequest.id });
+    res
+      .status(201)
+      .json({ message: "คำขอลาได้ถูกสร้าง", requestId: leaveRequest.id });
   } catch (err) {
     next(err);
   }
 };
 
-
 exports.getMyLeaveRequests = async (req, res) => {
   try {
     const userId = req.user.id;
-    const leaveRequests = await LeaveRequestService.getLeaveRequestsByUser(
-      userId
-    );
+    const leaveRequests =
+      await LeaveRequestService.getLeaveRequestsByUser(userId);
     res.json(leaveRequests);
   } catch (error) {
     console.error("Error fetching leave requests:", error);
@@ -134,7 +138,9 @@ exports.updateLeaveStatus = async (req, res, next) => {
     const user = req.user;
     const userRole = Array.isArray(user.role) ? user.role : [user.role];
 
-    const oldRequest = await prisma.leaveRequest.findUnique({ where: { id: requestId } });
+    const oldRequest = await prisma.leaveRequest.findUnique({
+      where: { id: requestId },
+    });
     if (!oldRequest) throw createError(404, "ไม่พบคำขอลา");
 
     const updatedStatus = await LeaveRequestService.updateRequestStatus(
@@ -151,7 +157,7 @@ exports.updateLeaveStatus = async (req, res, next) => {
       oldRequest,
       updatedStatus,
       req.ip,
-      req.get("User-Agent")
+      req.get("User-Agent"),
     );
     res
       .status(200)
@@ -164,33 +170,32 @@ exports.updateLeaveStatus = async (req, res, next) => {
 exports.getLeaveRequest = async (req, res, next) => {
   try {
     const requestId = parseInt(req.params.id);
-    // console.log("Debug requestId11:", requestId);
-    const user = req.user;
 
     // const leaveRequests = await LeaveRequestService.getRequests(whereCondition);
     const leaveRequests = await LeaveRequestService.getRequestsById(requestId);
     // console.log("Debug leaveRequest: ", leaveRequests);
-    if (!leaveRequests) {
+    // getRequestsById คืนเป็น array — ถ้าไม่พบจะได้ [] ซึ่ง truthy
+    // เดิมเช็คแค่ !leaveRequests จึงหลุดไปพังตอน leaveRequests[0].user (500 แทนที่จะเป็น 404)
+    if (!leaveRequests || leaveRequests.length === 0) {
       throw createError(404, "ไม่พบคำขอลา");
-    }
-
-    if (!user.department || !user.department.id) {
-      throw createError(400, "ผู้ใช้ไม่มีแผนกที่กำหนด");
     }
 
     // ค้นหาหัวหน้าสาขาของคำขอลานี้ (ใช้ department ของคนที่ยื่นลา)
     const leaveRequestUser = leaveRequests[0].user;
     const headDepartmentId = await UserService.getHeadOfDepartment(
-      leaveRequestUser.department.id
+      leaveRequestUser.department.id,
     );
-    
+
     // ตรวจสอบว่า headDepartmentId มี APPROVER_1 role และอยู่ department เดียวกันจริง
     let headDepartment = null;
     if (headDepartmentId) {
       const headUser = await UserService.getUserByIdWithRoles(headDepartmentId);
-      const hasApprover1Role = headUser?.userRoles?.some(ur => ur.role?.name === "APPROVER_1");
-      const isInSameDepartment = headUser?.departmentId === leaveRequestUser.department.id;
-      
+      const hasApprover1Role = headUser?.userRoles?.some(
+        (ur) => ur.role?.name === "APPROVER_1",
+      );
+      const isInSameDepartment =
+        headUser?.departmentId === leaveRequestUser.department.id;
+
       if (hasApprover1Role && isInSameDepartment) {
         headDepartment = headDepartmentId;
       }
@@ -206,7 +211,7 @@ exports.getLeaveRequest = async (req, res, next) => {
           ? await UserService.getUserByIdWithRoles(headDepartment)
           : null,
         verifier: await UserService.getUserByIdWithRoles(
-          leaveRequests[0].verifierId
+          leaveRequests[0].verifierId,
         ),
         approvalSteps,
       },
@@ -248,12 +253,11 @@ exports.getLastLeaveBefore = async (req, res) => {
 
   try {
     const cutoff = beforeDate ? new Date(beforeDate) : new Date();
-    const lastLeave =
-      await LeaveRequestService.getLastLeaveBefore(
-        userId,
-        Number(leaveTypeId),
-        cutoff,
-      );
+    const lastLeave = await LeaveRequestService.getLastLeaveBefore(
+      userId,
+      Number(leaveTypeId),
+      cutoff,
+    );
     //debug
     // console.log("Debugging Leave request", lastLeave);
     res.status(200).json({ data: lastLeave ?? null });
@@ -266,9 +270,8 @@ exports.getLastLeaveBefore = async (req, res) => {
 exports.getMyLastApprovedLeaveRequest = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const lastApproved = await LeaveRequestService.getLastApprovedRequestIsMine(
-      userId
-    );
+    const lastApproved =
+      await LeaveRequestService.getLastApprovedRequestIsMine(userId);
 
     if (!lastApproved) {
       throw createError(404, "ไม่พบคำขอลาที่อนุมัติแล้ว");
@@ -297,7 +300,7 @@ exports.updateLeaveRequest = async (req, res, next) => {
 
     const updateRequest = await LeaveRequestService.updateRequest(
       leaveRequestId,
-      updateData
+      updateData,
     );
     res.status(200).json({
       message: "อัปเดตคำขอลา",
@@ -374,6 +377,21 @@ exports.getAllLeaveRequests = async (req, res, next) => {
   }
 };
 
+exports.getAllLeaveRequestsInDepartment = async (req, res, next) => {
+  try {
+    const leaveRequests = await LeaveRequestService.getAllRequestsInDepartment(
+      req.user.departmentId,
+    );
+
+    res.status(200).json({
+      message: "ดึงข้อมูลการลาทั้งหมดในสาขาสำเร็จ",
+      data: leaveRequests,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getLeaveRequestsForFirstApprover = async (req, res) => {
   try {
     // ต้องมี user token ถึงจะเข้าใช้งานได้
@@ -386,7 +404,11 @@ exports.getLeaveRequestsForFirstApprover = async (req, res) => {
     const approverIds = approvers.map(v => v.id);
 
     if (!approverIds.includes(req.user.id)) {
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_1 required)" });
+      return res
+        .status(403)
+        .json({
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_1 required)",
+        });
     }
 
     const leaveRequests =
@@ -410,7 +432,11 @@ exports.getLeaveRequestsForVerifier = async (req, res) => {
     const verifierIds = verifiers.map(v => v.id);
 
     if (!verifierIds.includes(req.user.id)) {
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (VERIFIER required)" });
+      return res
+        .status(403)
+        .json({
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (VERIFIER required)",
+        });
     }
 
     const leaveRequests =
@@ -434,7 +460,11 @@ exports.getLeaveRequestsForSecondApprover = async (req, res) => {
     const approverIds = approvers.map(v => v.id);
 
     if (!approverIds.includes(req.user.id)) {
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)" });
+      return res
+        .status(403)
+        .json({
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)",
+        });
     }
 
     const leaveRequests =
@@ -458,7 +488,11 @@ exports.getLeaveRequestsForThirdApprover = async (req, res) => {
     const approverIds = approvers.map(v => v.id);
 
     if (!approverIds.includes(req.user.id)) {
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)" });
+      return res
+        .status(403)
+        .json({
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)",
+        });
     }
 
     const leaveRequests =
@@ -482,7 +516,11 @@ exports.getLeaveRequestsForFourthApprover = async (req, res) => {
     const approverIds = approvers.map(v => v.id);
 
     if (!approverIds.includes(req.user.id)) {
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)" });
+      return res
+        .status(403)
+        .json({
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)",
+        });
     }
 
     const leaveRequests =
@@ -513,7 +551,8 @@ exports.approveByFirstApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -539,7 +578,7 @@ exports.approveByFirstApprover = async (req, res, next) => {
         newRequest,
         1,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
 
@@ -564,7 +603,8 @@ exports.rejectByFirstApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -591,7 +631,7 @@ exports.rejectByFirstApprover = async (req, res, next) => {
         newRequest,
         1,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
 
@@ -615,7 +655,8 @@ exports.approveByVerifier = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -623,21 +664,26 @@ exports.approveByVerifier = async (req, res, next) => {
 
     // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
     const verifiers = await UserService.getApproversForLevel(2, new Date());
-    const verifierIds = verifiers.map(v => v.id);
-    
-    console.log('Approve - User ID:', req.user.id);
-    console.log('Approve - Verifier IDs:', verifierIds);
-    console.log('Approve - Is user verifier?', verifierIds.includes(req.user.id));
-    
+    const verifierIds = verifiers.map((v) => v.id);
+
+    console.log("Approve - User ID:", req.user.id);
+    console.log("Approve - Verifier IDs:", verifierIds);
+    console.log(
+      "Approve - Is user verifier?",
+      verifierIds.includes(req.user.id),
+    );
+
     if (!verifierIds.includes(req.user.id)) {
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
+      return res
+        .status(403)
+        .json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
     }
 
-    console.log('🔍 Controller - Calling service with:', {
+    console.log("🔍 Controller - Calling service with:", {
       id,
       approverId: req.user.id,
       remarks,
-      comment
+      comment,
     });
 
     const result = await LeaveRequestService.approveByVerifier({
@@ -660,7 +706,7 @@ exports.approveByVerifier = async (req, res, next) => {
         newRequest,
         2,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
     res.json(result);
@@ -684,7 +730,8 @@ exports.rejectByVerifier = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -692,14 +739,19 @@ exports.rejectByVerifier = async (req, res, next) => {
 
     // ตรวจสอบว่า user เป็น verifier หรือ proxy verifier หรือไม่
     const verifiers = await UserService.getApproversForLevel(2, new Date());
-    const verifierIds = verifiers.map(v => v.id);
-    
-    console.log('Reject - User ID:', req.user.id);
-    console.log('Reject - Verifier IDs:', verifierIds);
-    console.log('Reject - Is user verifier?', verifierIds.includes(req.user.id));
-    
+    const verifierIds = verifiers.map((v) => v.id);
+
+    console.log("Reject - User ID:", req.user.id);
+    console.log("Reject - Verifier IDs:", verifierIds);
+    console.log(
+      "Reject - Is user verifier?",
+      verifierIds.includes(req.user.id),
+    );
+
     if (!verifierIds.includes(req.user.id)) {
-      return res.status(403).json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (VERIFIER required)" });
+      return res
+        .status(403)
+        .json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (VERIFIER required)" });
     }
 
     // เรียกใช้ service ในการ reject
@@ -723,7 +775,7 @@ exports.rejectByVerifier = async (req, res, next) => {
         newRequest,
         2,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
 
@@ -748,7 +800,8 @@ exports.approveBySecondApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -774,7 +827,7 @@ exports.approveBySecondApprover = async (req, res, next) => {
         newRequest,
         3,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
     res.json(result);
@@ -798,7 +851,8 @@ exports.rejectBySecondApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -825,7 +879,7 @@ exports.rejectBySecondApprover = async (req, res, next) => {
         newRequest,
         3,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
 
@@ -850,7 +904,8 @@ exports.approveByThirdApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -876,7 +931,7 @@ exports.approveByThirdApprover = async (req, res, next) => {
         newRequest,
         4,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
     res.json(result);
@@ -900,7 +955,8 @@ exports.rejectByThirdApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -927,7 +983,7 @@ exports.rejectByThirdApprover = async (req, res, next) => {
         newRequest,
         4,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
 
@@ -952,7 +1008,8 @@ exports.approveByFourthApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -978,7 +1035,7 @@ exports.approveByFourthApprover = async (req, res, next) => {
         newRequest,
         5,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
     res.json(result);
@@ -1002,7 +1059,8 @@ exports.rejectByFourthApprover = async (req, res, next) => {
       where: { id },
       select: { leaveRequestId: true },
     });
-    if (!detail?.leaveRequestId) throw createError(404, "ไม่พบรายละเอียดคำขอลา");
+    if (!detail?.leaveRequestId)
+      throw createError(404, "ไม่พบรายละเอียดคำขอลา");
 
     const oldRequest = await prisma.leaveRequest.findUnique({
       where: { id: detail.leaveRequestId },
@@ -1029,7 +1087,7 @@ exports.rejectByFourthApprover = async (req, res, next) => {
         newRequest,
         5,
         req.ip,
-        req.get("User-Agent")
+        req.get("User-Agent"),
       );
     }
 
@@ -1075,7 +1133,7 @@ exports.adminCancelLeaveRequest = async (req, res, next) => {
     const result = await LeaveRequestService.adminCancelLeaveRequest(
       adminId,
       leaveRequestNumber,
-      paperFileData
+      paperFileData,
     );
 
     // บันทึก audit log สำหรับการทำงานของ admin
@@ -1086,7 +1144,7 @@ exports.adminCancelLeaveRequest = async (req, res, next) => {
       result.leaveRequest.id,
       `Admin ยกเลิกคำขอลาเลขที่ ${leaveRequestNumber}`,
       req.ip,
-      req.get("User-Agent")
+      req.get("User-Agent"),
     );
 
     res.status(200).json(result);
@@ -1103,10 +1161,14 @@ exports.findLeaveRequestByNumber = async (req, res, next) => {
       throw createError(400, "กรุณาระบุเลขที่ใบลา");
     }
 
-    const leaveRequest = await LeaveRequestService.findLeaveRequestByNumber(documentNumber);
+    const leaveRequest =
+      await LeaveRequestService.findLeaveRequestByNumber(documentNumber);
 
     if (!leaveRequest) {
-      throw createError(404, "ไม่พบคำขอลาที่อนุมัติแล้ว หรือเลขที่ใบลาไม่ถูกต้อง");
+      throw createError(
+        404,
+        "ไม่พบคำขอลาที่อนุมัติแล้ว หรือเลขที่ใบลาไม่ถูกต้อง",
+      );
     }
 
     res.status(200).json(leaveRequest);

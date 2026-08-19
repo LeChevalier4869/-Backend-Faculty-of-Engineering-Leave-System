@@ -60,7 +60,62 @@ class ReportService {
   //   });
   // }
 
+  /**
+   * ช่วงวันที่ของรอบปีงบประมาณ — ปีงบ ค.ศ. N = 1 ต.ค. (N-1) ถึง 30 ก.ย. N
+   * ระบุ fiscalYearCE เพื่อดูย้อนหลังได้ / เว้นว่าง = ใช้ปีงบปัจจุบันจาก setting "fiscalYear"
+   * คืน BE ไว้แสดงหัวรายงานด้วย
+   */
+  static async getFiscalRange(fiscalYearCE) {
+    let fyCE = Number(fiscalYearCE);
+    if (!Number.isInteger(fyCE) || fyCE < 1900 || fyCE > 3000) {
+      const setting = await prisma.setting.findUnique({
+        where: { key: "fiscalYear" },
+      });
+      fyCE = setting ? parseInt(setting.value, 10) : new Date().getFullYear();
+    }
+    return {
+      startDate: `${fyCE - 1}-10-01`,
+      endDate: `${fyCE}-09-30T23:59:59.999`,
+      fiscalYearCE: fyCE,
+      fiscalYearBE: fyCE + 543,
+    };
+  }
+
+  /**
+   * ปีงบประมาณที่ "มีข้อมูลจริง" (จากใบลาที่อนุมัติ) + ปีงบปัจจุบันเสมอ
+   * คืนเป็น พ.ศ. เรียงมากไปน้อย — ให้ frontend ใช้เป็นตัวเลือก filter
+   */
+  static async getAvailableFiscalYears() {
+    const fyCE = (d) => {
+      const x = new Date(d);
+      return x.getMonth() >= 9 ? x.getFullYear() + 1 : x.getFullYear();
+    };
+
+    const setting = await prisma.setting.findUnique({
+      where: { key: "fiscalYear" },
+    });
+    const currentCE = setting ? parseInt(setting.value, 10) : new Date().getFullYear();
+
+    const years = new Set([currentCE]); // ปีงบปัจจุบันเลือกได้เสมอ แม้ยังไม่มีข้อมูล
+
+    const agg = await prisma.leaveRequest.aggregate({
+      where: { status: "APPROVED" },
+      _min: { startDate: true },
+      _max: { startDate: true },
+    });
+    if (agg._min.startDate && agg._max.startDate) {
+      for (let y = fyCE(agg._min.startDate); y <= fyCE(agg._max.startDate); y++) {
+        years.add(y);
+      }
+    }
+
+    return [...years].sort((a, b) => b - a).map((ce) => ce + 543);
+  }
+
   static async getReportData(organizationId, startDate, endDate) {
+    const winStart = new Date(startDate);
+    const winEnd = new Date(endDate);
+
     // 1. ดึง personnel type ทั้งหมด
     const personnelTypes = await prisma.personnelType.findMany({
       select: { id: true, name: true },
@@ -72,7 +127,6 @@ class ReportService {
         department: {
           organizationId: Number(organizationId),
         },
-        personnelTypeId: Number(personnelTypeId),
       },
       select: {
         id: true,
@@ -92,8 +146,8 @@ class ReportService {
           where: {
             status: "APPROVED",
             // ✅ เงื่อนไขแบบ "ทับบางส่วน"
-            startDate: { lte: new Date(endDate) },
-            endDate: { gte: new Date(startDate) },
+            startDate: { lte: winEnd },
+            endDate: { gte: winStart },
           },
           select: {
             id: true,
@@ -118,12 +172,25 @@ class ReportService {
 
       const summary = {};
       user.LeaveRequest.forEach((lr) => {
-        const leaveTypeName = lr.leaveType.name;
+        const leaveTypeName = lr.leaveType?.name;
+        if (!leaveTypeName) return;
         if (!summary[leaveTypeName]) {
           summary[leaveTypeName] = { count: 0, days: 0 };
         }
+        // นับเฉพาะจำนวนวันที่คาบเกี่ยวอยู่ในช่วงรายงาน (prorate ตามสัดส่วนวันปฏิทิน)
         summary[leaveTypeName].count += 1;
-        summary[leaveTypeName].days += lr.totalDays;
+        summary[leaveTypeName].days += ReportService.daysWithinWindow(
+          lr.startDate,
+          lr.endDate,
+          lr.totalDays,
+          winStart,
+          winEnd,
+        );
+      });
+
+      // ปัดเศษ .days กันค่าทศนิยมลอย (floating point)
+      Object.values(summary).forEach((s) => {
+        s.days = Math.round(s.days * 100) / 100;
       });
 
       if (!grouped[typeName]) {
@@ -132,13 +199,299 @@ class ReportService {
 
       grouped[typeName].push({
         userId: user.id,
-        name: `${user.prefixName} ${user.firstName} ${user.lastName}`,
+        positionNo: user.positionNumbers?.[0]?.positionNumber || "",
+        name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`.trim(),
         email: user.email,
         leaveSummary: summary,
       });
     });
 
     return grouped;
+  }
+  static async getReportDataForRound(
+    organizationId,
+    startDate,
+    endDate,
+    countReport,
+  ) {
+    const personnelTypes = await prisma.personnelType.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    const users = await prisma.user.findMany({
+      where: {
+        department: {
+          organizationId: Number(organizationId),
+        },
+      },
+
+      select: {
+        id: true,
+        prefixName: true,
+        firstName: true,
+        lastName: true,
+
+        positionNumbers: {
+          where: {
+            isCurrent: true,
+          },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
+
+        email: true,
+
+        personnelType: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+
+        LeaveRequest: {
+          where: {
+            status: "APPROVED",
+
+            // ใบลาที่ทับกับช่วงรอบประเมิน
+            startDate: {
+              lte: end,
+            },
+
+            endDate: {
+              gte: start,
+            },
+          },
+
+          select: {
+            id: true,
+
+            leaveType: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+
+            totalDays: true,
+            startDate: true,
+            endDate: true,
+          },
+        },
+      },
+    });
+
+    const grouped = {};
+
+    personnelTypes.forEach((pt) => {
+      grouped[pt.name] = [];
+    });
+
+    users.forEach((user) => {
+      const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
+
+      const summary = {};
+
+      user.LeaveRequest.forEach((lr) => {
+        const leaveTypeName = lr.leaveType?.name || "ไม่ระบุประเภทการลา";
+
+        if (!summary[leaveTypeName]) {
+          summary[leaveTypeName] = {
+            count: 0,
+            days: 0,
+          };
+        }
+
+        summary[leaveTypeName].count += 1;
+        summary[leaveTypeName].days += Number(lr.totalDays || 0);
+      });
+
+      if (!grouped[typeName]) {
+        grouped[typeName] = [];
+      }
+
+      grouped[typeName].push({
+        userId: user.id,
+
+        name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`,
+
+        email: user.email,
+
+        positionNumber: user.positionNumbers?.[0]?.positionNumber ?? null,
+
+        leaveSummary: summary,
+      });
+    });
+
+    return {
+      organizationId: Number(organizationId),
+      startDate,
+      endDate,
+      countReport: Number(countReport),
+      report: grouped,
+    };
+  }
+  static async getReportDataForFiscalYear(organizationId, startDate, endDate) {
+    const personnelTypes = await prisma.personnelType.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    const users = await prisma.user.findMany({
+      where: {
+        department: {
+          organizationId: Number(organizationId),
+        },
+      },
+
+      select: {
+        id: true,
+        prefixName: true,
+        firstName: true,
+        lastName: true,
+
+        positionNumbers: {
+          where: {
+            isCurrent: true,
+          },
+          select: {
+            positionNumber: true,
+            effectiveFrom: true,
+          },
+        },
+
+        email: true,
+
+        personnelType: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+
+        LeaveRequest: {
+          where: {
+            status: "APPROVED",
+
+            // ใบลาที่ทับกับช่วงปีงบประมาณ
+            startDate: {
+              lte: end,
+            },
+            endDate: {
+              gte: start,
+            },
+          },
+
+          select: {
+            id: true,
+
+            leaveType: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+
+            totalDays: true,
+            startDate: true,
+            endDate: true,
+          },
+        },
+      },
+    });
+
+    const grouped = {};
+
+    personnelTypes.forEach((pt) => {
+      grouped[pt.name] = [];
+    });
+
+    users.forEach((user) => {
+      const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
+
+      const summary = {};
+
+      user.LeaveRequest.forEach((lr) => {
+        const leaveTypeName = lr.leaveType?.name || "ไม่ระบุประเภทการลา";
+
+        if (!summary[leaveTypeName]) {
+          summary[leaveTypeName] = {
+            count: 0,
+            days: 0,
+          };
+        }
+
+        summary[leaveTypeName].count += 1;
+        summary[leaveTypeName].days += Number(lr.totalDays || 0);
+      });
+
+      if (!grouped[typeName]) {
+        grouped[typeName] = [];
+      }
+
+      grouped[typeName].push({
+        userId: user.id,
+        name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`,
+        email: user.email,
+
+        positionNumber: user.positionNumbers?.[0]?.positionNumber ?? null,
+
+        leaveSummary: summary,
+      });
+    });
+
+    return {
+      organizationId: Number(organizationId),
+      startDate,
+      endDate,
+      report: grouped,
+    };
+  }
+
+  /**
+   * จำนวนวันลาที่ตกอยู่ในช่วง [winStart, winEnd] — prorate totalDays ตามสัดส่วน
+   * วันปฏิทินที่คาบเกี่ยว (ถ้าใบลาอยู่ในช่วงทั้งหมด → คืน totalDays เต็ม)
+   */
+  static daysWithinWindow(start, end, totalDays, winStart, winEnd) {
+    const DAY = 86400000;
+    const atMidnight = (d) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x.getTime();
+    };
+    const ls = atMidnight(start);
+    const le = atMidnight(end);
+    const ws = atMidnight(winStart);
+    const we = atMidnight(winEnd);
+
+    const oStart = Math.max(ls, ws);
+    const oEnd = Math.min(le, we);
+    if (oEnd < oStart) return 0; // ไม่คาบเกี่ยว
+
+    const spanDays = Math.floor((le - ls) / DAY) + 1;
+    const overlapDays = Math.floor((oEnd - oStart) / DAY) + 1;
+    if (spanDays <= 0) return totalDays || 0;
+    if (overlapDays >= spanDays) return totalDays || 0; // อยู่ในช่วงทั้งหมด
+
+    return Math.round(((totalDays || 0) * overlapDays) / spanDays * 100) / 100;
   }
 
   static async downloadReport(userId) {
@@ -164,80 +517,98 @@ class ReportService {
   }
 
   static async getReportDataForMonth(organizationId, month, year) {
-  const referenceDate = new Date(year, month - 1, 1);
-  const startDateMonth = startOfMonth(referenceDate);
-  const endDateMonth = endOfMonth(referenceDate);
-  const daysInMonth = getDaysInMonth(referenceDate);
+    const referenceDate = new Date(year, month - 1, 1);
+    const startDateMonth = startOfMonth(referenceDate);
+    const endDateMonth = endOfMonth(referenceDate);
+    const daysInMonth = getDaysInMonth(referenceDate);
 
-  const personnelTypes = await prisma.personnelType.findMany({
-    select: { id: true, name: true },
-  });
+    const personnelTypes = await prisma.personnelType.findMany({
+      select: { id: true, name: true },
+    });
 
-  const users = await prisma.user.findMany({
-    where: {
-      department: { organizationId: Number(organizationId) },
-    },
-    select: {
-      id: true,
-      prefixName: true,
-      firstName: true,
-      lastName: true,
-      personnelType: { select: { name: true } },
-      LeaveRequest: {
-        where: {
-          status: "APPROVED",
-          startDate: { lte: endDateMonth },
-          endDate: { gte: startDateMonth },
-        },
-        select: {
-          leaveTypeId: true,
-          startDate: true,
-          endDate: true,
+    const users = await prisma.user.findMany({
+      where: {
+        department: { organizationId: Number(organizationId) },
+      },
+      select: {
+        id: true,
+        prefixName: true,
+        firstName: true,
+        lastName: true,
+        personnelType: { select: { name: true } },
+        LeaveRequest: {
+          where: {
+            status: "APPROVED",
+            startDate: { lte: endDateMonth },
+            endDate: { gte: startDateMonth },
+          },
+          select: {
+            leaveTypeId: true,
+            startDate: true,
+            endDate: true,
+          },
         },
       },
-    },
-  });
-
-  const grouped = {};
-  personnelTypes.forEach((pt) => { grouped[pt.name] = []; });
-
-  const allDays = eachDayOfInterval({ start: startDateMonth, end: endDateMonth });
-
-  users.forEach((user) => {
-    const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
-    const attendance = {};
-    let actualWorkDaysCount = 0;
-
-    allDays.forEach((date) => {
-      const dayKey = date.getDate();
-      const isDayWeekend = isWeekend(date);
-      
-      const matchLeave = user.LeaveRequest.find((lr) => 
-        isWithinInterval(date, { 
-          start: new Date(lr.startDate).setHours(0,0,0,0), 
-          end: new Date(lr.endDate).setHours(23,59,59,999) 
-        })
-      );
-
-      if (matchLeave) {
-        // ✅ เก็บเฉพาะวันที่ลาจริงลงใน Object
-        attendance[dayKey] = matchLeave.leaveTypeId;
-      } else if (!isDayWeekend) {
-        // ✅ ถ้าไม่ลา และไม่ใช่เสาร์-อาทิตย์ ให้บวกวันทำงาน
-        actualWorkDaysCount++;
-      }
-      // หมายเหตุ: วันหยุดเสาร์-อาทิตย์ที่ไม่ได้ลา จะไม่ถูกเก็บลง attendance และไม่ถูกนับใน actualWorkDaysCount
     });
 
-    grouped[typeName].push({
-      userId: user.id,
-      name: `${user.prefixName}${user.firstName} ${user.lastName}`,
-      attendance: attendance, 
-      totalWorkDays: actualWorkDaysCount, // ตัวเลขวันทำงานจริง (จ-ศ ที่ไม่ลา)
+    const grouped = {};
+    personnelTypes.forEach((pt) => {
+      grouped[pt.name] = [];
     });
-  });
 
-  return { organizationId, month, year, daysInMonth, report: grouped };
-}
+    const allDays = eachDayOfInterval({
+      start: startDateMonth,
+      end: endDateMonth,
+    });
+
+    const LEAVE_KEY = {
+      1: "SICK", // ลาป่วย
+      2: "MATERNITY", // ลาคลอดบุตร
+      3: "PERSONAL", // ลากิจส่วนตัว
+      4: "ANNUAL", // ลาพักผ่อน
+      5: "ORDINATION", // ลาอุปสมบท
+      6: "MILITARY", // ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล
+      7: "STUDY", // ลาไปศึกษา ฝึกอบรม วิจัย ดูงาน
+      8: "PATERNITY", // ลาไปช่วยเหลือภริยาที่คลอดบุตร
+      9: "REHABILITATION", // ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ
+      10: "DHARMA", // ลาไปถือศีล ปฏิบัติธรรม
+      11: "INTERNATIONAL_WORK", // ลาไปปฏิบัติงานในองค์การระหว่างประเทศ
+      12: "FOLLOW_SPOUSE", // ลาติดตามคู่สมรส
+      13: "HAJJ", // ลาไปประกอบพิธีฮัจย์
+    };
+
+    users.forEach((user) => {
+      const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
+      const attendance = {};
+      let actualWorkDaysCount = 0;
+
+      allDays.forEach((date) => {
+        const dayKey = date.getDate();
+        const isDayWeekend = isWeekend(date);
+
+        const matchLeave = user.LeaveRequest.find((lr) =>
+          isWithinInterval(date, {
+            start: new Date(lr.startDate).setHours(0, 0, 0, 0),
+            end: new Date(lr.endDate).setHours(23, 59, 59, 999),
+          }),
+        );
+
+        if (matchLeave) {
+          attendance[dayKey] = LEAVE_KEY[matchLeave.leaveTypeId] ?? "UNKNOWN";
+        } else if (!isDayWeekend) {
+          actualWorkDaysCount++;
+        }
+      });
+
+      grouped[typeName].push({
+        userId: user.id,
+        name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`,
+        attendance,
+        totalWorkDays: actualWorkDaysCount,
+      });
+    });
+
+    return { organizationId, month, year, daysInMonth, report: grouped };
+  }
 }
 module.exports = ReportService;
