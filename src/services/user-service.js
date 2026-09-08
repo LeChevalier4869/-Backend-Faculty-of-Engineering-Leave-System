@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
+const { isSexAllowedForLeaveType } = require("../utils/leaveGenderPolicy");
 
 class UserService {
   static async createUser(data) {
@@ -747,8 +748,8 @@ class UserService {
       // ข้ามถ้าไม่มี leaveTypeId หรือ maxDays
       if (!leaveTypeId || maxDays === null) continue;
 
-      // ข้ามการลาเฉพาะเพศหญิงสำหรับผู้ใช้ชาย
-      if (sex === "ชาย" && UserService.isFemaleOnlyLeave(userRank.rank.leaveType?.name)) {
+      // ข้ามการลาเฉพาะเพศที่ไม่ตรงกับผู้ใช้ (ชาย↔ลาหญิง, หญิง↔ลาชาย)
+      if (!isSexAllowedForLeaveType(sex, userRank.rank.leaveType?.name)) {
         continue;
       }
 

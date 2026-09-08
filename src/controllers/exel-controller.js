@@ -797,6 +797,15 @@ exports.uploadUserExcel = async (req, res) => {
         if (userSex === "ชาย" && (isMaternityLeave || isFemaleOrdination)) {
           continue;
         }
+
+        // Male-only leaves (only men can take these) — ลาตรวจเลือก/เตรียมพล (เกณฑ์ทหาร)
+        const isMilitaryLeave =
+          leaveTypeName.includes("ตรวจเลือก") ||
+          leaveTypeName.includes("เตรียมพล");
+        // Skip male-only leaves for female users
+        if (userSex === "หญิง" && isMilitaryLeave) {
+          continue;
+        }
         
         // อ่านค่าจาก paper (optional) ของ leave type นี้ — ใช้ได้ทั้ง deductible/non-deductible
         let paperValue = null;

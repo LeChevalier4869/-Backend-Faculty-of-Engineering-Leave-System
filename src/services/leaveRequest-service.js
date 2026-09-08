@@ -7,6 +7,10 @@ const ProxyApprovalService = require("./proxyApproval-service");
 const AuditLogService = require("./auditLog-service");
 const { calculateWorkingDays } = require("../utils/dateCalculate");
 const { queueNotification } = require("../utils/emailService");
+const {
+  isSexAllowedForLeaveType,
+  isFemaleOnlyLeave,
+} = require("../utils/leaveGenderPolicy");
 
 class LeaveRequestService {
   // ────────────────────────────────────────────────────────────────
@@ -568,6 +572,15 @@ class LeaveRequestService {
       select: { id: true, name: true },
     });
     if (!leaveType) throw createError(404, "ไม่พบประเภทการลา");
+
+    // ตรวจสอบเงื่อนไขเพศของประเภทการลา (ชายลาคลอดไม่ได้ / หญิงลาตรวจเลือกทหารไม่ได้)
+    if (!isSexAllowedForLeaveType(user.sex, leaveType.name)) {
+      const targetSex = isFemaleOnlyLeave(leaveType.name) ? "หญิง" : "ชาย";
+      throw createError(
+        400,
+        `ประเภทการลา "${leaveType.name}" สำหรับเพศ${targetSex}เท่านั้น`,
+      );
+    }
 
     const coreLeaveTypeNames = new Set(["ลาป่วย", "ลากิจส่วนตัว", "ลาพักผ่อน"]);
 
