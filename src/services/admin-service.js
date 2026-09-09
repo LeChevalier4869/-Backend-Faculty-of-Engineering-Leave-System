@@ -462,6 +462,20 @@ class AdminService {
     if (duplicate) throw createError(409, `มีแผนกชื่อ "${cleanName}" อยู่แล้ว`);
     deptData.name = cleanName;
 
+    // 1 คน = หัวหน้าได้เพียง 1 แผนก
+    if (headId) {
+      const headingElsewhere = await prisma.department.findFirst({
+        where: { headId },
+        select: { name: true },
+      });
+      if (headingElsewhere) {
+        throw createError(
+          409,
+          `ผู้ใช้นี้เป็นหัวหน้าแผนก "${headingElsewhere.name}" อยู่แล้ว — 1 คนเป็นหัวหน้าได้เพียง 1 แผนก กรุณาปลดจากแผนกเดิมก่อน`
+        );
+      }
+    }
+
     return await prisma.$transaction(async (tx) => {
       // Create department
       const newDept = await tx.department.create({ data: deptData });
@@ -497,6 +511,12 @@ class AdminService {
           data: { headId },
         });
 
+        // แต่งตั้งหัวหน้า = ให้สังกัดแผนกที่เพิ่งสร้างด้วย
+        await tx.user.update({
+          where: { id: headId },
+          data: { departmentId: newDept.id },
+        });
+
         newDept.headId = headId;
       }
 
@@ -527,6 +547,20 @@ class AdminService {
       // ถ้าไม่ได้ส่ง headId มา (เช่น แก้แค่ชื่อแผนก) Prisma จะไม่แตะคอลัมน์นี้
       // จึงต้องไม่ไปถอดบทบาทของหัวหน้าคนเดิมด้วย
       if (headId !== undefined && currentDept.headId !== headId) {
+        // 1 คน = หัวหน้าได้เพียง 1 แผนก
+        if (headId) {
+          const headingElsewhere = await tx.department.findFirst({
+            where: { headId, id: { not: id } },
+            select: { name: true },
+          });
+          if (headingElsewhere) {
+            throw createError(
+              409,
+              `ผู้ใช้นี้เป็นหัวหน้าแผนก "${headingElsewhere.name}" อยู่แล้ว — 1 คนเป็นหัวหน้าได้เพียง 1 แผนก กรุณาปลดจากแผนกเดิมก่อน`
+            );
+          }
+        }
+
         // Remove APPROVER_1 role from previous head
         if (currentDept.headId) {
           const approver1Role = await tx.role.findFirst({
@@ -578,10 +612,15 @@ class AdminService {
               leaveRequest: {
                 status: "PENDING",
                 user: { departmentId: id },
-                userId: { not: headId },
               },
             },
             data: { approverId: headId },
+          });
+
+          // แต่งตั้งหัวหน้าคนใหม่ = ให้สังกัดแผนกนี้ด้วย
+          await tx.user.update({
+            where: { id: headId },
+            data: { departmentId: id },
           });
         }
       }
@@ -653,6 +692,49 @@ class AdminService {
    * แต่งตั้งหัวหน้าแผนก พร้อม sync บทบาท APPROVER_1 ให้สอดคล้องกัน
    * ทำใน transaction เดียว เพื่อไม่ให้เกิดสภาพ "ถอด role คนเก่าแล้วแต่ตั้งคนใหม่ไม่สำเร็จ"
    */
+  // ปลดหัวหน้าสาขา: เคลียร์ headId + ถอด APPROVER_1 (ถ้าไม่ได้เป็นหัวหน้าที่อื่น)
+  // คำขอที่ค้างขั้นหัวหน้าสาขาคงเดิม (approverId เดิม) — จะถูกโอนให้หัวหน้าคนใหม่ตอนแต่งตั้งใหม่
+  static async vacateHead(departmentId) {
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+      include: {
+        head: {
+          select: { id: true, prefixName: true, firstName: true, lastName: true },
+        },
+      },
+    });
+    if (!department) throw createError(404, "Department not found");
+    if (!department.headId) throw createError(400, "แผนกนี้ยังไม่มีหัวหน้าสาขา");
+
+    const previousHead = department.head;
+    const previousHeadId = department.headId;
+
+    const approver1Role = await prisma.role.findFirst({
+      where: { name: "APPROVER_1" },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.department.update({
+        where: { id: departmentId },
+        data: { headId: null },
+      });
+
+      // ถอด APPROVER_1 เฉพาะเมื่อไม่ได้เป็นหัวหน้าแผนกอื่นอยู่ด้วย
+      if (approver1Role) {
+        const stillHeadElsewhere = await tx.department.count({
+          where: { headId: previousHeadId, id: { not: departmentId } },
+        });
+        if (stillHeadElsewhere === 0) {
+          await tx.userRole.deleteMany({
+            where: { userId: previousHeadId, roleId: approver1Role.id },
+          });
+        }
+      }
+    });
+
+    return { id: department.id, name: department.name, previousHead };
+  }
+
   static async assignHead(departmentId, headId) {
     const department = await prisma.department.findUnique({
       where: { id: departmentId },
@@ -663,6 +745,19 @@ class AdminService {
       where: { id: headId },
     });
     if (!user) throw createError(404, "User not found");
+    const headName = `${user.prefixName || ""}${user.firstName || ""} ${user.lastName || ""}`.trim();
+
+    // 1 คน = หัวหน้าได้เพียง 1 แผนก: กันแต่งตั้งซ้ำถ้าเป็นหัวหน้าแผนกอื่นอยู่แล้ว
+    const headingElsewhere = await prisma.department.findFirst({
+      where: { headId, id: { not: departmentId } },
+      select: { name: true },
+    });
+    if (headingElsewhere) {
+      throw createError(
+        409,
+        `${headName} เป็นหัวหน้าแผนก "${headingElsewhere.name}" อยู่แล้ว — 1 คนเป็นหัวหน้าได้เพียง 1 แผนก กรุณาปลดจากแผนกเดิมก่อน`
+      );
+    }
 
     const approver1Role = await prisma.role.findFirst({
       where: { name: "APPROVER_1" },
@@ -697,9 +792,14 @@ class AdminService {
         skipDuplicates: true,
       });
 
-      // โอนคำขอลาที่ยังรออนุมัติขั้นหัวหน้าสาขาไปให้หัวหน้าคนใหม่
-      // ถ้าไม่ทำ คำขอจะค้างถาวร เพราะคิวอนุมัติกรองด้วย "ผู้ที่มีบทบาท APPROVER_1 ตอนนี้"
-      // หัวหน้าคนเก่าถูกถอดบทบาทไปแล้วจึงหาย ส่วนคนใหม่ก็ไม่ตรงกับ approverId เดิม
+      // แต่งตั้งหัวหน้า = ให้สังกัดแผนกนั้นด้วย (หัวหน้าต้องอยู่แผนกที่ตนดูแลจริง)
+      await tx.user.update({
+        where: { id: headId },
+        data: { departmentId },
+      });
+
+      // โอนคำขอลาที่ยังรออนุมัติขั้นหัวหน้าสาขา "ทุกใบของแผนกนี้" ไปให้หัวหน้าคนใหม่
+      // (รวมใบลาของหัวหน้าเองด้วย — ระบบให้หัวหน้าอนุมัติใบลาตนเองได้ ถ้าเว้นไว้ใบลาจะค้างกับหัวหน้าคนก่อน)
       await tx.leaveRequestDetail.updateMany({
         where: {
           stepOrder: 1,
@@ -707,7 +807,6 @@ class AdminService {
           leaveRequest: {
             status: "PENDING",
             user: { departmentId },
-            userId: { not: headId }, // คำขอของหัวหน้าคนใหม่เอง ต้องไม่ถูกโอนมาให้ตัวเอง
           },
         },
         data: { approverId: headId },

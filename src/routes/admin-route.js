@@ -94,6 +94,7 @@ router.delete('/role/:id', authorize(["ADMIN"]), adminController.deleteRole);
 
 //------------------------------------- Assign Head department ----------------------------------
 router.post("/assign-head", authorize(["ADMIN"]), adminController.assignHeadDepartment);
+router.post("/vacate-head", authorize(["ADMIN"]), adminController.vacateHeadDepartment);
 
 //-------------------------------------- rank --------------------------------
 // จัดการ Rank ใช้เส้นทาง /ranks (rank-controller) ที่จำกัดสิทธิ์เฉพาะ SUPER_ADMIN เท่านั้น

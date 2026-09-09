@@ -786,28 +786,31 @@ class LeaveRequestService {
   }
 
   static async getPendingRequestsByFirstApprover(approverUserId) {
-    // ดึงข้อมูลแผนกของหัวหน้าสาขาที่กำลัง login
-    const approverUser = await UserService.getUserByIdWithRoles(approverUserId);
-    if (!approverUser || !approverUser.departmentId) {
-      throw createError(400, "ไม่พบข้อมูลแผนกของหัวหน้าสาขา");
-    }
+    // คำร้องที่รอ "ตัวเรา" อนุมัติในขั้นที่ 1 = detail.approverId ตรงกับเราโดยตรง
+    // (approverId ถูก assign เป็น "หัวหน้าสาขาของผู้ยื่น" ตั้งแต่ตอนสร้างใบลา จึงตรงแผนกอยู่แล้ว)
+    // หรือเราเป็น "ผู้รับมอบอำนาจ" ระดับ 1 จากหัวหน้าสาขาคนนั้น → เห็นคำร้องของหัวหน้าที่มอบให้ด้วย
+    const delegations = await prisma.proxyApproval.findMany({
+      where: {
+        proxyApproverId: approverUserId,
+        approverLevel: 1,
+        status: "ACTIVE",
+      },
+      select: { originalApproverId: true },
+    });
 
-    // ดึง approvers ที่ใช้งานได้ในวันนี้ (รวม proxy)
-    const approvers = await UserService.getApproversForLevel(1, new Date());
-    const approverIds = approvers.map((v) => v.id);
+    const actionableApproverIds = [
+      approverUserId,
+      ...delegations.map((d) => d.originalApproverId),
+    ];
 
     return await prisma.leaveRequest.findMany({
       where: {
         status: "PENDING",
-        // กรองเฉพาะคำร้องจากแผนกเดียวกับหัวหน้าสาขา
-        user: {
-          departmentId: approverUser.departmentId,
-        },
         leaveRequestDetails: {
           some: {
             stepOrder: 1,
             status: "PENDING",
-            approverId: { in: approverIds }, // กรองตาม approver IDs (รวม proxy)
+            approverId: { in: actionableApproverIds },
           },
         },
       },
@@ -831,7 +834,7 @@ class LeaveRequestService {
           where: {
             stepOrder: 1,
             status: "PENDING",
-            approverId: { in: approverIds },
+            approverId: { in: actionableApproverIds },
           },
         },
         files: true,
