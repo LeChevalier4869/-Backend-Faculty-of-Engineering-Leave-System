@@ -88,10 +88,10 @@ class AdminService {
 
     return [
       { stepOrder: 1, roleName: "APPROVER_1", userId: approver1Id },
-      { stepOrder: 2, roleName: "VERIFIER", userId: verifierId },
-      { stepOrder: 4, roleName: "APPROVER_2", userId: approver2Id },
-      { stepOrder: 5, roleName: "APPROVER_3", userId: approver3Id },
-      { stepOrder: 6, roleName: "APPROVER_4", userId: approver4Id },
+      { stepOrder: 2, roleName: "APPROVER_2", userId: verifierId },
+      { stepOrder: 4, roleName: "APPROVER_3", userId: approver2Id },
+      { stepOrder: 5, roleName: "APPROVER_4", userId: approver3Id },
+      { stepOrder: 6, roleName: "APPROVER_5", userId: approver4Id },
     ].map((s) => ({
       stepOrder: s.stepOrder,
       roleName: s.roleName,
@@ -314,26 +314,27 @@ class AdminService {
       if (!approver1Id)
         throw createError(400, "ไม่พบหัวหน้าสาขา (Approver1) ของผู้ใช้งาน");
 
+      // stepOrder 4/5/6 = APPROVER_3 (หัวหน้าสำนักงานคณบดี) / APPROVER_4 (รองคณบดีฝ่ายบริหาร) / APPROVER_5 (คณบดี)
       const approver2 = await tx.userRole.findFirst({
-        where: { role: { name: "APPROVER_2" } },
-        orderBy: { id: "asc" },
-      });
-      const approver3 = await tx.userRole.findFirst({
         where: { role: { name: "APPROVER_3" } },
         orderBy: { id: "asc" },
       });
-      const approver4 = await tx.userRole.findFirst({
+      const approver3 = await tx.userRole.findFirst({
         where: { role: { name: "APPROVER_4" } },
         orderBy: { id: "asc" },
       });
+      const approver4 = await tx.userRole.findFirst({
+        where: { role: { name: "APPROVER_5" } },
+        orderBy: { id: "asc" },
+      });
 
-      if (!verifierId) throw createError(400, "ไม่พบผู้ตรวจสอบ (VERIFIER)");
+      if (!verifierId) throw createError(400, "ไม่พบสารบรรณคณะ (APPROVER_2)");
       if (!approver2?.userId)
-        throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_2)");
-      if (!approver3?.userId)
         throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_3)");
-      if (!approver4?.userId)
+      if (!approver3?.userId)
         throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_4)");
+      if (!approver4?.userId)
+        throw createError(400, "ไม่พบผู้อนุมัติ (APPROVER_5)");
 
       const normalized = normalizeApprovalDetails(approvalDetails, issuedAt);
 

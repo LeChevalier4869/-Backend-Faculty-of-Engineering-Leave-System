@@ -49,7 +49,7 @@ router.patch(
     "APPROVER_2",
     "APPROVER_3",
     "APPROVER_4",
-    "VERIFIER",
+    "APPROVER_5",
   ]),
   leaveRequestController.updateLeaveStatus
 );

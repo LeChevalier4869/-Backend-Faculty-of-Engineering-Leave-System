@@ -42,7 +42,7 @@ async function main() {
   }
 
   const verifiers = await prisma.userRole.findMany({
-    where: { role: { name: "VERIFIER" } },
+    where: { role: { name: "APPROVER_2" } },
     select: { userId: true, user: { select: { prefixName: true, firstName: true, lastName: true } } },
     orderBy: { userId: "asc" },
   });

@@ -23,10 +23,10 @@ const prisma = require("../src/config/prisma");
 // stepOrder -> ชื่อบทบาทที่รับผิดชอบขั้นนั้น
 const STEP_ROLE = {
   1: "APPROVER_1",
-  2: "VERIFIER",
-  4: "APPROVER_2",
-  5: "APPROVER_3",
-  6: "APPROVER_4",
+  2: "APPROVER_2",
+  4: "APPROVER_3",
+  5: "APPROVER_4",
+  6: "APPROVER_5",
 };
 
 const name = (u) =>

@@ -7,10 +7,10 @@ const { sendNotification } = require("../utils/emailService");
 // ป้ายกำกับระดับการอนุมัติ (ใช้ในอีเมลแจ้งเตือนการมอบอำนาจ)
 const PROXY_LEVEL_LABELS = {
   1: "หัวหน้าสาขา (ผู้อนุมัติระดับ 1)",
-  2: "ผู้ตรวจสอบ",
-  3: "ผู้อนุมัติระดับ 2",
-  4: "ผู้อนุมัติระดับ 3",
-  5: "ผู้อนุมัติระดับ 4",
+  2: "สารบรรณคณะ (ผู้อนุมัติระดับ 2)",
+  3: "หัวหน้าสำนักงานคณบดี (ผู้อนุมัติระดับ 3)",
+  4: "รองคณบดีฝ่ายบริหาร (ผู้อนุมัติระดับ 4)",
+  5: "คณบดี (ผู้อนุมัติระดับ 5)",
 };
 
 // สรุปช่วงเวลาของการมอบอำนาจให้อ่านง่าย
@@ -118,10 +118,10 @@ class ProxyApprovalService {
     // ตรวจสอบว่า original approver มี role ที่เกี่ยวข้องกับ approverLevel หรือไม่
     const roleMapping = {
       1: 'APPROVER_1',
-      2: 'VERIFIER',
-      3: 'APPROVER_2',
-      4: 'APPROVER_3',
-      5: 'APPROVER_4'
+      2: 'APPROVER_2',
+      3: 'APPROVER_3',
+      4: 'APPROVER_4',
+      5: 'APPROVER_5'
     };
 
     const requiredRole = roleMapping[approverLevel];
@@ -1243,10 +1243,10 @@ class ProxyApprovalService {
 
     const roleMapping = {
       1: 'APPROVER_1',
-      2: 'VERIFIER',
-      3: 'APPROVER_2',
-      4: 'APPROVER_3',
-      5: 'APPROVER_4'
+      2: 'APPROVER_2',
+      3: 'APPROVER_3',
+      4: 'APPROVER_4',
+      5: 'APPROVER_5'
     };
 
     const requiredRole = roleMapping[approverLevel];

@@ -435,7 +435,7 @@ exports.getLeaveRequestsForVerifier = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (VERIFIER required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)",
         });
     }
 
@@ -463,7 +463,7 @@ exports.getLeaveRequestsForSecondApprover = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)",
         });
     }
 
@@ -491,7 +491,7 @@ exports.getLeaveRequestsForThirdApprover = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)",
         });
     }
 
@@ -519,7 +519,7 @@ exports.getLeaveRequestsForFourthApprover = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_5 required)",
         });
     }
 
@@ -676,7 +676,7 @@ exports.approveByVerifier = async (req, res, next) => {
     if (!verifierIds.includes(req.user.id)) {
       return res
         .status(403)
-        .json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
+        .json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (APPROVER_2 required)" });
     }
 
     console.log("🔍 Controller - Calling service with:", {
@@ -751,7 +751,7 @@ exports.rejectByVerifier = async (req, res, next) => {
     if (!verifierIds.includes(req.user.id)) {
       return res
         .status(403)
-        .json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (VERIFIER required)" });
+        .json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (APPROVER_2 required)" });
     }
 
     // เรียกใช้ service ในการ reject

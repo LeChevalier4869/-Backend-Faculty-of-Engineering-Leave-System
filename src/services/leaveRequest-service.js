@@ -177,23 +177,53 @@ class LeaveRequestService {
       );
     }
 
-    // เพิ่ม approval step แรกของคำขอนี้
+    // กรณี "หัวหน้าสาขายื่นลาเอง" (ผู้อนุมัติขั้น 1 = ตัวผู้ยื่นเอง)
+    // → อนุมัติขั้นที่ 1 อัตโนมัติ แล้วส่งต่อขั้นที่ 2 (สารบรรณคณะ = ผู้ออกเลขที่ใบลา) ทันที
+    const isSelfHeadApproval =
+      firstStep.stepOrder === 1 && firstStep.approverId === userId;
+
+    // ผู้รับผิดชอบขั้นถัดไปที่ต้องแจ้งเตือน (ปกติ = ขั้นแรก, กรณี auto = ขั้นที่ 2)
+    let notifyTargetId = firstStep.approverId;
+
     try {
-      await prisma.leaveRequestDetail.create({
-        data: {
-          leaveRequestId: leaveRequest.id,
-          approverId: firstStep.approverId,
-          stepOrder: firstStep.stepOrder,
-          status: "PENDING",
-        },
-      });
+      if (isSelfHeadApproval) {
+        await prisma.leaveRequestDetail.create({
+          data: {
+            leaveRequestId: leaveRequest.id,
+            approverId: userId,
+            stepOrder: 1,
+            status: "APPROVED",
+            reviewedAt: new Date(),
+            remarks: "อนุมัติอัตโนมัติ",
+            comment: "อนุมัติอัตโนมัติ (หัวหน้าสาขายื่นลาเอง)",
+          },
+        });
+        await prisma.leaveRequestDetail.create({
+          data: {
+            leaveRequestId: leaveRequest.id,
+            approverId: verifier.id, // APPROVER_2 (สารบรรณคณะ)
+            stepOrder: 2,
+            status: "PENDING",
+          },
+        });
+        notifyTargetId = verifier.id;
+      } else {
+        await prisma.leaveRequestDetail.create({
+          data: {
+            leaveRequestId: leaveRequest.id,
+            approverId: firstStep.approverId,
+            stepOrder: firstStep.stepOrder,
+            status: "PENDING",
+          },
+        });
+      }
     } catch (error) {
       throw createError(500, "สร้าง approval step ไม่สำเร็จ");
     }
 
-    // ส่งอีเมลแจ้งเตือนให้ผู้ที่ต้องดำเนินการขั้นแรกจริง (หัวหน้าสาขา หรือผู้ตรวจสอบเมื่อข้ามขั้น)
+    // ส่งอีเมลแจ้งเตือนให้ผู้ที่ต้องดำเนินการขั้นถัดไป
     this.notifyApprover({
-      approverId: firstStep.approverId,
+      approverId: notifyTargetId,
       user,
       requestedDays,
       reason,
@@ -1082,10 +1112,10 @@ class LeaveRequestService {
    */
   static get APPROVAL_CHAIN() {
     return [
-      { stepOrder: 2, roleName: "VERIFIER" },
-      { stepOrder: 4, roleName: "APPROVER_2" },
-      { stepOrder: 5, roleName: "APPROVER_3" },
-      { stepOrder: 6, roleName: "APPROVER_4" },
+      { stepOrder: 2, roleName: "APPROVER_2" }, // สารบรรณคณะ (ออกเลขที่ใบลา)
+      { stepOrder: 4, roleName: "APPROVER_3" }, // หัวหน้าสำนักงานคณบดี
+      { stepOrder: 5, roleName: "APPROVER_4" }, // รองคณบดีฝ่ายบริหาร
+      { stepOrder: 6, roleName: "APPROVER_5" }, // คณบดี
     ];
   }
 
@@ -1323,14 +1353,14 @@ class LeaveRequestService {
 
     // บันทึก log การทำงาน
 
-    // 3. หา verifier user
+    // 3. หา APPROVER_2 (สารบรรณคณะ — ทำหน้าที่ตรวจสอบ/ออกเลขที่ใบลา)
     const verifier = await this.pickNextApprover(
-      "VERIFIER",
+      "APPROVER_2",
       updatedDetail.leaveRequestId
     );
 
     if (!verifier)
-      throw createError(404, "ไม่พบผู้ตรวจสอบ (VERIFIER) ที่ตรวจคำขอนี้ได้");
+      throw createError(404, "ไม่พบสารบรรณคณะ (APPROVER_2) ที่ตรวจคำขอนี้ได้");
 
     // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ verifier
     const newDetail = await prisma.leaveRequestDetail.create({
@@ -1731,21 +1761,21 @@ class LeaveRequestService {
 
     // บันทึก log การทำงาน
 
-    // 3. หา APPROVER_2
+    // 3. หา APPROVER_3 (หัวหน้าสำนักงานคณบดี)
     const approver = await this.pickNextApprover(
-      "APPROVER_2",
+      "APPROVER_3",
       updatedDetail.leaveRequestId
     );
 
     if (!approver)
-      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_2) ที่อนุมัติคำขอนี้ได้");
+      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_3) ที่อนุมัติคำขอนี้ได้");
 
     // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ approver
     const newDetail = await prisma.leaveRequestDetail.create({
       data: {
         approverId: approver.userId,
         leaveRequestId: updatedDetail.leaveRequestId,
-        stepOrder: this.approverLevelToStepOrder(3), // APPROVER_2 -> Step 4
+        stepOrder: this.approverLevelToStepOrder(3), // level 3 -> Step 4
         status: "PENDING",
       },
     });
@@ -2021,14 +2051,14 @@ class LeaveRequestService {
 
     // 3. หา approver user
     const approver = await this.pickNextApprover(
-      "APPROVER_3",
+      "APPROVER_4",
       updatedDetail.leaveRequestId
     );
 
     if (!approver)
-      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_3) ที่อนุมัติคำขอนี้ได้");
+      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_4) ที่อนุมัติคำขอนี้ได้");
 
-    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_3
+    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_4
     const newDetail = await prisma.leaveRequestDetail.create({
       data: {
         approverId: approver.userId,
@@ -2276,14 +2306,14 @@ class LeaveRequestService {
 
     // 3. หา approver user
     const approver = await this.pickNextApprover(
-      "APPROVER_4",
+      "APPROVER_5",
       updatedDetail.leaveRequestId
     );
 
     if (!approver)
-      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_4) ที่อนุมัติคำขอนี้ได้");
+      throw createError(404, "ไม่พบผู้อนุมัติ (APPROVER_5) ที่อนุมัติคำขอนี้ได้");
 
-    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_4
+    // 4. สร้าง LeaveRequestDetail ใหม่สำหรับ APPROVER_5
     const newDetail = await prisma.leaveRequestDetail.create({
       data: {
         approverId: approver.userId,
@@ -2293,7 +2323,7 @@ class LeaveRequestService {
       },
     });
 
-    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_4
+    // 5. ส่งอีเมลแจ้งเตือนให้ APPROVER_5
     const approverUser = await prisma.user.findUnique({
       where: { id: approver.userId },
       select: {

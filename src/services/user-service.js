@@ -372,13 +372,14 @@ class UserService {
     return personnelType ? personnelType.personnelType : null;
   }
 
+  // ผู้ทำหน้าที่ตรวจสอบ/ออกเลขที่ใบลา = สารบรรณคณะ (APPROVER_2) — เดิมคือ VERIFIER
   static async getVerifier() {
     const user = await prisma.user.findFirst({
       where: {
         userRoles: {
           some: {
             role: {
-              name: "VERIFIER",
+              name: "APPROVER_2",
             },
           },
         },
@@ -386,7 +387,7 @@ class UserService {
       include: { userRoles: { include: { role: true } } },
     });
 
-    if (!user) throw createError(404, "ไม่พบผู้ตรวจสอบ (Verifier)");
+    if (!user) throw createError(404, "ไม่พบสารบรรณคณะ (APPROVER_2)");
 
     return user;
   }
@@ -394,19 +395,19 @@ class UserService {
   /**
    * ผู้อนุมัติของระดับที่ระบุ (รวมผู้รับมอบอำนาจที่ยัง active ในวันนั้น)
    *
-   * @param {number} level  1=APPROVER_1 ... 5=APPROVER_4
+   * @param {number} level  1=APPROVER_1 ... 5=APPROVER_5
    * @param {Date}   date   วันที่ใช้ตรวจช่วงเวลาการมอบอำนาจ
    * @param {number} [departmentId] ถ้าระบุและ level=1 จะกรองเฉพาะหัวหน้าสาขานั้น
    */
   static async getApproversForLevel(level, date, departmentId = null) {
     try {
-      // แปลง level เป็น role name
+      // แปลง level เป็น role name (contiguous: level N = APPROVER_N)
       const roleMap = {
         1: 'APPROVER_1',
-        2: 'VERIFIER',
-        3: 'APPROVER_2',
-        4: 'APPROVER_3',
-        5: 'APPROVER_4'
+        2: 'APPROVER_2',
+        3: 'APPROVER_3',
+        4: 'APPROVER_4',
+        5: 'APPROVER_5'
       };
       const roleName = roleMap[level];
       if (!roleName) {

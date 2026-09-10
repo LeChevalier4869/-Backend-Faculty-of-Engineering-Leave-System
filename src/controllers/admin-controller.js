@@ -330,7 +330,7 @@ exports.createRole = async (req, res, next) => {
 // Role ที่ระบบใช้งาน — ห้ามเปลี่ยนชื่อหรือลบ
 const SYSTEM_ROLES = [
   "USER", "ADMIN", "SUPER_ADMIN",
-  "VERIFIER", "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4"
+  "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4", "APPROVER_5"
 ];
 
 exports.updateRole = async (req, res, next) => {
