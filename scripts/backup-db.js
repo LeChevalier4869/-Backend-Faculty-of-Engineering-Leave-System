@@ -47,13 +47,70 @@ function timestamp() {
   );
 }
 
+// หา binary ของ mysqldump แบบยืดหยุ่น: ตั้ง MYSQLDUMP เองได้, ไม่งั้นลองใน PATH แล้วค่อยไล่หา
+// ตำแหน่งยอดนิยมบน Windows (XAMPP / MySQL Server / MariaDB) เพื่อไม่ต้องแก้ PATH เอง
+function resolveMysqldump() {
+  const candidates = [];
+  if (process.env.MYSQLDUMP) candidates.push(process.env.MYSQLDUMP);
+  candidates.push("mysqldump"); // ใน PATH (Linux/Mac หรือ Windows ที่ตั้ง PATH แล้ว)
+
+  const isWin = process.platform === "win32";
+  if (isWin) {
+    const globs = [
+      "C:/xampp/mysql/bin/mysqldump.exe",
+      "C:/wamp64/bin/mysql/**/bin/mysqldump.exe",
+      "C:/laragon/bin/mysql/**/bin/mysqldump.exe",
+    ];
+    // เพิ่มโฟลเดอร์ติดตั้งมาตรฐานของ MySQL/MariaDB (ไล่ทุกเวอร์ชันที่พบ)
+    for (const base of [
+      "C:/Program Files/MySQL",
+      "C:/Program Files/MariaDB",
+      "C:/Program Files (x86)/MySQL",
+    ]) {
+      try {
+        for (const dir of fs.readdirSync(base)) {
+          for (const exe of ["mysqldump.exe", "bin/mysqldump.exe", "mariadb-dump.exe", "bin/mariadb-dump.exe"]) {
+            globs.push(`${base}/${dir}/${exe}`);
+          }
+        }
+      } catch {
+        /* ไม่มีโฟลเดอร์นี้ — ข้าม */
+      }
+    }
+    // ขยาย ** แบบง่าย ๆ สำหรับ wamp/laragon
+    for (const g of globs) {
+      if (g.includes("**")) {
+        const [head] = g.split("/**/");
+        try {
+          for (const dir of fs.readdirSync(head)) {
+            const p = g.replace("**", dir);
+            if (fs.existsSync(p)) candidates.push(p);
+          }
+        } catch {
+          /* ข้าม */
+        }
+      } else {
+        candidates.push(g);
+      }
+    }
+  }
+
+  for (const bin of candidates) {
+    try {
+      execFileSync(bin, ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+      return bin;
+    } catch {
+      /* ลองตัวถัดไป */
+    }
+  }
+  return null;
+}
+
 // MariaDB's mysqldump ไม่รู้จัก --set-gtid-purged (เป็น flag ของ MySQL แท้)
 // ถ้าใส่ไปกับ client ของ MariaDB จะล้มทันที (exit 7) จึงตรวจเวอร์ชันก่อน
-function supportsGtidPurged() {
+function supportsGtidPurged(bin) {
   try {
-    const out = execFileSync("mysqldump", ["--version"], {
-      encoding: "utf8",
-    });
+    const out = execFileSync(bin, ["--version"], { encoding: "utf8" });
     return !/mariadb/i.test(out);
   } catch {
     return false; // เรียกไม่ได้ก็ไม่ต้องใส่ flag — ปล่อยให้ error หลักรายงานเอง
@@ -62,6 +119,20 @@ function supportsGtidPurged() {
 
 async function main() {
   const cfg = parseDatabaseUrl(process.env.DATABASE_URL);
+
+  const mysqldumpBin = resolveMysqldump();
+  if (!mysqldumpBin) {
+    console.error(
+      "❌ ไม่พบคำสั่ง `mysqldump` ในเครื่องนี้\n" +
+        "   วิธีแก้ (เลือกอย่างใดอย่างหนึ่ง):\n" +
+        "   1) ตั้ง env ชี้ path เต็ม เช่น (PowerShell):\n" +
+        '        $env:MYSQLDUMP = "C:\\xampp\\mysql\\bin\\mysqldump.exe"; npm run db:backup\n' +
+        "   2) เพิ่มโฟลเดอร์ที่มี mysqldump.exe เข้า PATH แล้วเปิด terminal ใหม่\n" +
+        "   3) ใช้ phpMyAdmin/cPanel ของโฮสต์ export ฐานข้อมูลแทน (แนะนำสำหรับ DB บน hosting)"
+    );
+    process.exit(1);
+  }
+  console.log(`🔧 ใช้ mysqldump: ${mysqldumpBin}`);
 
   const outDir = process.argv[2]
     ? path.resolve(process.argv[2])
@@ -79,14 +150,14 @@ async function main() {
     "--routines",
     "--triggers",
     "--events",
-    ...(supportsGtidPurged() ? ["--set-gtid-purged=OFF"] : []),
+    ...(supportsGtidPurged(mysqldumpBin) ? ["--set-gtid-purged=OFF"] : []),
     "--no-tablespaces",
     cfg.database,
   ];
 
   console.log(`📦 กำลังสำรองฐานข้อมูล "${cfg.database}" จาก ${cfg.host}:${cfg.port} ...`);
 
-  const child = spawn("mysqldump", args, {
+  const child = spawn(mysqldumpBin, args, {
     env: { ...process.env, MYSQL_PWD: cfg.password },
   });
 

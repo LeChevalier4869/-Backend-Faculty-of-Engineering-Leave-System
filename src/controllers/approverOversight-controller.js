@@ -2,8 +2,8 @@ const prisma = require("../config/prisma");
 const createError = require("../utils/createError");
 const LeaveBalanceService = require("../services/leaveBalance-service");
 
-// บทบาทระดับ "คณะ" — เห็นผู้ใช้ได้ทั้งองค์กร (ผู้ตรวจสอบ/สารบรรณคณะ/รองคณบดี/คณบดี)
-const FACULTY_ROLES = ["VERIFIER", "APPROVER_2", "APPROVER_3", "APPROVER_4"];
+// บทบาทระดับ "คณะ" — เห็นผู้ใช้ได้ทั้งองค์กร (สารบรรณคณะ/หัวหน้าสำนักงานคณบดี/รองคณบดีฝ่ายบริหาร/คณบดี)
+const FACULTY_ROLES = ["APPROVER_2", "APPROVER_3", "APPROVER_4", "APPROVER_5"];
 
 /**
  * ขอบเขตที่ผู้อนุมัติ "ดูแล" ได้ ขึ้นกับบทบาทที่ถือ (ยึดขอบเขตกว้างสุด)

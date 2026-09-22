@@ -421,11 +421,11 @@ class AuditLogService {
   // ดึงชื่อระดับผู้อนุมัติเป็นภาษาไทย
   static getApproverLevelLabel(level) {
     const labels = {
-      1: 'ผู้อนุมัติลำดับที่ 1',
-      2: 'ผู้ตรวจสอบ',
-      3: 'ผู้อนุมัติลำดับที่ 2',
-      4: 'ผู้อนุมัติลำดับที่ 3',
-      5: 'ผู้อนุมัติลำดับที่ 4'
+      1: 'หัวหน้าสาขา (ผู้อนุมัติลำดับที่ 1)',
+      2: 'สารบรรณคณะ (ผู้อนุมัติลำดับที่ 2)',
+      3: 'หัวหน้าสำนักงานคณบดี (ผู้อนุมัติลำดับที่ 3)',
+      4: 'รองคณบดีฝ่ายบริหาร (ผู้อนุมัติลำดับที่ 4)',
+      5: 'คณบดี (ผู้อนุมัติลำดับที่ 5)'
     };
     return labels[level] || `ระดับ ${level}`;
   }
@@ -534,13 +534,20 @@ class AuditLogService {
 
     // Filter by userName (search in user's name)
     if (userName) {
-      where.user = {
-        OR: [
-          { firstName: { contains: userName } },
-          { lastName: { contains: userName } },
-          { prefixName: { contains: userName } }
-        ]
-      };
+      // แยกคำค้นด้วยช่องว่าง แล้วบังคับให้ "ทุกคำ" ต้องเจอในฟิลด์ชื่อใดฟิลด์หนึ่ง (AND ของแต่ละคำ)
+      // เพื่อให้ค้นชื่อเต็มที่มีช่องว่าง เช่น "นาง อุมาพร ปฏิมาประกร" (คำนำหน้า + ชื่อ + นามสกุล) เจอด้วย
+      const tokens = String(userName).trim().split(/\s+/).filter(Boolean);
+      if (tokens.length) {
+        where.user = {
+          AND: tokens.map((tok) => ({
+            OR: [
+              { firstName: { contains: tok } },
+              { lastName: { contains: tok } },
+              { prefixName: { contains: tok } }
+            ]
+          }))
+        };
+      }
     }
 
     if (startDate || endDate) {
@@ -596,13 +603,20 @@ class AuditLogService {
     if (ipAddress) where.ipAddress = ipAddress;
 
     if (userName) {
-      where.user = {
-        OR: [
-          { firstName: { contains: userName } },
-          { lastName: { contains: userName } },
-          { prefixName: { contains: userName } }
-        ]
-      };
+      // แยกคำค้นด้วยช่องว่าง แล้วบังคับให้ "ทุกคำ" ต้องเจอในฟิลด์ชื่อใดฟิลด์หนึ่ง (AND ของแต่ละคำ)
+      // เพื่อให้ค้นชื่อเต็มที่มีช่องว่าง เช่น "นาง อุมาพร ปฏิมาประกร" (คำนำหน้า + ชื่อ + นามสกุล) เจอด้วย
+      const tokens = String(userName).trim().split(/\s+/).filter(Boolean);
+      if (tokens.length) {
+        where.user = {
+          AND: tokens.map((tok) => ({
+            OR: [
+              { firstName: { contains: tok } },
+              { lastName: { contains: tok } },
+              { prefixName: { contains: tok } }
+            ]
+          }))
+        };
+      }
     }
 
     if (startDate || endDate) {

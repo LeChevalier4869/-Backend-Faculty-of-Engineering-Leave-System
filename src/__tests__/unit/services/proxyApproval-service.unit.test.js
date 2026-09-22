@@ -378,7 +378,7 @@ describe("ProxyApprovalService", () => {
         where: {
           userRoles: {
             some: {
-              role: { name: "VERIFIER" },
+              role: { name: "APPROVER_2" },
             },
           },
         },
