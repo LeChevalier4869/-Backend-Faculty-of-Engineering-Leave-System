@@ -568,7 +568,7 @@ class ReportService {
       4: "ANNUAL", // ลาพักผ่อน
       5: "ORDINATION", // ลาอุปสมบท
       6: "MILITARY", // ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล
-      7: "STUDY", // ลาไปศึกษา ฝึกอบรม วิจัย ดูงาน
+      7: "STUDY", // ลาไปศึกษา (เดิม: ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน)
       8: "PATERNITY", // ลาไปช่วยเหลือภริยาที่คลอดบุตร
       9: "REHABILITATION", // ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ
       10: "DHARMA", // ลาไปถือศีล ปฏิบัติธรรม
@@ -576,6 +576,20 @@ class ReportService {
       12: "FOLLOW_SPOUSE", // ลาติดตามคู่สมรส
       13: "HAJJ", // ลาไปประกอบพิธีฮัจย์
     };
+
+    // ประเภทการลาที่เพิ่มภายหลัง (id ไม่คงที่ข้ามฐานข้อมูล) — ผูก id จากชื่อเพื่อกันความคลาดเคลื่อน
+    const EXTRA_KEY_BY_NAME = {
+      "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน": "TRAINING",
+      "ไปราชการ": "OFFICIAL_DUTY",
+    };
+    const extraLeaveTypes = await prisma.leaveType.findMany({
+      where: { name: { in: Object.keys(EXTRA_KEY_BY_NAME) } },
+      select: { id: true, name: true },
+    });
+    for (const lt of extraLeaveTypes) {
+      const key = EXTRA_KEY_BY_NAME[String(lt.name || "").trim()];
+      if (key) LEAVE_KEY[lt.id] = key;
+    }
 
     users.forEach((user) => {
       const typeName = user.personnelType?.name || "ไม่ระบุประเภท";

@@ -599,7 +599,7 @@ class LeaveRequestService {
 
     const leaveType = await prisma.leaveType.findUnique({
       where: { id: leaveTypeIdInt },
-      select: { id: true, name: true },
+      select: { id: true, name: true, isNonDeductible: true },
     });
     if (!leaveType) throw createError(404, "ไม่พบประเภทการลา");
 
@@ -642,7 +642,9 @@ class LeaveRequestService {
 
       const isNonDeductible = userRank?.rank?.receiveDays === 0 && userRank?.rank?.isBalance === true;
 
-      if (isNonDeductible || specialLeaveTypes.includes(leaveTypeIdInt)) {
+      // ยึดคอลัมน์ leaveType.isNonDeductible เป็นหลัก (ครอบคลุมประเภทเพิ่มใหม่ เช่น "ไปราชการ"
+      // โดยไม่ต้องพึ่ง userRank หรือรายการ id พิเศษที่ hardcode ไว้)
+      if (leaveType.isNonDeductible || isNonDeductible || specialLeaveTypes.includes(leaveTypeIdInt)) {
         // สำหรับประเภทการลาที่ไม่ต้องหักวัน ให้ข้ามการตรวจสอบยอดคงเหลือ
         return {
           success: true,
@@ -1585,7 +1587,10 @@ class LeaveRequestService {
       "SYSTEM",
       {
         userId: existingDetail.leaveRequest.userId,
+        // แนบชื่อไว้ด้วย เพื่อให้อ่าน log ออกโดยไม่ต้องไปเปิดหาว่า id นี้คือใคร/ลาประเภทอะไร
+        userName: `${existingDetail.leaveRequest.user?.prefixName || ""}${existingDetail.leaveRequest.user?.firstName || ""} ${existingDetail.leaveRequest.user?.lastName || ""}`.trim() || null,
         leaveTypeId: existingDetail.leaveRequest.leaveTypeId,
+        leaveTypeName: existingDetail.leaveRequest.leaveType?.name || null,
         requestedDays: existingDetail.leaveRequest.thisTimeDays,
         rejectedBy: approverId,
         action: "REJECT",

@@ -51,11 +51,8 @@ exports.createLeaveRequest = async (req, res, next) => {
       `สร้างคำขอลา: ${leaveRequest.id} (ลา ${leaveRequest.thisTimeDays} วัน)`,
       req.ip,
       req.get("User-Agent"),
-      {
-        leaveTypeId: leaveRequest.leaveTypeId,
-        requestedDays: leaveRequest.thisTimeDays,
-        action: "CREATE",
-      },
+      // ไม่ส่ง entityData — ให้ระบบดึง snapshot อัตโนมัติ (มีชื่อประเภทลา + ชื่อผู้ใช้ + วันที่ครบ
+      // อ่านง่ายกว่าการเก็บแค่ leaveTypeId ดิบ และสอดคล้องกับเส้น admin สร้างใบลาแทน)
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request

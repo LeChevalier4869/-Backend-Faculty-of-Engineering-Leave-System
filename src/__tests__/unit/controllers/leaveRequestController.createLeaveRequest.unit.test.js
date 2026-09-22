@@ -62,6 +62,7 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
       "call me"
     );
     expect(LeaveBalanceService.updatePendingLeaveBalance).toHaveBeenCalledWith(10, 1, 2);
+    // ไม่ส่ง entityData แล้ว — ให้ createLog ดึง snapshot อัตโนมัติ (ได้ชื่อประเภทลา/ผู้ใช้ครบ)
     expect(AuditLogService.createLog).toHaveBeenCalledWith(
       10,
       "CREATE",
@@ -69,12 +70,7 @@ describe("leaveRequest-controller.createLeaveRequest", () => {
       123,
       expect.stringContaining("สร้างคำขอลา: 123 (ลา 2 วัน)"),
       "127.0.0.1",
-      undefined,
-      expect.objectContaining({
-        leaveTypeId: undefined,
-        requestedDays: 2,
-        action: 'CREATE'
-      })
+      undefined
     );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ message: "คำขอลาได้ถูกสร้าง", requestId: 123 });
