@@ -115,6 +115,20 @@ class OrgAndDeptService {
 
       // sync เฉพาะเมื่อส่ง headId มาจริง และค่าเปลี่ยนไปจากเดิม
       if (data.headId !== undefined && current.headId !== data.headId) {
+        // 1 คน = หัวหน้าได้เพียง 1 แผนก
+        if (data.headId) {
+          const headingElsewhere = await tx.department.findFirst({
+            where: { headId: data.headId, id: { not: departmentId } },
+            select: { name: true },
+          });
+          if (headingElsewhere) {
+            throw createError(
+              409,
+              `ผู้ใช้นี้เป็นหัวหน้าแผนก "${headingElsewhere.name}" อยู่แล้ว — 1 คนเป็นหัวหน้าได้เพียง 1 แผนก กรุณาปลดจากแผนกเดิมก่อน`
+            );
+          }
+        }
+
         const approver1Role = await tx.role.findFirst({
           where: { name: "APPROVER_1" },
         });
@@ -149,10 +163,15 @@ class OrgAndDeptService {
               leaveRequest: {
                 status: "PENDING",
                 user: { departmentId },
-                userId: { not: data.headId },
               },
             },
             data: { approverId: data.headId },
+          });
+
+          // แต่งตั้งหัวหน้าคนใหม่ = ให้สังกัดแผนกนี้ด้วย
+          await tx.user.update({
+            where: { id: data.headId },
+            data: { departmentId },
           });
         }
       }

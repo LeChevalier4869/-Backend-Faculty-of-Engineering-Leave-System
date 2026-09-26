@@ -18,10 +18,10 @@ try {
 const prisma = require("../src/config/prisma");
 
 const FACULTY_LEVELS = {
-  2: "VERIFIER",
-  3: "APPROVER_2",
-  4: "APPROVER_3",
-  5: "APPROVER_4",
+  2: "APPROVER_2",
+  3: "APPROVER_3",
+  4: "APPROVER_4",
+  5: "APPROVER_5",
 };
 
 const name = (u) =>

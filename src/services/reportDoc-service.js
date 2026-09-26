@@ -106,16 +106,20 @@ const ATTENDANCE = {
   SICK: { t: "ป", c: "#FFE08A" },
   MATERNITY: { t: "ค", c: "#F5C6D6" },
   PERSONAL: { t: "ก", c: "#BEE3B0" },
-  ANNUAL: { t: "ล", c: "#A9DCF0" },
-  ORDINATION: { t: "อ", c: "#E5E7EB" },
-  MILITARY: { t: "ท", c: "#E5E7EB" },
+  ANNUAL: { t: "พ", c: "#A9DCF0" },
+  ORDINATION: { t: "บ", c: "#E5E7EB" },
+  MILITARY: { t: "อ1", c: "#E5E7EB" },
   STUDY: { t: "ศ", c: "#E5E7EB" },
-  PATERNITY: { t: "ภ", c: "#E5E7EB" },
-  REHABILITATION: { t: "ฟ", c: "#E5E7EB" },
-  DHARMA: { t: "ธ", c: "#E5E7EB" },
-  INTERNATIONAL_WORK: { t: "ร", c: "#E5E7EB" },
-  FOLLOW_SPOUSE: { t: "ต", c: "#E5E7EB" },
-  HAJJ: { t: "ฮ", c: "#E5E7EB" },
+  PATERNITY: { t: "ช", c: "#E5E7EB" },
+  REHABILITATION: { t: "อ4", c: "#E5E7EB" },
+  DHARMA: { t: "บ", c: "#E5E7EB" },
+  INTERNATIONAL_WORK: { t: "อ2", c: "#E5E7EB" },
+  FOLLOW_SPOUSE: { t: "อ3", c: "#E5E7EB" },
+  HAJJ: { t: "บ", c: "#E5E7EB" },
+  TRAINING_RESEARCH: { t: "ว", c: "#E5E7EB" },
+  OFFICIAL_DUTY: { t: "ร", c: "#E5E7EB" },
+
+  LATE: { t: "ส", c: "#FDE68A" },
   ABSENT: { t: "ข", c: "#F3C9C9" },
   UNKNOWN: { t: "?", c: "#E5E7EB" },
 };
@@ -868,9 +872,9 @@ function monthlyPdfTable(users, daysInMonth, month, year) {
 }
 
 const MONTH_LEGEND = [
-  "/ = มาปฏิบัติราชการ, ป = ลาป่วย, ก = ลากิจส่วนตัว, ล = ลาพักผ่อน, ค = ลาคลอดบุตร, ภ = ลาช่วยภริยาคลอดบุตร,",
-  "อ = ลาอุปสมบท, ศ = ลาศึกษา/ฝึกอบรม/วิจัย/ดูงาน, ท = ลาตรวจเลือก/เตรียมพล, ธ = ลาปฏิบัติธรรม, ต = ลาติดตามคู่สมรส,",
-  "ร = ลาปฏิบัติงานองค์การระหว่างประเทศ, ฟ = ลาฟื้นฟูสมรรถภาพ, ฮ = ลาประกอบพิธีฮัจย์, ข = ขาดราชการ/ไม่มีข้อมูล",
+  "โปรดกรอกข้อมูลการมาปฏิบัติราชการ ดังนี้ / = มาปฏิบัติราชการ, ส = สาย, ก = ลากิจส่วนตัว, ป = ลาป่วย, พ = ลาพักผ่อน, ค = ลาคลอดบุตร, ",
+  "ช = ลาช่วยภริยาคลอดบุตร, บ = ลาอุปสมบท/พิธีฮัจย์, ศ = ลาศึกษาต่อ, อ1 = ลาเตรียมพล, อ2 = ลาปฏิบัติงานต่างประเทศ, อ3 = ลาติดตามคู่สมรส",
+  "อ4 = ลาฟื้นฟูอาชีพ, ข = ไม่มีข้อมูลการลงเวลา หรือไม่มีข้อมูลการลา หรือไม่มีข้อมูลไปราชการ หรือขาดราชการไม่ทราบสาเหตุ",
 ];
 
 const signatureBlock = () => {
@@ -889,10 +893,28 @@ const signatureBlock = () => {
     ],
     alignment: "center",
   });
+
   return {
     stack: [
-      { text: "หมายเหตุ", bold: true, fontSize: 12, margin: [0, 20, 0, 5] },
-      { text: MONTH_LEGEND.join("\n"), fontSize: 10, margin: [0, 0, 0, 40] },
+      // ✅ นำส่วน columns ใหม่มาวางแทนที่ตรงนี้
+      {
+        columns: [
+          {
+            width: 55,
+            text: "หมายเหตุ",
+            fontSize: 12,
+            bold: true,
+          },
+          {
+            width: "*",
+            stack: MONTH_LEGEND.map((text) => ({
+              text,
+              fontSize: 12,
+            })),
+          },
+        ],
+        margin: [0, 15, 0, 25], // ปรับระยะห่างบน-ล่างตามความสวยงาม
+      },
       {
         table: {
           widths: ["*", "*", "*"],
@@ -907,7 +929,7 @@ const signatureBlock = () => {
         layout: "noBorders",
       },
     ],
-    unbreakable: true,
+    unbreakable: true, // ยังคงหุ้มทั้งหมายเหตุและลายเซ็นไม่ให้แยกหน้ากัน
   };
 };
 

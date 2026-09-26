@@ -51,11 +51,8 @@ exports.createLeaveRequest = async (req, res, next) => {
       `สร้างคำขอลา: ${leaveRequest.id} (ลา ${leaveRequest.thisTimeDays} วัน)`,
       req.ip,
       req.get("User-Agent"),
-      {
-        leaveTypeId: leaveRequest.leaveTypeId,
-        requestedDays: leaveRequest.thisTimeDays,
-        action: "CREATE",
-      },
+      // ไม่ส่ง entityData — ให้ระบบดึง snapshot อัตโนมัติ (มีชื่อประเภทลา + ชื่อผู้ใช้ + วันที่ครบ
+      // อ่านง่ายกว่าการเก็บแค่ leaveTypeId ดิบ และสอดคล้องกับเส้น admin สร้างใบลาแทน)
     );
 
     //sent email ตัวเอง สำหรับ การแจ้งเตือน create request
@@ -435,7 +432,7 @@ exports.getLeaveRequestsForVerifier = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (VERIFIER required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)",
         });
     }
 
@@ -463,7 +460,7 @@ exports.getLeaveRequestsForSecondApprover = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_2 required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)",
         });
     }
 
@@ -491,7 +488,7 @@ exports.getLeaveRequestsForThirdApprover = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_3 required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)",
         });
     }
 
@@ -519,7 +516,7 @@ exports.getLeaveRequestsForFourthApprover = async (req, res) => {
       return res
         .status(403)
         .json({
-          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_4 required)",
+          message: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้ (APPROVER_5 required)",
         });
     }
 
@@ -676,7 +673,7 @@ exports.approveByVerifier = async (req, res, next) => {
     if (!verifierIds.includes(req.user.id)) {
       return res
         .status(403)
-        .json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (VERIFIER required)" });
+        .json({ message: "คุณไม่มีสิทธิ์อนุมัติคำขอนี้ (APPROVER_2 required)" });
     }
 
     console.log("🔍 Controller - Calling service with:", {
@@ -751,7 +748,7 @@ exports.rejectByVerifier = async (req, res, next) => {
     if (!verifierIds.includes(req.user.id)) {
       return res
         .status(403)
-        .json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (VERIFIER required)" });
+        .json({ message: "คุณไม่มีสิทธิ์ปฏิเสธคำขอนี้ (APPROVER_2 required)" });
     }
 
     // เรียกใช้ service ในการ reject

@@ -70,7 +70,7 @@ class LeaveBalanceService {
     const db = this._db(opts);
     return await db.leaveBalance.findMany({
       where: { userId },
-      include: { leaveType: { select: { name: true, isAvailable: true, resetOnFiscalYear: true } } },
+      include: { leaveType: { select: { id: true, name: true, isAvailable: true, isNonDeductible: true, resetOnFiscalYear: true } } },
       orderBy: { leaveTypeId: "asc" },
     });
   }

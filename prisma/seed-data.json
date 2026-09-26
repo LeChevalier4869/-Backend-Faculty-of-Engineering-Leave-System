@@ -5,8 +5,8 @@
       "organizations": 1,
       "departments": 16,
       "personnelTypes": 5,
-      "leaveTypes": 16,
-      "ranks": 75
+      "leaveTypes": 15,
+      "ranks": 85
     }
   },
   "organizations": [
@@ -135,7 +135,7 @@
       "resetOnFiscalYear": true
     },
     {
-      "name": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "name": "ลาไปศึกษา",
       "isAvailable": false,
       "isNonDeductible": false,
       "resetOnFiscalYear": true
@@ -175,6 +175,18 @@
       "isAvailable": false,
       "isNonDeductible": true,
       "resetOnFiscalYear": false
+    },
+    {
+      "name": "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "isAvailable": false,
+      "isNonDeductible": false,
+      "resetOnFiscalYear": true
+    },
+    {
+      "name": "ไปราชการ",
+      "isAvailable": false,
+      "isNonDeductible": true,
+      "resetOnFiscalYear": true
     }
   ],
   "ranks": [
@@ -259,13 +271,23 @@
       "isBalance": false
     },
     {
-      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปศึกษา",
       "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
-      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "leaveType": "ลาไปศึกษา",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 1461,
-      "maxDays": 1461,
+      "receiveDays": 1460,
+      "maxDays": 1460,
+      "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1460,
+      "maxDays": 1460,
       "isBalance": false
     },
     {
@@ -284,8 +306,8 @@
       "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 366,
-      "maxDays": 366,
+      "receiveDays": 365,
+      "maxDays": 365,
       "isBalance": false
     },
     {
@@ -314,8 +336,8 @@
       "leaveType": "ลาติดตามคู่สมรส",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 1461,
-      "maxDays": 1461,
+      "receiveDays": 1460,
+      "maxDays": 1460,
       "isBalance": false
     },
     {
@@ -409,13 +431,23 @@
       "isBalance": false
     },
     {
-      "rank": "ลูกจ้างประจำ ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "rank": "ลูกจ้างประจำ ลาไปศึกษา",
       "personnelType": "ลูกจ้างประจำ",
-      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "leaveType": "ลาไปศึกษา",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 1461,
-      "maxDays": 1461,
+      "receiveDays": 1460,
+      "maxDays": 1460,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างประจำ ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1460,
+      "maxDays": 1460,
       "isBalance": false
     },
     {
@@ -434,8 +466,8 @@
       "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 366,
-      "maxDays": 366,
+      "receiveDays": 365,
+      "maxDays": 365,
       "isBalance": false
     },
     {
@@ -464,8 +496,8 @@
       "leaveType": "ลาติดตามคู่สมรส",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 1461,
-      "maxDays": 1461,
+      "receiveDays": 1460,
+      "maxDays": 1460,
       "isBalance": false
     },
     {
@@ -559,9 +591,19 @@
       "isBalance": false
     },
     {
-      "rank": "พนักงานราชการ ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน ไม่มีสิทธิลา",
+      "rank": "พนักงานราชการ ลาไปศึกษา ไม่มีสิทธิลา",
       "personnelType": "พนักงานราชการ",
-      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "leaveType": "ลาไปศึกษา",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานราชการ ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน ไม่มีสิทธิลา",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
       "minHireMonths": null,
       "maxHireMonths": null,
       "receiveDays": 0,
@@ -614,8 +656,8 @@
       "leaveType": "ลาติดตามคู่สมรส",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 1461,
-      "maxDays": 1461,
+      "receiveDays": 1460,
+      "maxDays": 1460,
       "isBalance": false
     },
     {
@@ -709,13 +751,23 @@
       "isBalance": false
     },
     {
-      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปศึกษา",
       "personnelType": "พนักงานในสถาบันอุดมศึกษา",
-      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "leaveType": "ลาไปศึกษา",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 1461,
-      "maxDays": 1461,
+      "receiveDays": 1460,
+      "maxDays": 1460,
+      "isBalance": false
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 1460,
+      "maxDays": 1460,
       "isBalance": false
     },
     {
@@ -734,8 +786,8 @@
       "leaveType": "ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 366,
-      "maxDays": 366,
+      "receiveDays": 365,
+      "maxDays": 365,
       "isBalance": false
     },
     {
@@ -764,8 +816,8 @@
       "leaveType": "ลาติดตามคู่สมรส",
       "minHireMonths": null,
       "maxHireMonths": null,
-      "receiveDays": 1461,
-      "maxDays": 1461,
+      "receiveDays": 1460,
+      "maxDays": 1460,
       "isBalance": false
     },
     {
@@ -859,9 +911,19 @@
       "isBalance": false
     },
     {
-      "rank": "ลูกจ้างเงินรายได้ ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน ไม่มีสิทธิลา",
+      "rank": "ลูกจ้างเงินรายได้ ลาไปศึกษา ไม่มีสิทธิลา",
       "personnelType": "ลูกจ้างเงินรายได้",
-      "leaveType": "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
+      "leaveType": "ลาไปศึกษา",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": false
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน ไม่มีสิทธิลา",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
       "minHireMonths": null,
       "maxHireMonths": null,
       "receiveDays": 0,
@@ -927,6 +989,56 @@
       "receiveDays": 0,
       "maxDays": 0,
       "isBalance": false
+    },
+    {
+      "rank": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา ไปราชการ",
+      "personnelType": "ข้าราชการพลเรือนในสถาบันอุดมศึกษา",
+      "leaveType": "ไปราชการ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างประจำ ไปราชการ",
+      "personnelType": "ลูกจ้างประจำ",
+      "leaveType": "ไปราชการ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานราชการ ไปราชการ",
+      "personnelType": "พนักงานราชการ",
+      "leaveType": "ไปราชการ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "พนักงานในสถาบันอุดมศึกษา ไปราชการ",
+      "personnelType": "พนักงานในสถาบันอุดมศึกษา",
+      "leaveType": "ไปราชการ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
+    },
+    {
+      "rank": "ลูกจ้างเงินรายได้ ไปราชการ",
+      "personnelType": "ลูกจ้างเงินรายได้",
+      "leaveType": "ไปราชการ",
+      "minHireMonths": null,
+      "maxHireMonths": null,
+      "receiveDays": 0,
+      "maxDays": 0,
+      "isBalance": true
     }
   ],
   "settings": [

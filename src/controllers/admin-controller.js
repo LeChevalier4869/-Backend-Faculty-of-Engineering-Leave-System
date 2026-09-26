@@ -330,7 +330,7 @@ exports.createRole = async (req, res, next) => {
 // Role ที่ระบบใช้งาน — ห้ามเปลี่ยนชื่อหรือลบ
 const SYSTEM_ROLES = [
   "USER", "ADMIN", "SUPER_ADMIN",
-  "VERIFIER", "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4"
+  "APPROVER_1", "APPROVER_2", "APPROVER_3", "APPROVER_4", "APPROVER_5"
 ];
 
 exports.updateRole = async (req, res, next) => {
@@ -455,6 +455,34 @@ exports.assignHeadDepartment = async (req, res, next) => {
     res
       .status(200)
       .json({ message: "มอบหมายหัวหน้าแผนกสำเร็จ", data: updatedDepartment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.vacateHeadDepartment = async (req, res, next) => {
+  try {
+    const departmentId = parseInt(req.body.departmentId, 10);
+    if (!Number.isInteger(departmentId)) {
+      throw createError(400, "departmentId ต้องเป็นตัวเลข");
+    }
+
+    const result = await AdminService.vacateHead(departmentId);
+
+    const headName = result.previousHead
+      ? `${result.previousHead.prefixName || ""}${result.previousHead.firstName || ""} ${result.previousHead.lastName || ""}`.trim()
+      : `แผนก#${departmentId}`;
+    await AuditLogService.createLog(
+      req.user.id,
+      "VACATE_HEAD",
+      "Department",
+      departmentId,
+      `ปลดหัวหน้าสาขา ${result.name}: ${headName}`,
+      req.ip,
+      req.get("User-Agent")
+    );
+
+    res.status(200).json({ message: "ปลดหัวหน้าสาขาสำเร็จ", data: result });
   } catch (err) {
     next(err);
   }

@@ -699,7 +699,7 @@ exports.uploadUserExcel = async (req, res) => {
         const invalidRoles = roleList.filter((r) => !foundNames.includes(r));
         throw {
           email: normalizedEmail,
-          reason: `บทบาทไม่ถูกต้อง: ${invalidRoles.map((r) => `"${r}"`).join(", ")} — ค่าที่รองรับ: USER, VERIFIER, APPROVER_1, APPROVER_2, APPROVER_3, APPROVER_4, ADMIN`,
+          reason: `บทบาทไม่ถูกต้อง: ${invalidRoles.map((r) => `"${r}"`).join(", ")} — ค่าที่รองรับ: USER, APPROVER_1, APPROVER_2, APPROVER_3, APPROVER_4, APPROVER_5, ADMIN`,
           rowData: user,
         };
       }
@@ -795,6 +795,15 @@ exports.uploadUserExcel = async (req, res) => {
         
         // Skip female-only leaves for male users
         if (userSex === "ชาย" && (isMaternityLeave || isFemaleOrdination)) {
+          continue;
+        }
+
+        // Male-only leaves (only men can take these) — ลาตรวจเลือก/เตรียมพล (เกณฑ์ทหาร)
+        const isMilitaryLeave =
+          leaveTypeName.includes("ตรวจเลือก") ||
+          leaveTypeName.includes("เตรียมพล");
+        // Skip male-only leaves for female users
+        if (userSex === "หญิง" && isMilitaryLeave) {
           continue;
         }
         

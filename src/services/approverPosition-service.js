@@ -11,10 +11,10 @@ const createError = require("../utils/createError");
  *   ซึ่งมีได้หลายคนตามจำนวนสาขา — จัดการผ่าน /admin/assign-head
  */
 const FACULTY_LEVELS = {
-  2: { roleName: "VERIFIER", label: "ผู้ตรวจสอบ" },
-  3: { roleName: "APPROVER_2", label: "สารบรรณคณะ" },
-  4: { roleName: "APPROVER_3", label: "รองคณบดี" },
-  5: { roleName: "APPROVER_4", label: "คณบดี" },
+  2: { roleName: "APPROVER_2", label: "สารบรรณคณะ" },
+  3: { roleName: "APPROVER_3", label: "หัวหน้าสำนักงานคณบดี" },
+  4: { roleName: "APPROVER_4", label: "รองคณบดีฝ่ายบริหาร" },
+  5: { roleName: "APPROVER_5", label: "คณบดี" },
 };
 
 const USER_PICK = {
