@@ -103,22 +103,24 @@ const td = (summary, key, field) => {
  * ใช้ตัวอักษร/สีชุดเดียวกับฝั่ง frontend (leaveMeta) เพื่อให้พรีวิวตรงกับไฟล์ที่โหลด */
 const DAY_PRESENT = "/";
 const ATTENDANCE = {
-  SICK: { t: "ป", c: "#FFE08A" },                 // ลาป่วย
-  MATERNITY: { t: "ค", c: "#F5C6D6" },            // ลาคลอดบุตร
-  PERSONAL: { t: "ก", c: "#BEE3B0" },             // ลากิจส่วนตัว
-  ANNUAL: { t: "พ", c: "#A9DCF0" },               // ลาพักผ่อน
-  ORDINATION: { t: "บ", c: "#E5E7EB" },           // ลาอุปสมบท
-  MILITARY: { t: "อ1", c: "#E5E7EB" },            // ลาเตรียมพล
-  STUDY: { t: "ศ", c: "#E5E7EB" },                // ลาศึกษาต่อ
-  PATERNITY: { t: "ช", c: "#E5E7EB" },            // ลาช่วยภริยาคลอดบุตร
-  REHABILITATION: { t: "อ4", c: "#E5E7EB" },      // ลาฟื้นฟูอาชีพ
-  DHARMA: { t: "บ", c: "#E5E7EB" },               // ลาถือศีล/ปฏิบัติธรรม (สตรี)
-  INTERNATIONAL_WORK: { t: "อ2", c: "#E5E7EB" },  // ลาปฏิบัติงานต่างประเทศ
-  FOLLOW_SPOUSE: { t: "อ3", c: "#E5E7EB" },       // ลาติดตามคู่สมรส
-  HAJJ: { t: "บ", c: "#E5E7EB" },                 // ลาไปประกอบพิธีฮัจย์
+  SICK: { t: "ป", c: "#FFE08A" },
+  MATERNITY: { t: "ค", c: "#F5C6D6" },
+  PERSONAL: { t: "ก", c: "#BEE3B0" },
+  ANNUAL: { t: "พ", c: "#A9DCF0" },
+  ORDINATION: { t: "บ", c: "#E5E7EB" },
+  MILITARY: { t: "อ1", c: "#E5E7EB" },
+  STUDY: { t: "ศ", c: "#E5E7EB" },
+  PATERNITY: { t: "ช", c: "#E5E7EB" },
+  REHABILITATION: { t: "อ4", c: "#E5E7EB" },
+  DHARMA: { t: "บ", c: "#E5E7EB" },
+  INTERNATIONAL_WORK: { t: "อ2", c: "#E5E7EB" },
+  FOLLOW_SPOUSE: { t: "อ3", c: "#E5E7EB" },
+  HAJJ: { t: "บ", c: "#E5E7EB" },
+  TRAINING_RESEARCH: { t: "ว", c: "#E5E7EB" },
+  OFFICIAL_DUTY: { t: "ร", c: "#E5E7EB" },
 
-  LATE: { t: "ส", c: "#FDE68A" },                  // สาย
-  ABSENT: { t: "ข", c: "#F3C9C9" },               // ไม่มีข้อมูล/ขาดราชการไม่ทราบสาเหตุ
+  LATE: { t: "ส", c: "#FDE68A" },
+  ABSENT: { t: "ข", c: "#F3C9C9" },
   UNKNOWN: { t: "?", c: "#E5E7EB" },
 };
 
