@@ -147,6 +147,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "sick",
         aliases: [
+          "ลาป่วย (วันคงเหลือ)",
           "sickBalance",
           "SickBalance",
           "SICKBALANCE",
@@ -159,6 +160,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "personal",
         aliases: [
+          "ลากิจส่วนตัว (วันคงเหลือ)",
           "personalBalance",
           "PersonalBalance",
           "PERSONALBALANCE",
@@ -171,6 +173,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "vacation",
         aliases: [
+          "ลาพักผ่อน (วันคงเหลือ)",
           "vacationBalance",
           "VacationBalance",
           "VACATIONBALANCE",
@@ -186,6 +189,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "maternity",
         aliases: [
+          "ลาคลอดบุตร (วันคงเหลือ)",
           "maternityBalance",
           "MaternityBalance",
           "MATERNITYBALANCE",
@@ -194,11 +198,12 @@ exports.uploadUserExcel = async (req, res) => {
           "ลาคลอด",
           "ลาคลอดบุตร",
         ],
-        keywords: ["maternity", "ลาคลอดบุตร", "ลาคลอด", "คลอด"],
+        keywords: ["maternity", "ลาคลอดบุตร", "ลาคลอด"],
       },
       {
         key: "ordination",
         aliases: [
+          "ลาอุปสมบท (วันที่ใช้ไปแล้ว)",
           "ordinationBalance",
           "OrdinationBalance",
           "ORDINATIONBALANCE",
@@ -211,6 +216,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "military",
         aliases: [
+          "ลาตรวจเลือก/เตรียมพล (วันที่ใช้ไปแล้ว)",
           "militaryBalance",
           "MilitaryBalance",
           "MILITARYBALANCE",
@@ -229,6 +235,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "research",
         aliases: [
+          "ลาฝึกอบรม/วิจัย/ดูงาน (วันคงเหลือ)",
           "researchBalance",
           "ResearchBalance",
           "RESEARCHBALANCE",
@@ -236,18 +243,14 @@ exports.uploadUserExcel = async (req, res) => {
           "วิจัยคงเหลือ",
           "ลาวิจัย",
         ],
-        keywords: [
-          "research",
-          "ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน",
-          "ศึกษา",
-          "ฝึกอบรม",
-          "วิจัย",
-          "ดูงาน",
-        ],
+        // แยกออกจาก "study" อย่างชัดเจน: ลบ "ศึกษา" ออก (คำนั้นเป็นของ study)
+        // เพื่อไม่ให้ "ลาไปศึกษา" ถูกจับเป็น research
+        keywords: ["research", "ฝึกอบรม", "วิจัย", "ดูงาน"],
       },
       {
         key: "study",
         aliases: [
+          "ลาไปศึกษา (วันคงเหลือ)",
           "studyBalance",
           "StudyBalance",
           "STUDYBALANCE",
@@ -256,11 +259,13 @@ exports.uploadUserExcel = async (req, res) => {
           "ฝึกอบรม",
           "ดูงาน",
         ],
-        keywords: ["study", "ลาไปศึกษา", "ฝึกอบรม", "ดูงาน"],
+        // "ศึกษา" เป็นคำเฉพาะของ study (research ใช้ ฝึกอบรม/วิจัย/ดูงาน แทน)
+        keywords: ["study", "ลาไปศึกษา", "ศึกษา"],
       },
       {
         key: "assistWife",
         aliases: [
+          "ลาช่วยเหลือภริยาที่คลอดบุตร (วันคงเหลือ)",
           "assistWifeBalance",
           "AssistWifeBalance",
           "ASSISTWIFEBALANCE",
@@ -273,6 +278,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "rehab",
         aliases: [
+          "ลาฟื้นฟูสมรรถภาพด้านอาชีพ (วันคงเหลือ)",
           "rehabBalance",
           "RehabBalance",
           "REHABBALANCE",
@@ -286,6 +292,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "ordainFemale",
         aliases: [
+          "ลาถือศีล/ปฏิบัติธรรม สตรี (วันที่ใช้ไปแล้ว)",
           "ordainFemaleBalance",
           "OrdainFemaleBalance",
           "ORDAINFEMALEBALANCE",
@@ -298,6 +305,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "internationalOrg",
         aliases: [
+          "ลาองค์การระหว่างประเทศ (วันที่ใช้ไปแล้ว)",
           "internationalOrgBalance",
           "InternationalOrgBalance",
           "INTERNATIONALORGBALANCE",
@@ -309,6 +317,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "accompany",
         aliases: [
+          "ลาติดตามคู่สมรส (วันคงเหลือ)",
           "accompanyBalance",
           "AccompanyBalance",
           "ACCOMPANYBALANCE",
@@ -322,6 +331,7 @@ exports.uploadUserExcel = async (req, res) => {
       {
         key: "performHaji",
         aliases: [
+          "ลาประกอบพิธีฮัจย์ (วันที่ใช้ไปแล้ว)",
           "performHajiBalance",
           "PerformHajiBalance",
           "PERFORMHAJIBALANCE",
@@ -330,6 +340,19 @@ exports.uploadUserExcel = async (req, res) => {
           "ฮัจย์",
         ],
         keywords: ["haji", "ลาไปประกอบพิธีฮัจย์", "พิธีฮัจย์", "ฮัจย์"],
+      },
+      {
+        // "ไปราชการ" — ไม่หักวัน (non-deductible) เก็บเป็นวันที่ใช้ไปแล้ว
+        key: "official",
+        aliases: [
+          "ไปราชการ (วันที่ใช้ไปแล้ว)",
+          "officialBalance",
+          "OfficialBalance",
+          "OFFICIALBALANCE",
+          "ไปราชการคงเหลือ",
+          "ไปราชการ",
+        ],
+        keywords: ["official", "ไปราชการ"],
       },
     ];
 
