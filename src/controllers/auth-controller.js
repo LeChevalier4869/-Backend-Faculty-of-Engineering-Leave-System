@@ -2,6 +2,7 @@ const UserService = require("../services/user-service");
 const AdminService = require("../services/admin-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const AuditLogService = require("../services/auditLog-service");
+const ApproverPositionService = require("../services/approverPosition-service");
 const createError = require("../utils/createError");
 const jwt = require("jsonwebtoken");
 const cloudUpload = require("../utils/cloudUpload");
@@ -244,6 +245,13 @@ exports.getGoogleProfilePicture = async (req, res, next) => {
   }
 };
 
+const FACULTY_LEVEL_BY_ROLE = {
+  APPROVER_2: 2,
+  APPROVER_3: 3,
+  APPROVER_4: 4,
+  APPROVER_5: 5,
+};
+
 exports.updateUserRole = async (req, res, next) => {
   const userId = parseInt(req.params.id);
   const { roleNames, action } = req.body;
@@ -316,6 +324,13 @@ exports.updateUserRole = async (req, res, next) => {
       );
     } else {
       throw createError(400, "Invalid action. Use 'ADD' or 'REMOVE'");
+    }
+
+    // เปลี่ยนผู้ถือบทบาทผู้อนุมัติระดับคณะ → โอนคำขอที่ค้างไปให้ผู้ถือปัจจุบัน
+    // (ไม่งั้นคำขอที่บันทึก approverId เป็นคนเดิมจะหลุดจากคิวของทุกคน)
+    for (const roleName of userRole) {
+      const level = FACULTY_LEVEL_BY_ROLE[roleName];
+      if (level) await ApproverPositionService.reassignPendingSteps(level);
     }
 
     //email — แจ้งผู้ใช้เมื่อบทบาทเปลี่ยน (ใช้ template แบรนด์ของคณะ)

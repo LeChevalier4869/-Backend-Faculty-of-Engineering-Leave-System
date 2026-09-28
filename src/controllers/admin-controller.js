@@ -828,11 +828,15 @@ exports.organizationList = async (req, res, next) => {
 // --------------------
 exports.getAllUsers = async (req, res) => {
   try {
-    const { organizationId, search } = req.query;
+    const { organizationId, departmentId, search } = req.query;
     const where = {};
 
     if (organizationId) {
       where.department = { organizationId: Number(organizationId) };
+    }
+    // กรองเฉพาะสมาชิกของแผนก/สาขา (ใช้กับ dropdown เลือกหัวหน้า)
+    if (departmentId) {
+      where.departmentId = Number(departmentId);
     }
 
     // เพิ่มการค้นหา
@@ -860,6 +864,7 @@ exports.getAllUsers = async (req, res) => {
         lastName: true,
         email: true,
         prefixName: true,
+        departmentId: true,
         department: {
           select: {
             name: true,
@@ -885,6 +890,7 @@ exports.getAllUsers = async (req, res) => {
       prefixName: u.prefixName,
       firstName: u.firstName,
       lastName: u.lastName,
+      departmentId: u.departmentId,
       department: u.department,
       positionNumbers: u.positionNumbers,
     }));

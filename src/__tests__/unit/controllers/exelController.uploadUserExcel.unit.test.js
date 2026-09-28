@@ -318,6 +318,77 @@ describe("exel-controller.uploadUserExcel", () => {
     expect(ordination.usedDays).toBe(7);
   });
 
+  it("maps template balance headers to the correct leave type (study/research/assistWife/official no collision)", async () => {
+    const users = [
+      {
+        prefixName: "นาย",
+        firstName: "A",
+        lastName: "B",
+        email: "a@rmuti.ac.th",
+        phone: "000",
+        position: "P",
+        positionNumber: "ENG-777",
+        hireDate: "01/01/2020",
+        employmentType: "ACADEMIC",
+        departmentName: "D1",
+        personnelTypeName: "PT1",
+        role: "USER",
+        // หัวคอลัมน์ตรงกับ template จริง (ต้อง exact-match กับ alias ใน controller)
+        "ลาป่วย (วันคงเหลือ)": 8,
+        "ลาไปศึกษา (วันคงเหลือ)": 15,
+        "ลาฝึกอบรม/วิจัย/ดูงาน (วันคงเหลือ)": 25,
+        "ลาช่วยเหลือภริยาที่คลอดบุตร (วันคงเหลือ)": 3,
+        "ไปราชการ (วันที่ใช้ไปแล้ว)": 7,
+      },
+    ];
+    const header = [Object.keys(users[0])];
+
+    xlsx.read.mockReturnValue({ SheetNames: ["S"], Sheets: { S: {} } });
+    xlsx.utils.sheet_to_json.mockReturnValueOnce(users).mockReturnValueOnce(header);
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.personnelType.findFirst.mockResolvedValue({ id: 1, name: "PT1" });
+    prisma.department.findFirst.mockResolvedValue({ id: 2, name: "D1" });
+    prisma.user.create.mockResolvedValue({ id: 10, email: "a@rmuti.ac.th" });
+    prisma.role.findMany.mockResolvedValue([{ id: 5, name: "USER" }]);
+    prisma.rank.findMany.mockResolvedValue([
+      { id: 1, minHireMonths: null, maxHireMonths: null, leaveTypeId: 1 },
+      { id: 7, minHireMonths: null, maxHireMonths: null, leaveTypeId: 7 },
+      { id: 14, minHireMonths: null, maxHireMonths: null, leaveTypeId: 14 },
+      { id: 8, minHireMonths: null, maxHireMonths: null, leaveTypeId: 8 },
+      { id: 15, minHireMonths: null, maxHireMonths: null, leaveTypeId: 15 },
+    ]);
+    prisma.setting.findUnique.mockResolvedValue({ value: "2026" });
+    prisma.userRank.findMany.mockResolvedValue([
+      { rank: { leaveTypeId: 1, maxDays: 10, receiveDays: 10, isBalance: false, leaveType: { name: "ลาป่วย", isNonDeductible: false } } },
+      { rank: { leaveTypeId: 7, maxDays: 20, receiveDays: 20, isBalance: false, leaveType: { name: "ลาไปศึกษา", isNonDeductible: false } } },
+      { rank: { leaveTypeId: 14, maxDays: 30, receiveDays: 30, isBalance: false, leaveType: { name: "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน", isNonDeductible: false } } },
+      { rank: { leaveTypeId: 8, maxDays: 15, receiveDays: 15, isBalance: false, leaveType: { name: "ลาไปช่วยเหลือภริยาที่คลอดบุตร", isNonDeductible: false } } },
+      { rank: { leaveTypeId: 15, maxDays: 0, receiveDays: 0, isBalance: true, leaveType: { name: "ไปราชการ", isNonDeductible: true } } },
+    ]);
+
+    const req = makeReq();
+    const res = makeRes();
+
+    await exelController.uploadUserExcel(req, res);
+
+    const byType = {};
+    for (const call of prisma.leaveBalance.create.mock.calls) {
+      byType[call[0].data.leaveTypeId] = call[0].data;
+    }
+
+    // ลาป่วย (control): คงเหลือ 8 -> used 2
+    expect(byType[1]).toMatchObject({ maxDays: 10, remainingDays: 8, usedDays: 2 });
+    // ลาไปศึกษา (study) ต้องอ่านค่า 15 ของตัวเอง ไม่ใช่ 25 ของ research
+    expect(byType[7]).toMatchObject({ maxDays: 20, remainingDays: 15, usedDays: 5 });
+    // research ต้องอ่านค่า 25 ของตัวเอง ไม่ใช่ 15 ของ study
+    expect(byType[14]).toMatchObject({ maxDays: 30, remainingDays: 25, usedDays: 5 });
+    // ช่วยเหลือภริยา (assistWife) ต้องอ่านค่า 3 ของตัวเอง ไม่ถูกจับเป็นลาคลอด
+    expect(byType[8]).toMatchObject({ maxDays: 15, remainingDays: 3, usedDays: 12 });
+    // ไปราชการ (non-deductible) เก็บเป็น usedDays = 7
+    expect(byType[15]).toMatchObject({ maxDays: 0, remainingDays: 0, usedDays: 7 });
+  });
+
   it("matches department leniently when exact name not found (unambiguous contains)", async () => {
     const users = [
       {

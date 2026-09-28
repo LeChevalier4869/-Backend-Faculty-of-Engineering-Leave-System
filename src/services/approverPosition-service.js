@@ -17,6 +17,9 @@ const FACULTY_LEVELS = {
   5: { roleName: "APPROVER_5", label: "คณบดี" },
 };
 
+// ระดับผู้อนุมัติ -> stepOrder ของ LeaveRequestDetail
+const STEP_BY_LEVEL = { 2: 2, 3: 4, 4: 5, 5: 6 };
+
 const USER_PICK = {
   id: true,
   prefixName: true,
@@ -171,8 +174,55 @@ class ApproverPositionService {
         skipDuplicates: true,
       });
 
-      return { position, roleName, label };
+      const transferred = await this.reassignPendingSteps(level, tx);
+
+      return { position, roleName, label, transferred };
     });
+  }
+
+  /**
+   * โอนคำขอที่ค้างอยู่ขั้นของระดับนี้ ไปให้ผู้ถือบทบาทปัจจุบัน
+   *
+   * คิวอนุมัติกรองด้วย "approverId ที่บันทึกไว้ ∈ ผู้ถือบทบาทตอนนี้" เมื่อเปลี่ยนตัวผู้ดำรงตำแหน่ง
+   * คำขอที่บันทึก approverId เป็นคนเดิมจึงหลุดคิวทั้งของคนเดิม (ถูกถอด role) และคนใหม่
+   * — แบบเดียวกับที่ assignHead ทำกับขั้นหัวหน้าสาขา
+   * ไม่ตัดผู้ยื่นออก (สอดคล้องกับ pickNextApprover: แต่ละบทบาทมีผู้ถือคนเดียว)
+   */
+  static async reassignPendingSteps(level, client = prisma) {
+    const meta = FACULTY_LEVELS[level];
+    const stepOrder = STEP_BY_LEVEL[level];
+    if (!meta || !stepOrder) return 0;
+
+    const holders = await client.userRole.findMany({
+      where: { role: { name: meta.roleName } },
+      select: { userId: true },
+      orderBy: { id: "asc" },
+    });
+    // ไม่มีผู้ดำรงตำแหน่ง — ปล่อยไว้ รอแต่งตั้งคนใหม่แล้วค่อยโอน
+    if (!holders.length) return 0;
+
+    const holderIds = holders.map((h) => h.userId);
+    const targetId = holderIds[0];
+
+    const moved = await client.leaveRequestDetail.updateMany({
+      where: {
+        stepOrder,
+        status: "PENDING",
+        approverId: { notIn: holderIds },
+        leaveRequest: { status: "PENDING" },
+      },
+      data: { approverId: targetId },
+    });
+
+    // ผู้ตรวจสอบที่แสดงบนใบลา (verifierId) ให้ตรงกับผู้ถือบทบาทปัจจุบันด้วย
+    if (level === 2) {
+      await client.leaveRequest.updateMany({
+        where: { status: "PENDING", verifierId: { notIn: holderIds } },
+        data: { verifierId: targetId },
+      });
+    }
+
+    return moved.count;
   }
 
   /** ปลดผู้ดำรงตำแหน่งระดับที่ระบุ (ไม่มีผู้รับผิดชอบ) */
