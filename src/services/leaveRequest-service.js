@@ -12,6 +12,14 @@ const {
   isFemaleOnlyLeave,
 } = require("../utils/leaveGenderPolicy");
 
+// ผู้บันทึกใบลาแทนเจ้าของ (แอดมิน) — null = เจ้าของยื่นเอง
+const CREATED_BY_SELECT = {
+  id: true,
+  prefixName: true,
+  firstName: true,
+  lastName: true,
+};
+
 class LeaveRequestService {
   // ────────────────────────────────────────────────────────────────
   // 🔧 HELPER FUNCTIONS
@@ -114,7 +122,12 @@ class LeaveRequestService {
 
     // เลือกผู้ตรวจสอบคนอื่นก่อน แต่ถ้าไม่มี ให้ใช้ผู้ยื่นเองได้
     // (ระบบมีผู้ตรวจสอบคนเดียว ถ้าปล่อยว่างใบลาจะไม่ได้เลขที่)
-    const verifier = verifiers.find((v) => v.id !== userId) || verifiers[0];
+    // เลือกผู้ถือบทบาทจริงก่อนผู้รับมอบอำนาจ (proxy) — ถ้าบันทึกเป็น proxy
+    // พอหมดช่วงมอบอำนาจ คำขอจะหลุดจากคิวของทุกคน
+    const verifier =
+      verifiers.find((v) => !v.isProxy && v.id !== userId) ||
+      verifiers.find((v) => v.id !== userId) ||
+      verifiers[0];
 
     // สร้าง leaveRequest
     let leaveRequest;
@@ -346,6 +359,7 @@ class LeaveRequestService {
           },
         },
         leaveType: true,
+        createdBy: { select: CREATED_BY_SELECT },
         leaveRequestDetails: {
           include: {
             approver: {
@@ -377,6 +391,7 @@ class LeaveRequestService {
           },
         },
         leaveType: true,
+        createdBy: { select: CREATED_BY_SELECT },
         leaveRequestDetails: true,
         files: true,
       },
@@ -444,6 +459,7 @@ class LeaveRequestService {
           },
         },
         leaveType: true,
+        createdBy: { select: CREATED_BY_SELECT },
         files: true,
       },
     });
@@ -781,6 +797,7 @@ class LeaveRequestService {
           },
         },
         leaveType: true,
+        createdBy: { select: CREATED_BY_SELECT },
       },
       orderBy: { createdAt: "desc" },
     });

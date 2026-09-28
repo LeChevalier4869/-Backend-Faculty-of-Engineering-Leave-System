@@ -285,6 +285,7 @@ class AdminService {
           balanceDays: eligibility.balance?.remainingDays ?? 0,
           documentNumber: docNo,
           documentIssuedDate: issuedAt,
+          createdById: adminId ? Number(adminId) : null,
         },
       });
 

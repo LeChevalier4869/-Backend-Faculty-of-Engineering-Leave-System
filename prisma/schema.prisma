@@ -29,6 +29,7 @@ model User {
   leaveBalances           LeaveBalance[]
   LeaveRequest            LeaveRequest[]
   leaveRequestsAsVerifier LeaveRequest[]       @relation("LeaveRequestVerifier")
+  leaveRequestsCreated    LeaveRequest[]       @relation("LeaveRequestCreatedBy")
   leaveRequestDetails     LeaveRequestDetail[]
   notifications           Notification[]
   originalApproverProxies ProxyApproval[]      @relation("OriginalApproverProxy")
@@ -243,15 +244,19 @@ model LeaveRequest {
   documentIssuedDate  DateTime?
   contact             String?
   verifierId          Int?
+  // ผู้บันทึกใบลาลงระบบแทนเจ้าของ (แอดมิน) — null = เจ้าของยื่นเอง
+  createdById         Int?
   files               File[]
   leaveType           LeaveType            @relation(fields: [leaveTypeId], references: [id])
   user                User                 @relation(fields: [userId], references: [id])
   verifier            User?                @relation("LeaveRequestVerifier", fields: [verifierId], references: [id])
+  createdBy           User?                @relation("LeaveRequestCreatedBy", fields: [createdById], references: [id])
   leaveRequestDetails LeaveRequestDetail[]
 
   @@index([leaveTypeId], map: "leave_request_leaveTypeId_fkey")
   @@index([userId], map: "leave_request_userId_fkey")
   @@index([verifierId], map: "leave_request_verifierId_fkey")
+  @@index([createdById], map: "leave_request_createdById_fkey")
   @@map("leave_request")
 }
 
