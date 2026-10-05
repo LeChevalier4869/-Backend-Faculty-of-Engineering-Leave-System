@@ -525,114 +525,156 @@ class ReportService {
   }
 
   static async getReportDataForMonth(organizationId, month, year) {
-    const referenceDate = new Date(year, month - 1, 1);
-    const startDateMonth = startOfMonth(referenceDate);
-    const endDateMonth = endOfMonth(referenceDate);
-    const daysInMonth = getDaysInMonth(referenceDate);
+  const referenceDate = new Date(year, month - 1, 1);
+  const startDateMonth = startOfMonth(referenceDate);
+  const endDateMonth = endOfMonth(referenceDate);
+  const daysInMonth = getDaysInMonth(referenceDate);
 
-    const personnelTypes = await prisma.personnelType.findMany({
-      select: { id: true, name: true },
-    });
-
-    const users = await prisma.user.findMany({
-      where: {
-        department: { organizationId: Number(organizationId) },
+  // 1. ดึงวันหยุดนักขัตฤกษ์จากตาราง Holiday ของเดือนและปีนี้
+  const holidays = await prisma.holiday.findMany({
+    where: {
+      date: {
+        gte: startDateMonth,
+        lte: endDateMonth,
       },
-      select: {
-        id: true,
-        prefixName: true,
-        firstName: true,
-        lastName: true,
-        personnelType: { select: { name: true } },
-        LeaveRequest: {
-          where: {
-            status: "APPROVED",
-            startDate: { lte: endDateMonth },
-            endDate: { gte: startDateMonth },
-          },
-          select: {
-            leaveTypeId: true,
-            startDate: true,
-            endDate: true,
-          },
+    },
+    select: {
+      date: true,
+      description: true,
+    },
+  });
+
+
+  // แปลงวันที่วันหยุดเป็น Set ของ day (1-31) เพื่อการค้นหาที่รวดเร็ว (O(1))
+  const holidayDays = new Set(
+    holidays.map((h) => new Date(h.date).getDate())
+  );
+
+  console.log(holidayDays)
+  // 2. คำนวณ cutoff day สำหรับกรณีที่เป็นเดือนปัจจุบัน
+  const now = new Date();
+  const isCurrentMonthAndYear =
+    now.getFullYear() === Number(year) && now.getMonth() + 1 === Number(month);
+  
+  // นับถึงแค่วันก่อนปัจจุบัน (เช่น วันนี้วันที่ 5 ก็นับถึงวันที่ 4)
+  const maxDayToCount = isCurrentMonthAndYear ? now.getDate() - 1 : daysInMonth;
+
+  // 3. ดึงประเภทบุคลากร
+  const personnelTypes = await prisma.personnelType.findMany({
+    select: { id: true, name: true },
+  });
+
+  // 4. ดึงข้อมูล User และใบลาที่ APPROVED ในช่วงเดือนนี้
+  const users = await prisma.user.findMany({
+    where: {
+      department: { organizationId: Number(organizationId) },
+    },
+    select: {
+      id: true,
+      prefixName: true,
+      firstName: true,
+      lastName: true,
+      personnelType: { select: { name: true } },
+      LeaveRequest: {
+        where: {
+          status: "APPROVED",
+          startDate: { lte: endDateMonth },
+          endDate: { gte: startDateMonth },
+        },
+        select: {
+          leaveTypeId: true,
+          startDate: true,
+          endDate: true,
         },
       },
-    });
+    },
+  });
 
-    const grouped = {};
-    personnelTypes.forEach((pt) => {
-      grouped[pt.name] = [];
-    });
+  const grouped = {};
+  personnelTypes.forEach((pt) => {
+    grouped[pt.name] = [];
+  });
 
-    const allDays = eachDayOfInterval({
-      start: startDateMonth,
-      end: endDateMonth,
-    });
+  const allDays = eachDayOfInterval({
+    start: startDateMonth,
+    end: endDateMonth,
+  });
 
-    const LEAVE_KEY = {
-      1: "SICK", // ลาป่วย
-      2: "MATERNITY", // ลาคลอดบุตร
-      3: "PERSONAL", // ลากิจส่วนตัว
-      4: "ANNUAL", // ลาพักผ่อน
-      5: "ORDINATION", // ลาอุปสมบท
-      6: "MILITARY", // ลาเข้ารับการตรวจเลือกเข้ารับการเตรียมพล
-      7: "STUDY", // ลาไปศึกษา
-      8: "PATERNITY", // ลาไปช่วยเหลือภริยาที่คลอดบุตร
-      9: "REHABILITATION", // ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ
-      10: "DHARMA", // ลาไปถือศีล ปฏิบัติธรรม (สตรี)
-      11: "INTERNATIONAL_WORK", // ลาไปปฏิบัติงานในองค์การระหว่างประเทศ
-      12: "FOLLOW_SPOUSE", // ลาติดตามคู่สมรส
-      13: "HAJJ", // ลาไปประกอบพิธีฮัจย์
-      14: "TRAINING_RESEARCH", // ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน
-      15: "OFFICIAL_DUTY", // ไปราชการ
-    };
+  const LEAVE_KEY = {
+    1: "SICK",
+    2: "MATERNITY",
+    3: "PERSONAL",
+    4: "ANNUAL",
+    5: "ORDINATION",
+    6: "MILITARY",
+    7: "STUDY",
+    8: "PATERNITY",
+    9: "REHABILITATION",
+    10: "DHARMA",
+    11: "INTERNATIONAL_WORK",
+    12: "FOLLOW_SPOUSE",
+    13: "HAJJ",
+    14: "TRAINING_RESEARCH",
+    15: "OFFICIAL_DUTY",
+  };
 
-    // ประเภทการลาที่เพิ่มภายหลัง (id ไม่คงที่ข้ามฐานข้อมูล) — ผูก id จากชื่อเพื่อกันความคลาดเคลื่อน
-    const EXTRA_KEY_BY_NAME = {
-      "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน": "TRAINING",
-      ไปราชการ: "OFFICIAL_DUTY",
-    };
-    const extraLeaveTypes = await prisma.leaveType.findMany({
-      where: { name: { in: Object.keys(EXTRA_KEY_BY_NAME) } },
-      select: { id: true, name: true },
-    });
-    for (const lt of extraLeaveTypes) {
-      const key = EXTRA_KEY_BY_NAME[String(lt.name || "").trim()];
-      if (key) LEAVE_KEY[lt.id] = key;
-    }
+  const EXTRA_KEY_BY_NAME = {
+    "ลาไปฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน": "TRAINING",
+    ไปราชการ: "OFFICIAL_DUTY",
+  };
+  
+  const extraLeaveTypes = await prisma.leaveType.findMany({
+    where: { name: { in: Object.keys(EXTRA_KEY_BY_NAME) } },
+    select: { id: true, name: true },
+  });
+  
+  for (const lt of extraLeaveTypes) {
+    const key = EXTRA_KEY_BY_NAME[String(lt.name || "").trim()];
+    if (key) LEAVE_KEY[lt.id] = key;
+  }
 
-    users.forEach((user) => {
-      const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
-      const attendance = {};
-      let actualWorkDaysCount = 0;
+  // 5. วนลูปประมวลผลแต่ละ User
+  users.forEach((user) => {
+    const typeName = user.personnelType?.name || "ไม่ระบุประเภท";
+    const attendance = {};
+    let actualWorkDaysCount = 0;
 
-      allDays.forEach((date) => {
-        const dayKey = date.getDate();
-        const isDayWeekend = isWeekend(date);
+    allDays.forEach((date) => {
+      const dayKey = date.getDate();
+      const isDayWeekend = isWeekend(date);
+      const isHoliday = holidayDays.has(dayKey); // เช็คว่าเป็นวันหยุดนักขัตฤกษ์หรือไม่
 
-        const matchLeave = user.LeaveRequest.find((lr) =>
-          isWithinInterval(date, {
-            start: new Date(lr.startDate).setHours(0, 0, 0, 0),
-            end: new Date(lr.endDate).setHours(23, 59, 59, 999),
-          }),
-        );
+      const matchLeave = user.LeaveRequest.find((lr) =>
+        isWithinInterval(date, {
+          start: new Date(lr.startDate).setHours(0, 0, 0, 0),
+          end: new Date(lr.endDate).setHours(23, 59, 59, 999),
+        })
+      );
 
-        if (matchLeave) {
-          attendance[dayKey] = LEAVE_KEY[matchLeave.leaveTypeId] ?? "UNKNOWN";
-        } else if (!isDayWeekend) {
+      // ถ้าเป็นวันลา ให้ลงสัญลักษณ์การลา
+      if (matchLeave) {
+        attendance[dayKey] = LEAVE_KEY[matchLeave.leaveTypeId] ?? "UNKNOWN";
+      } else if (isHoliday) {
+        // หากต้องการระบุคีย์วันหยุดนักขัตฤกษ์ไว้ใน attendance (หรือจะเว้นว่างไว้ก็ได้)
+        attendance[dayKey] = "HOLIDAY";
+      } else if (!isDayWeekend) {
+        // ถ้าไม่ใช่วันลา, ไม่ใช่วันหยุดนักขัตฤกษ์ และไม่ใช่วันเสาร์-อาทิตย์
+        // และเป็นวันที่ก่อนวันปัจจุบัน (เมื่อเลือกเดือนปัจจุบัน)
+        if (dayKey <= maxDayToCount) {
           actualWorkDaysCount++;
         }
-      });
-
-      grouped[typeName].push({
-        userId: user.id,
-        name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`,
-        attendance,
-        totalWorkDays: actualWorkDaysCount,
-      });
+      }
     });
 
-    return { organizationId, month, year, daysInMonth, report: grouped };
-  }
+    grouped[typeName].push({
+      userId: user.id,
+      name: `${user.prefixName ?? ""}${user.firstName} ${user.lastName}`,
+      attendance,
+      totalWorkDays: actualWorkDaysCount,
+    });
+  });
+
+  return { organizationId, month, year, daysInMonth,holidays, report: grouped };
+}
 }
 module.exports = ReportService;
