@@ -825,26 +825,48 @@ function monthlyPdfTable(users, daysInMonth, month, year) {
     {},
   ];
 
+  // เช็คว่าเป็นวันที่ก่อนวันปัจจุบันหรือไม่ (ย้อนหลังเท่านั้น ไม่รวมวันนี้)
+  const isBeforeToday = (y, m /* 1-12 */, day) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetDate = new Date(
+      Number(y),
+      Number(m) - 1,
+      Number(day),
+      0,
+      0,
+      0,
+      0,
+    );
+    return targetDate < today; // ใช้ < เพื่อไม่นับรวมวันนี้
+  };
   const body = [headerRow1, headerRow2];
   users.forEach((u, idx) => {
     const row = [
       { text: String(idx + 1), alignment: "center" },
-      { text: u.name, alignment: "left", noWrap: false },
+      { text: u.name || "", alignment: "left", noWrap: false },
     ];
+
+    let calculatedWorkDays = 0; // ตัวนับวันมาทำงานจริง
+
     for (let d = 1; d <= daysInMonth; d++) {
       const key = u.attendance?.[d];
       const info = key ? ATTENDANCE[key] : null;
       const weekend = isWeekendDate(year, month, d);
       let text = "";
       let fill = null;
+
       if (info) {
         text = info.t;
         fill = info.c;
       } else if (weekend) {
         fill = "#d9d9d9";
-      } else if (!isFutureDate(year, month, d)) {
-        text = DAY_PRESENT; // มาทำงาน — เฉพาะวันที่ถึงวันนี้ (อนาคตเว้นว่าง)
+      } else if (isBeforeToday(year, month, d)) {
+        // 👈 แสดง / ถึงแค่วันก่อนปัจจุบัน
+        text = DAY_PRESENT;
+        calculatedWorkDays++; // 👈 นับเฉพาะวันที่ได้ / (วันทำงานปกติก่อนวันนี้)
       }
+
       row.push({
         text,
         alignment: "center",
@@ -853,7 +875,9 @@ function monthlyPdfTable(users, daysInMonth, month, year) {
         bold: !!info,
       });
     }
-    row.push({ text: String(u.totalWorkDays ?? ""), alignment: "center" });
+
+    // แสดงผลรวมวันทำงานที่คำนวณได้
+    row.push({ text: String(calculatedWorkDays), alignment: "center" });
     row.push({ text: "", alignment: "left" });
     body.push(row);
   });
@@ -1064,7 +1088,21 @@ function monthlyWordTables(users, daysInMonth, month, year) {
   const MAX_ROWS_PER_PAGE = 20;
 
   const out = [];
-
+  // เช็คว่าเป็นวันที่ก่อนวันปัจจุบันหรือไม่ (ย้อนหลังเท่านั้น ไม่รวมวันนี้)
+  const isBeforeToday = (y, m /* 1-12 */, day) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetDate = new Date(
+      Number(y),
+      Number(m) - 1,
+      Number(day),
+      0,
+      0,
+      0,
+      0,
+    );
+    return targetDate < today; // ใช้ < เพื่อไม่นับรวมวันนี้
+  };
   for (let p = 0; p * MAX_ROWS_PER_PAGE < users.length; p++) {
     const chunk = users.slice(
       p * MAX_ROWS_PER_PAGE,
@@ -1075,48 +1113,34 @@ function monthlyWordTables(users, daysInMonth, month, year) {
 
     chunk.forEach((u, idx) => {
       const dayCells = [];
+      let calculatedWorkDays = 0; // ตัวนับวันมาทำงานจริง
 
       for (let d = 1; d <= daysInMonth; d++) {
         const key = u.attendance?.[d];
         const info = key ? ATTENDANCE[key] : null;
-
         const weekend = isWeekendDate(year, month, d);
 
-        const present = !info && !weekend && !isFutureDate(year, month, d);
+        // 👈 เช็คว่าเป็นวันก่อนปัจจุบันหรือไม่
+        const present = !info && !weekend && isBeforeToday(year, month, d);
+
+        if (present) {
+          calculatedWorkDays++; // 👈 นับเพิ่มเฉพาะวันที่ได้ /
+        }
 
         const text = info ? info.t : present ? DAY_PRESENT : "";
-
         const fill = info ? info.c.replace("#", "") : weekend ? "D9D9D9" : null;
 
-        dayCells.push(
-          wCell(text, {
-            fillColor: fill,
-            margins: dayMargins,
-          }),
-        );
+        dayCells.push(wCell(text, { fillColor: fill, margins: dayMargins }));
       }
 
       rows.push(
         new TableRow({
           children: [
-            wCell(p * MAX_ROWS_PER_PAGE + idx + 1, {
-              margins: compactMargins,
-            }),
-
-            wCell(u.name, {
-              alignment: "left",
-              margins: compactMargins,
-            }),
-
+            wCell(p * MAX_ROWS_PER_PAGE + idx + 1, { margins: compactMargins }),
+            wCell(u.name || "", { alignment: "left", margins: compactMargins }),
             ...dayCells,
-
-            wCell(String(u.totalWorkDays ?? ""), {
-              margins: compactMargins,
-            }),
-
-            wCell("", {
-              margins: compactMargins,
-            }),
+            wCell(String(calculatedWorkDays), { margins: compactMargins }), // 👈 ใส่ผลรวมวันมาทำงานจริง
+            wCell("", { margins: compactMargins }),
           ],
         }),
       );
