@@ -4,8 +4,8 @@
 function normalizeSex(sex) {
   const s = String(sex || "").trim();
   if (!s) return "";
-  if (s === "ชาย" || s.toUpperCase() === "MALE") return "MALE";
-  if (s === "หญิง" || s.toUpperCase() === "FEMALE") return "FEMALE";
+  if (s === "ชาย" || ["M", "MALE"].includes(s.toUpperCase())) return "MALE";
+  if (s === "หญิง" || ["F", "FEMALE"].includes(s.toUpperCase())) return "FEMALE";
   return s.toUpperCase();
 }
 
