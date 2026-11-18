@@ -10,8 +10,12 @@ describe("normalizeSex", () => {
   it("แปลงไทย/อังกฤษ → MALE/FEMALE", () => {
     expect(normalizeSex("ชาย")).toBe("MALE");
     expect(normalizeSex("MALE")).toBe("MALE");
+    expect(normalizeSex("M")).toBe("MALE");
+    expect(normalizeSex("m")).toBe("MALE");
     expect(normalizeSex("หญิง")).toBe("FEMALE");
     expect(normalizeSex("female")).toBe("FEMALE");
+    expect(normalizeSex("F")).toBe("FEMALE");
+    expect(normalizeSex("f")).toBe("FEMALE");
   });
 
   it("ค่าว่าง → ''", () => {
@@ -60,6 +64,7 @@ describe("isSexAllowedForLeaveType", () => {
   it("ชาย ลาคลอด → ไม่อนุญาต", () => {
     expect(isSexAllowedForLeaveType("ชาย", MATERNITY)).toBe(false);
     expect(isSexAllowedForLeaveType("MALE", MATERNITY)).toBe(false);
+    expect(isSexAllowedForLeaveType("M", MATERNITY)).toBe(false);
   });
 
   it("หญิง ลาคลอด → อนุญาต", () => {
@@ -69,6 +74,7 @@ describe("isSexAllowedForLeaveType", () => {
   it("หญิง ลาตรวจเลือกทหาร → ไม่อนุญาต", () => {
     expect(isSexAllowedForLeaveType("หญิง", MILITARY)).toBe(false);
     expect(isSexAllowedForLeaveType("FEMALE", MILITARY)).toBe(false);
+    expect(isSexAllowedForLeaveType("F", MILITARY)).toBe(false);
   });
 
   it("ชาย ลาตรวจเลือกทหาร → อนุญาต", () => {

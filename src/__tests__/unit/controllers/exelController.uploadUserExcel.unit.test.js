@@ -235,6 +235,80 @@ describe("exel-controller.uploadUserExcel", () => {
     expect(second.usedDays).toBe(3);
   });
 
+  it("normalizes M/F eligibility and warns when a deductible balance exceeds entitlement", async () => {
+    const user = {
+      prefixName: "นาย",
+      firstName: "A",
+      lastName: "B",
+      sex: "M",
+      email: "a@rmuti.ac.th",
+      phone: "000",
+      position: "P",
+      positionNumber: "ENG-003",
+      hireDate: "01/01/2025",
+      employmentType: "SUPPORT",
+      departmentName: "D1",
+      personnelTypeName: "PT1",
+      role: "USER",
+      sickBalance: 15,
+      maternityBalance: 15,
+    };
+
+    xlsx.read.mockReturnValue({ SheetNames: ["S"], Sheets: { S: {} } });
+    xlsx.utils.sheet_to_json
+      .mockReturnValueOnce([user])
+      .mockReturnValueOnce([Object.keys(user)]);
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.personnelType.findFirst.mockResolvedValue({ id: 1, name: "PT1" });
+    prisma.department.findFirst.mockResolvedValue({ id: 2, name: "D1" });
+    prisma.user.create.mockResolvedValue({ id: 10, email: user.email });
+    prisma.role.findMany.mockResolvedValue([{ id: 5, name: "USER" }]);
+    prisma.rank.findMany.mockResolvedValue([
+      { id: 100, minHireMonths: null, maxHireMonths: null, leaveTypeId: 1 },
+      { id: 101, minHireMonths: null, maxHireMonths: null, leaveTypeId: 2 },
+    ]);
+    prisma.setting.findUnique.mockResolvedValue({ value: "2026" });
+    prisma.userRank.findMany.mockResolvedValue([
+      {
+        rank: {
+          leaveTypeId: 1,
+          maxDays: 10,
+          receiveDays: 8,
+          isBalance: false,
+          leaveType: { name: "ลาป่วย", isNonDeductible: false },
+        },
+      },
+      {
+        rank: {
+          leaveTypeId: 2,
+          maxDays: 90,
+          receiveDays: 90,
+          isBalance: false,
+          leaveType: { name: "ลาคลอดบุตร", isNonDeductible: false },
+        },
+      },
+    ]);
+
+    const res = makeRes();
+    await exelController.uploadUserExcel(makeReq(), res);
+
+    expect(prisma.leaveBalance.create).toHaveBeenCalledTimes(1);
+    expect(prisma.leaveBalance.create.mock.calls[0][0].data).toMatchObject({
+      leaveTypeId: 1,
+      remainingDays: 8,
+      usedDays: 0,
+    });
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('คอลัมน์ "sickBalance" มีค่า 15 เกินสิทธิ์สูงสุด 10 วัน'),
+      ])
+    );
+    expect(JSON.stringify(payload.createdUsers)).not.toContain("balanceWarnings");
+  });
+
   it("non-deductible leave type stores paper value as usedDays (no deduction)", async () => {
     const users = [
       {

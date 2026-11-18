@@ -4,6 +4,7 @@ const UserService = require("../services/user-service");
 const createError = require("../utils/createError");
 const { sendNotification } = require("../utils/emailService");
 const AuditLogService = require("../services/auditLog-service");
+const { isSexAllowedForLeaveType } = require("../utils/leaveGenderPolicy");
 
 // ---------- ตัวช่วยทำข้อความ error ให้ผู้ import แก้ไฟล์ Excel ได้ง่าย ----------
 // ระยะแก้ไข (Levenshtein) — ใช้แนะนำชื่อที่ใกล้เคียง เช่น ชื่อสาขา/ประเภทบุคคลที่สะกดผิด
@@ -793,6 +794,7 @@ exports.uploadUserExcel = async (req, res) => {
 
       const createdBalances = [];
       const skippedBalances = [];
+      const balanceWarnings = [];
       
       if (userRanks.length === 0) {
         return created;
@@ -806,32 +808,11 @@ exports.uploadUserExcel = async (req, res) => {
         // Filter balance by sex - gender-specific leaves
         const leaveTypeName = ur.rank.leaveType?.name || "";
         const userSex = computedSex;
-        
-        // Female-only leaves (only women can take these)
-        const isMaternityLeave = (leaveTypeName.toLowerCase().includes("คลอด") && 
-                                 !leaveTypeName.toLowerCase().includes("ช่วยเหลือภริยา") &&
-                                 !leaveTypeName.toLowerCase().includes("ภริยา")) || 
-                               leaveTypeName.toLowerCase().includes("maternity");
-        const isFemaleOrdination = leaveTypeName.toLowerCase().includes("ถือศีล") ||
-                                  (leaveTypeName.toLowerCase().includes("ปฏิบัติธรรม") &&
-                                   !leaveTypeName.toLowerCase().includes("บวช"));
-        
-        // Skip female-only leaves for male users
-        if (userSex === "ชาย" && (isMaternityLeave || isFemaleOrdination)) {
-          continue;
-        }
-
-        // Male-only leaves (only men can take these) — ลาตรวจเลือก/เตรียมพล (เกณฑ์ทหาร)
-        const isMilitaryLeave =
-          leaveTypeName.includes("ตรวจเลือก") ||
-          leaveTypeName.includes("เตรียมพล");
-        // Skip male-only leaves for female users
-        if (userSex === "หญิง" && isMilitaryLeave) {
-          continue;
-        }
+        if (!isSexAllowedForLeaveType(userSex, leaveTypeName)) continue;
         
         // อ่านค่าจาก paper (optional) ของ leave type นี้ — ใช้ได้ทั้ง deductible/non-deductible
         let paperValue = null;
+        let paperField = null;
         if (balanceMode) {
           const field = cfg.find((f) =>
             f.keywords.some((kw) =>
@@ -840,6 +821,7 @@ exports.uploadUserExcel = async (req, res) => {
           );
 
           if (field) {
+            paperField = field;
             const raw = findValueByAliases(user, field.aliases);
             if (raw !== null && raw !== undefined && raw !== "" && isIntValue(raw)) {
               const v = toInt(raw);
@@ -875,6 +857,14 @@ exports.uploadUserExcel = async (req, res) => {
         if (paperValue !== null && paperValue <= maxDays) {
           remainingDays = paperValue;
           usedDays = maxDays - remainingDays;
+        } else if (paperValue !== null && paperValue > maxDays) {
+          const columnName =
+            paperField?.aliases.find((alias) =>
+              Object.prototype.hasOwnProperty.call(user, alias)
+            ) || paperField?.key || leaveTypeName;
+          balanceWarnings.push(
+            `แถวที่ ${index + 2}: คอลัมน์ "${columnName}" มีค่า ${paperValue} เกินสิทธิ์สูงสุด ${maxDays} วัน — ระบบจะข้ามค่านี้และใช้ค่าเริ่มต้นตามสิทธิ์`
+          );
         }
 
         await tx.leaveBalance.create({
@@ -898,6 +888,7 @@ exports.uploadUserExcel = async (req, res) => {
       // Store balance info for monitoring
       created.createdBalances = createdBalances;
       created.skippedBalances = skippedBalances;
+      created.balanceWarnings = balanceWarnings;
 
       return created;
     };
@@ -911,8 +902,12 @@ exports.uploadUserExcel = async (req, res) => {
           );
           console.log(`✅ Created user: ${created.id} ${created.email}`);
           console.log(`Transaction committed successfully for user: ${created.email}`);
+          importWarnings.push(
+            ...collectBalanceWarnings(user, index),
+            ...(created.balanceWarnings || [])
+          );
+          delete created.balanceWarnings;
           createdUsers.push(created);
-          importWarnings.push(...collectBalanceWarnings(user, index));
         } catch (err) {
           console.error(`Error processing row ${index + 2}:`, err);
           console.error(`Transaction failed for user, rolling back...`);
