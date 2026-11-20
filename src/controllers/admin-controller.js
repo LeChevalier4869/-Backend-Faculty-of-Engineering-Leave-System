@@ -2,6 +2,7 @@ const AdminService = require("../services/admin-service");
 const LeaveRequestService = require("../services/leaveRequest-service");
 const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
+const LeaveBalanceManagementService = require("../services/leaveBalanceManagement-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const createError = require("../utils/createError");
 const { sendNotification } = require("../utils/emailService");
@@ -77,6 +78,74 @@ exports.getLeaveBalancesForUser = async (req, res, next) => {
       message: "ok",
       data: balances,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getLeaveBalanceManagementOptions = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.getOptions();
+    return res.status(200).json({ message: "ok", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getLeaveBalanceManagementUsers = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.getUsers(req.query);
+    return res.status(200).json({ message: "ok", ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.initializeMissingLeaveBalances = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.initializeMissingBalances(
+      req.body?.userIds,
+      {
+        id: req.user.id,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      },
+    );
+    return res.status(200).json({ message: "สร้างยอดวันลาที่ขาดสำเร็จ", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.adjustUserLeaveBalance = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.adjustOne(
+      req.params.id,
+      req.body || {},
+      req.body?.rankId,
+      {
+        id: req.user.id,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      },
+    );
+    return res.status(200).json({ message: "อัปเดตยอดวันลาสำเร็จ", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.adjustMultipleUserLeaveBalances = async (req, res, next) => {
+  try {
+    const actor = {
+      id: req.user.id,
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent"),
+    };
+    const data = Array.isArray(req.body?.changes)
+      ? await LeaveBalanceManagementService.adjustBalances(req.body.changes, actor)
+      : await LeaveBalanceManagementService.adjustMany(req.body || {}, actor);
+    return res.status(200).json({ message: "อัปเดตยอดวันลาสำเร็จ", data });
   } catch (err) {
     next(err);
   }
