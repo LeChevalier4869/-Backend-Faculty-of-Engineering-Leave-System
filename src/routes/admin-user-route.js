@@ -3,6 +3,10 @@ const router = express.Router();
 const adminController = require("../controllers/admin-controller");
 const upload = require("../middlewares/upload");
 
+router.get(
+  "/leave-balance-options",
+  adminController.getLeaveBalanceOptionsForNewUser,
+);
 router.post("/", upload.single("profilePicture"), adminController.createUserByAdmin);
 
 // Position Number Management Routes (ไม่ต้องใส่ /users ซ้ำ)
