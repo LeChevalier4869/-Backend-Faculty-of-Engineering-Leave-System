@@ -58,6 +58,31 @@ router.get(
   authorize(["ADMIN"]),
   adminController.getLeaveBalancesForUser
 );
+router.get(
+  "/leave-balance-management/options",
+  authorize(["ADMIN"]),
+  adminController.getLeaveBalanceManagementOptions,
+);
+router.get(
+  "/leave-balance-management/users",
+  authorize(["ADMIN"]),
+  adminController.getLeaveBalanceManagementUsers,
+);
+router.post(
+  "/leave-balance-management/initialize",
+  authorize(["ADMIN"]),
+  adminController.initializeMissingLeaveBalances,
+);
+router.post(
+  "/leave-balance-management/adjust",
+  authorize(["ADMIN"]),
+  adminController.adjustMultipleUserLeaveBalances,
+);
+router.put(
+  "/leave-balance-management/balances/:id",
+  authorize(["ADMIN"]),
+  adminController.adjustUserLeaveBalance,
+);
 
 //-------------------------------------- holiday -------------------- 
 router.get('/holiday', authorize(["USER", "ADMIN"]), adminController.getHoliday);

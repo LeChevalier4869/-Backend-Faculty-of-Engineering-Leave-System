@@ -2,6 +2,7 @@ const AdminService = require("../services/admin-service");
 const LeaveRequestService = require("../services/leaveRequest-service");
 const LeaveTypeService = require("../services/leaveType-service");
 const LeaveBalanceService = require("../services/leaveBalance-service");
+const LeaveBalanceManagementService = require("../services/leaveBalanceManagement-service");
 const OrgAndDeptService = require("../services/organizationAndDepartment-service");
 const createError = require("../utils/createError");
 const { sendNotification } = require("../utils/emailService");
@@ -14,6 +15,41 @@ const cloudUpload = require("../utils/cloudUpload");
 const prisma = require("../config/prisma");
 const settingService = require("../services/setting-service");
 const { resetLeaveBalance } = require("../utils/resetLeaveBalance");
+
+const parseLeaveBalanceInputs = (rawValue) => {
+  if (rawValue === undefined || rawValue === null || rawValue === "") return {};
+
+  let values = rawValue;
+  if (typeof rawValue === "string") {
+    try {
+      values = JSON.parse(rawValue);
+    } catch {
+      throw createError(400, "ข้อมูลยอดวันลาไม่ถูกต้อง");
+    }
+  }
+
+  if (!values || typeof values !== "object" || Array.isArray(values)) {
+    throw createError(400, "ข้อมูลยอดวันลาต้องเป็นรายการประเภทการลา");
+  }
+
+  const parsed = {};
+  for (const [leaveTypeId, rawDays] of Object.entries(values)) {
+    const id = Number(leaveTypeId);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw createError(400, "รหัสประเภทการลาไม่ถูกต้อง");
+    }
+    if (rawDays === undefined || rawDays === null || String(rawDays).trim() === "") {
+      continue;
+    }
+    const daysText = String(rawDays).trim();
+    const days = Number(daysText);
+    if (!/^\d+$/.test(daysText) || !Number.isSafeInteger(days)) {
+      throw createError(400, "จำนวนวันลาต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");
+    }
+    parsed[String(id)] = days;
+  }
+  return parsed;
+};
 
 exports.adminList = async (req, res, next) => {
   try {
@@ -42,6 +78,98 @@ exports.getLeaveBalancesForUser = async (req, res, next) => {
       message: "ok",
       data: balances,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getLeaveBalanceManagementOptions = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.getOptions();
+    return res.status(200).json({ message: "ok", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getLeaveBalanceManagementUsers = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.getUsers(req.query);
+    return res.status(200).json({ message: "ok", ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.initializeMissingLeaveBalances = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.initializeMissingBalances(
+      req.body?.userIds,
+      {
+        id: req.user.id,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      },
+    );
+    return res.status(200).json({ message: "สร้างยอดวันลาที่ขาดสำเร็จ", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.adjustUserLeaveBalance = async (req, res, next) => {
+  try {
+    const data = await LeaveBalanceManagementService.adjustOne(
+      req.params.id,
+      req.body || {},
+      req.body?.rankId,
+      {
+        id: req.user.id,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      },
+    );
+    return res.status(200).json({ message: "อัปเดตยอดวันลาสำเร็จ", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.adjustMultipleUserLeaveBalances = async (req, res, next) => {
+  try {
+    const actor = {
+      id: req.user.id,
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent"),
+    };
+    const data = Array.isArray(req.body?.changes)
+      ? await LeaveBalanceManagementService.adjustBalances(req.body.changes, actor)
+      : await LeaveBalanceManagementService.adjustMany(req.body || {}, actor);
+    return res.status(200).json({ message: "อัปเดตยอดวันลาสำเร็จ", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getLeaveBalanceOptionsForNewUser = async (req, res, next) => {
+  try {
+    const personnelTypeId = Number(req.query.personnelTypeId);
+    const hireDate = new Date(req.query.hireDate);
+    const sex = String(req.query.sex || "").trim();
+    if (!Number.isSafeInteger(personnelTypeId) || personnelTypeId <= 0) {
+      throw createError(400, "ประเภทบุคลากรไม่ถูกต้อง");
+    }
+    if (!req.query.hireDate || Number.isNaN(hireDate.getTime())) {
+      throw createError(400, "วันที่เริ่มงานไม่ถูกต้อง");
+    }
+    if (!sex) throw createError(400, "กรุณาระบุเพศ");
+
+    const data = await UserService.getLeaveBalanceOptions(
+      personnelTypeId,
+      hireDate,
+      sex,
+    );
+    return res.status(200).json({ message: "ok", data });
   } catch (err) {
     next(err);
   }
@@ -932,7 +1060,10 @@ exports.createUserByAdmin = async (req, res, next) => {
       employmentType,
       personnelTypeId,
       departmentId,
+      leaveBalances: rawLeaveBalances,
     } = req.body;
+
+    const leaveBalanceInputs = parseLeaveBalanceInputs(rawLeaveBalances);
 
     // ✅ Validation
     if (!email || !firstName || !lastName) {
@@ -1003,7 +1134,11 @@ exports.createUserByAdmin = async (req, res, next) => {
     );
 
     // ✅ gen leave balance ตาม rank ที่ได้ (กรองสิทธิ์ลาเฉพาะเพศตาม normalizedSex)
-    await UserService.assignLeaveBalanceFromRanks(user.id, normalizedSex);
+    const balanceWarnings = await UserService.assignLeaveBalanceFromRanks(
+      user.id,
+      normalizedSex,
+      leaveBalanceInputs,
+    );
 
     // ✅ กำหนดเลขที่ตำแหน่ง (รองรับย้ายเลขจากคนเดิม) ภายใน transaction
     await prisma.$transaction(async (tx) =>
@@ -1043,7 +1178,7 @@ exports.createUserByAdmin = async (req, res, next) => {
 
     return res
       .status(201)
-      .json({ message: "สร้างผู้ใช้สำเร็จ", data: user });
+      .json({ message: "สร้างผู้ใช้สำเร็จ", data: user, warnings: balanceWarnings });
   } catch (err) {
     next(err);
   }

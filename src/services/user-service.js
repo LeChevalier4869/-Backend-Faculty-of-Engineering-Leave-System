@@ -42,7 +42,11 @@ class UserService {
           },
         },
         personnelType: true,
-        department: true,
+        department: {
+          include: {
+            organization: true,
+          },
+        },
         leaveBalances: {
           include: { leaveType: true },
           orderBy: [{ year: "desc" }, { leaveTypeId: "asc" }],
@@ -728,7 +732,49 @@ class UserService {
     return isMaternity || isFemaleOrdination;
   }
 
-  static async assignLeaveBalanceFromRanks(userId, sex = null) {
+  static async getLeaveBalanceOptions(personnelTypeId, hireDate, sex) {
+    const currentDate = new Date();
+    const hireMonths =
+      (currentDate.getFullYear() - hireDate.getFullYear()) * 12 +
+      (currentDate.getMonth() - hireDate.getMonth());
+    const ranks = await prisma.rank.findMany({
+      where: { personnelTypeId: Number(personnelTypeId) },
+      include: { leaveType: true },
+    });
+
+    return ranks
+      .filter((rank) => {
+        const minPass =
+          rank.minHireMonths === null || hireMonths >= rank.minHireMonths;
+        const maxPass =
+          rank.maxHireMonths === null || hireMonths <= rank.maxHireMonths;
+        return (
+          minPass &&
+          maxPass &&
+          rank.leaveTypeId !== null &&
+          rank.maxDays !== null &&
+          isSexAllowedForLeaveType(sex, rank.leaveType?.name)
+        );
+      })
+      .map((rank) => ({
+        leaveTypeId: rank.leaveTypeId,
+        name: rank.leaveType?.name || "",
+        maxDays: rank.maxDays,
+        receiveDays: rank.receiveDays,
+        defaultDays:
+          rank.leaveType?.isNonDeductible === true
+            ? 0
+            : rank.receiveDays ?? rank.maxDays,
+        isNonDeductible: rank.leaveType?.isNonDeductible === true,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "th"));
+  }
+
+  static async assignLeaveBalanceFromRanks(
+    userId,
+    sex = null,
+    leaveBalanceInputs = {},
+  ) {
     const fiscalYearSetting = await prisma.setting.findUnique({
       where: { key: "fiscalYear" },
     });
@@ -743,6 +789,7 @@ class UserService {
       },
     });
 
+    const warnings = [];
     for (const userRank of userRanks) {
       const { leaveTypeId, maxDays, receiveDays } = userRank.rank;
 
@@ -756,30 +803,53 @@ class UserService {
 
       // ใช้เกณฑ์เดียวกับ import excel: leaveType.isNonDeductible
       const isNonDeductible = userRank.rank.leaveType?.isNonDeductible === true;
+      const inputValue = leaveBalanceInputs?.[String(leaveTypeId)];
+      const hasInput = inputValue !== undefined && inputValue !== null && inputValue !== "";
+      const paperValue = hasInput ? Number(inputValue) : null;
+
+      if (
+        hasInput &&
+        (!Number.isSafeInteger(paperValue) || paperValue < 0)
+      ) {
+        throw createError(
+          400,
+          `จำนวนวันลาของ "${userRank.rank.leaveType?.name || "ประเภทการลา"}" ต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป`,
+        );
+      }
 
       let balanceData;
       if (isNonDeductible) {
-        // ประเภทไม่หักวัน: เก็บแค่ usedDays (ผู้ใช้ใหม่ยังไม่เคยใช้ = 0)
+        // ประเภทไม่หักวัน: เก็บจำนวนวันที่ใช้ไปแล้วใน usedDays
         balanceData = {
           userId,
           leaveTypeId,
           maxDays: 0,
-          usedDays: 0,
+          usedDays: paperValue ?? 0,
           pendingDays: 0,
           remainingDays: 0,
           year: yearValue,
         };
       } else {
-        // ประเภทหักวัน: ผู้ใช้ใหม่ได้สิทธิ์ปัจจุบัน = receiveDays, ยังไม่ใช้ = 0
-        const remaining =
+        // เว้นว่างใช้สิทธิ์ตั้งต้น; ระบุค่าเป็นวันคงเหลือและคำนวณ usedDays จาก maxDays
+        let remainingDays =
           receiveDays !== null && receiveDays !== undefined ? receiveDays : maxDays;
+        let usedDays = 0;
+        if (paperValue !== null && paperValue <= maxDays) {
+          remainingDays = paperValue;
+          usedDays = maxDays - remainingDays;
+        } else if (paperValue !== null && paperValue > maxDays) {
+          warnings.push(
+            `ประเภทการลา "${userRank.rank.leaveType?.name || leaveTypeId}": ยอดคงเหลือ ${paperValue} วันเกินสิทธิ์สูงสุด ${maxDays} วัน ระบบใช้ค่าเริ่มต้นตามสิทธิ์แทน`,
+          );
+        }
+
         balanceData = {
           userId,
           leaveTypeId,
           maxDays,
-          usedDays: 0,
+          usedDays,
           pendingDays: 0,
-          remainingDays: remaining,
+          remainingDays,
           year: yearValue,
         };
       }
@@ -788,6 +858,7 @@ class UserService {
         data: balanceData,
       });
     }
+    return warnings;
   }
 
   static async assignLeaveBalanceFromRanksForReset(userId, carryOverDays) {
